@@ -111,7 +111,7 @@ func parseButtons(buttons [][]Button, vars map[string]string) [][]Button {
 	return parsed
 }
 
-func buildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
+func BuildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
 	if len(buttons) == 0 {
 		return nil
 	}
@@ -147,7 +147,7 @@ func GetMessage(name string, vars map[string]string) (string, *models.InlineKeyb
 	}
 
 	buttons := parseButtons(msg.Buttons, vars)
-	keyboard := buildInlineKeyboard(buttons)
+	keyboard := BuildInlineKeyboard(buttons)
 
 	return text, keyboard
 }

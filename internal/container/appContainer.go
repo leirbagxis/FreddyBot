@@ -9,6 +9,7 @@ type AppContainer struct {
 	DB          *gorm.DB
 	UserRepo    *repositories.UserRepository
 	ChannelRepo *repositories.ChannelRepository
+	ButtonRepo  *repositories.ButtonRepository
 }
 
 func NewAppContainer(db *gorm.DB) *AppContainer {
@@ -16,5 +17,6 @@ func NewAppContainer(db *gorm.DB) *AppContainer {
 		DB:          db,
 		UserRepo:    repositories.NewUserRepository(db),
 		ChannelRepo: repositories.NewChannelRepository(db),
+		ButtonRepo:  repositories.NewButtonRepository(db),
 	}
 }
