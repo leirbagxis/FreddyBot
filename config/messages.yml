@@ -1,0 +1,104 @@
+- name: start
+  type: command
+  text: "<b>👋 Olá, {firstName}!</b>\n\n🤖 Eu estou aqui para automatizar as descrições das suas postagens no Canal!\n\n✨ Com o sistema de <b>Legendas Inteligentes</b>, suas publicações sempre terão descrições personalizadas e organizadas.\n\n📖 Consulte a aba  Como Usar para aprender a configurar tudo rapidamente!"
+  buttons:
+    -
+      - text: "📋 Meus Dados"
+        callback_data: "profile-info"
+      - text: "🆘 Como Usar"
+        callback_data: "help"
+    -
+      - text: "ℹ️ Sobre"
+        callback_data: "about"
+
+
+- name: profile-info
+  type: callback
+  text: "<b>📊 Informações da Conta</b>\n\n👤 <b>Usuário:</b> {firstName}\n🆔 <b>ID:</b> <code>{userId}</code>\n📆 <b>Registrado em:</b> {register}\n\n📡 <b>Canais Vinculados:</b> {countChannel}\n\n⚙️ Gerencie suas configurações e acompanhe os canais vinculados pelo menu abaixo!"
+  buttons:
+    -
+      - text: "📝 Meus Canais"
+        callback_data: "profile-user-channels"
+      - text: "🏠 Início"
+        callback_data: "start"
+    -
+      - text: "🔒 Assumir Controle"
+        switch_inline_query: "Claim "
+
+
+- name: help
+  text: "<b>🆘 Guia Rápido para Configuração</b>\n\n💡 Ativar as <b>Legendas Automáticas</b> no seu canal é simples:\n\n1️⃣ <b>Adicione o bot</b> {botUsername} ao seu canal.\n2️⃣ Conceda as seguintes permissões:\n   ✔️ Editar mensagens\n   ✔️ Fixar mensagens\n   ✔️ Publicar postagens\n   ✔️ Convidar usuários via link\n\n<blockquote><b>📌 Após isso, o bot enviará uma confirmação para você, é só confimar e o bot será ativado e pré configurado automaticamente.</b></blockquote>\n\n<b>Caso não funcione, encaminhe qualquer mensagem do seu canal mencionando o nome do canal para ativá-lo manualmente.</b>"
+  buttons:
+    -
+      - text: "🏠 Início"
+        callback_data: "start"
+
+
+- name: about
+  text: "<b>ℹ️ Sobre o Bot</b>\n\n<blockquote>📌 <b>Versão:</b> <i>{botVersion}</i>\n⚙️ <b>Desenvolvido Por:</b> <i>{ownerUser}</i></blockquote>\n\n🚀 Este bot foi criado para facilitar a adição de <b>legendas automáticas</b> em postagens de canais, tornando a gestão de conteúdo mais eficiente e dinâmica.\n\n📢 Para aprender a configurar, consulte a aba <a href='tg://user?id={botId}'>Ajuda</a>!"
+  buttons:
+    -
+      - text: "🏠 Início"
+        callback_data: "start"
+      - text: "❓ Ajuda"
+        callback_data: "help"
+
+
+- name: profile-user-channels
+  text: "<b>🏷️ Canais Vinculados</b>\n\n<blockquote>📌 Estes são os canais onde o bot está configurado para adicionar legendas automaticamente às postagens.</blockquote>\n\n<b>🔄 Se o bot for removido de um canal, ele deixará de aplicar as legendas e será removido automaticamente.</b>"
+  buttons:
+    -
+      - text: "⬅️ Voltar"
+        callback_data: "profile-info"
+
+- name: config-channel
+  text: "<b>📢 Canal Selecionado</b>\n\n<blockquote>🔹 <b>Nome:</b> {title}\n🔹 <b>ID:</b> <code>{channelId}</code></blockquote>\n\n<b>⚙️ Aqui você pode gerenciar as configurações de legendas deste canal. Edite conforme necessrio e salve as alterações.</b>"
+  buttons:
+    -
+      - text: "⚙ Configure Agora"
+        url: "{webAppUrl}"
+    -
+      - text: "✨ Sticker Separador"
+        callback_data: "sptc:{channelId}"
+    -
+      - text: "🔑 Transferir Acesso"
+        callback_data: "paccess-info:{channelId}"
+    -
+      - text: "🔗 Agrupar Canais"
+        callback_data: "gc-info:{channelId}"
+    -
+      - text: "🗑️ Remover Canal"
+        callback_data: "del:{channelId}"
+    -
+      - text: "🔙 Voltar"
+        callback_data: "profile-user-channels"
+      - text: "🏠 Início"
+        callback_data: "start"
+
+
+- name: del
+  text: "<b>❌ Tem certeza que deseja excluir o canal:</b>\n\n<blockquote><b>{title}</b></blockquote>\n\nEssa ação não pode ser desfeita."
+  buttons:
+    -
+      - text: "✅ Confirmar"
+        callback_data: "confirm-del:{channelId}"
+      - text: "❌ Cancelar"
+        callback_data: "config:{channelId}"
+
+- name: confirm-del
+  text: "<b>✅ Canal Removido</b>
+    
+    <blockquote>O canal <b>{title}</b> foi removido com sucesso. As legendas automáticas não serão mais adicionadas a este canal.</blockquote>
+    
+    <b>Você pode adicioná-lo novamente a qualquer momento, se desejar.</b>"
+  buttons:
+    -
+      - text: "🔙 Voltar"
+        callback_data: "profile-user-channels"
+      - text: "🏠 Início"
+        callback_data: "start"
+
+
+
+
+
