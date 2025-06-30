@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/joho/godotenv"
+	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/middleware"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks"
@@ -22,6 +23,7 @@ func StartBot(db *gorm.DB) error {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
+	cache.GetRedisClient()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -40,10 +42,19 @@ func StartBot(db *gorm.DB) error {
 	}
 
 	commands.LoadCommandHandlers(b)
-	events.LoadEvents(b)
+	events.LoadEvents(b, app)
 	callbacks.LoadCallbacksHandlers(b, app)
 
 	log.Println("Bot iniciado...")
+
+	go func() {
+		<-ctx.Done()
+		log.Println("Shutting down gracefully...")
+		if err := cache.CloseRedis(); err != nil {
+			log.Printf("Error closing Redis: %v", err)
+		}
+	}()
+
 	b.Start(ctx)
 	return nil
 }

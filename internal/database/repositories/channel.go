@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"gorm.io/gorm"
@@ -35,5 +36,36 @@ func (r *ChannelRepository) GetChannelByTwoID(ctx context.Context, userId, chann
 	}
 
 	return &channel, nil
+
+}
+
+func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64) (*models.Channel, error) {
+	var channel models.Channel
+	err := r.db.WithContext(ctx).
+		Where("telegram_channel_id = ?", channelId).
+		First(&channel).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &channel, nil
+
+}
+
+func (r *ChannelRepository) DeleteChannelByTwoId(ctx context.Context, userId, channelId int64) error {
+	result := r.db.WithContext(ctx).
+		Where("owner_id = ? AND telegram_channel_id = ?", userId, channelId).
+		Delete(&models.Channel{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return errors.New("channel not found or you don't have permission to delete it")
+	}
+
+	return nil
 
 }
