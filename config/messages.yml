@@ -59,7 +59,7 @@
         callback_data: "start"
 
 - name: del
-  text: "<b>❌ Tem certeza que deseja excluir o canal:</b>\n\n<blockquote><b>{title}</b></blockquote>\n\nEssa ação não pode ser desfeita."
+  text: "<b>⚠️ Confirmar Remoção</b>\n\n<blockquote>Você tem certeza que deseja remover o canal <b>{title}</b>?\nIsso desativará as legendas automáticas para este canal.</blockquote>\n\n<b>Esta ação não pode ser desfeita.</b> Toque no botão abaixo para confirmar."
   buttons:
     - - text: "✅ Confirmar"
         callback_data: "confirm-del:{channelId}"
@@ -95,7 +95,17 @@
   buttons:
     - - text: "⚙️ Configure Agora"
         url: "{miniAppUrl}"
-      - text: "📢 Meu Canal"
-        callback_data: "config:{$channelId}"
+    - - text: "📢 Meu Canal"
+        callback_data: "config:{channelId}"
+      - text: "🏠 Início"
+        callback_data: "start"
+
+- name: toadd-cancel-message
+  text: "❌ <b>Vinculação cancelada</b>\n\nVocê cancelou o processo de vinculação do canal.\n\n<blockquote>📌 Caso precise de ajuda, acesse a aba <b>🆘 Como Usar</b> para aprender a configurar corretamente.</blockquote>"
+  buttons:
+    - - text: "🆘 Como Usar"
+        callback_data: "help"
+    - - text: "📋 Meus Dados"
+        callback_data: "profile-info"
       - text: "🏠 Início"
         callback_data: "start"

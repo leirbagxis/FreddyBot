@@ -3,6 +3,7 @@ package repositories
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
@@ -128,4 +129,84 @@ func (r *ChannelRepository) CreateChannelWithDefaults(ctx context.Context, chann
 	}
 
 	return channel, nil
+}
+
+func (r *ChannelRepository) DeleteChannelWithRelations(ctx context.Context, userId, channelId int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Buscar o canal com todas as relações
+		var channel models.Channel
+		err := tx.Preload("DefaultCaption").
+			Preload("DefaultCaption.MessagePermission").
+			Preload("DefaultCaption.ButtonsPermission").
+			Preload("Buttons").
+			Preload("Separator").
+			Preload("CustomCaptions").
+			Preload("CustomCaptions.Buttons").
+			Where("owner_id = ? AND id = ?", userId, channelId).
+			First(&channel).Error
+
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("channel not found or you don't have permission to delete it")
+			}
+			return fmt.Errorf("failed to find channel: %w", err)
+		}
+
+		// 2. Deletar CustomCaptionButtons
+		for _, customCaption := range channel.CustomCaptions {
+			for _, button := range customCaption.Buttons {
+				if err := tx.Delete(&button).Error; err != nil {
+					return fmt.Errorf("failed to delete custom caption button: %w", err)
+				}
+			}
+		}
+
+		// 3. Deletar CustomCaptions
+		for _, customCaption := range channel.CustomCaptions {
+			if err := tx.Delete(&customCaption).Error; err != nil {
+				return fmt.Errorf("failed to delete custom caption: %w", err)
+			}
+		}
+
+		// 4. Deletar Buttons
+		for _, button := range channel.Buttons {
+			if err := tx.Delete(&button).Error; err != nil {
+				return fmt.Errorf("failed to delete button: %w", err)
+			}
+		}
+
+		// 5. Deletar Separator
+		if channel.Separator != nil {
+			if err := tx.Delete(channel.Separator).Error; err != nil {
+				return fmt.Errorf("failed to delete separator: %w", err)
+			}
+		}
+
+		// 6. Deletar MessagePermission e ButtonsPermission
+		if channel.DefaultCaption != nil {
+			if channel.DefaultCaption.MessagePermission != nil {
+				if err := tx.Delete(channel.DefaultCaption.MessagePermission).Error; err != nil {
+					return fmt.Errorf("failed to delete message permission: %w", err)
+				}
+			}
+
+			if channel.DefaultCaption.ButtonsPermission != nil {
+				if err := tx.Delete(channel.DefaultCaption.ButtonsPermission).Error; err != nil {
+					return fmt.Errorf("failed to delete buttons permission: %w", err)
+				}
+			}
+
+			// 7. Deletar DefaultCaption
+			if err := tx.Delete(channel.DefaultCaption).Error; err != nil {
+				return fmt.Errorf("failed to delete default caption: %w", err)
+			}
+		}
+
+		// 8. Finalmente, deletar o Channel
+		if err := tx.Delete(&channel).Error; err != nil {
+			return fmt.Errorf("failed to delete channel: %w", err)
+		}
+
+		return nil
+	})
 }

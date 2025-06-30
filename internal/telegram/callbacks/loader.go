@@ -19,4 +19,6 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer) {
 	// ## MY CHANNEL HANDLERS ## \\
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-user-channels", bot.MatchTypeExact, mychannel.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "config:", bot.MatchTypePrefix, mychannel.ConfigHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "del:", bot.MatchTypePrefix, mychannel.AskDeleteChannelHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "confirm-del:", bot.MatchTypePrefix, mychannel.ConfirmDeleteChannelHandler(c))
 }

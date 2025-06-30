@@ -12,8 +12,9 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
-func Handler(c *container.AppContainer) bot.HandlerFunc {
+func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		botInfo, _ := b.GetMe(ctx)
 		chat := update.MyChatMember.Chat
 		from := update.MyChatMember.From
 
@@ -25,6 +26,9 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"channelName": chat.Title,
+			"channelId":   fmt.Sprintf("%d", chat.ID),
+			"botId":       fmt.Sprintf("%d", botInfo.ID),
+			"firstName":   from.FirstName,
 		}
 
 		if getChannel != nil {
@@ -52,7 +56,6 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			ReplyMarkup: button,
 			ParseMode:   "HTML",
 		})
-		fmt.Println(from)
 	}
 }
 
@@ -61,7 +64,6 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 		botInfo, _ := b.GetMe(ctx)
 		callback := update.CallbackQuery
 		from := update.CallbackQuery.From
-		userID := from.ID
 
 		callbackData := update.CallbackQuery.Data
 		parts := strings.Split(callbackData, ":")
@@ -135,7 +137,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"firstName":   from.FirstName,
-			"botId":       fmt.Sprintf("%s", botInfo.ID),
+			"botId":       fmt.Sprintf("%d", botInfo.ID),
 			"channelName": channel.Title,
 			"channelId":   fmt.Sprintf("%d", channel.ID),
 			"miniAppUrl":  "https://caption.chelodev.shop/6762185696/-1001765135605?signature=53b8be8058f96458794c406e0f31fe91bb43e1a9cac2ed9e6f4e8b87efeccb86",
@@ -155,25 +157,79 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		b.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
+		// CORREÇÃO: Adicionar reação de forma correta
+		reactionParams := &bot.SetMessageReactionParams{
 			ChatID:    editMsg.Chat.ID,
 			MessageID: editMsg.ID,
 			Reaction: []models.ReactionType{
 				{
 					Type: "emoji",
-					ReactionTypeCustomEmoji: &models.ReactionTypeCustomEmoji{
-						CustomEmojiID: "🎉",
+					ReactionTypeEmoji: &models.ReactionTypeEmoji{
+						Type:  "emoji",
+						Emoji: "🎉",
 					},
 				},
 			},
-		})
+			IsBig: bot.True(),
+		}
 
+		// Tentar adicionar reação (não crítico se falhar)
+		sucess, err := b.SetMessageReaction(ctx, reactionParams)
+		if err != nil {
+			log.Printf("Aviso: Não foi possível adicionar reação: %v", err)
+			// Não retornar erro, apenas logar
+		}
+		fmt.Println(sucess)
+
+		// Responder ao callback
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: callback.ID,
 			Text:            "✅ Canal adicionado com sucesso!",
 		})
 
-		fmt.Println(userID, getSession)
+	}
+}
+
+func AddNotHandler(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		callback := update.CallbackQuery
+
+		callbackData := update.CallbackQuery.Data
+		parts := strings.Split(callbackData, ":")
+		if len(parts) != 2 {
+			log.Println("Callback invalido:", callbackData)
+			return
+		}
+
+		_, err := c.SessionManager.GetChannelSession(ctx, parts[1])
+		if err != nil {
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Tempo Esgotado. Faça o processo novamente!",
+				ShowAlert:       true,
+			})
+			return
+		}
+
+		c.SessionManager.DeleteChannelSession(ctx, parts[1])
+
+		data := map[string]string{}
+
+		text, button := parser.GetMessage("toadd-cancel-message", data)
+
+		b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
+			MessageID:   update.CallbackQuery.Message.Message.ID,
+			Text:        text,
+			ReplyMarkup: button,
+			ParseMode:   "HTML",
+		})
+
+		// Responder ao callback
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: callback.ID,
+			Text:            "❌ Operação Cancelada!",
+		})
 
 	}
 }

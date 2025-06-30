@@ -10,8 +10,9 @@ import (
 )
 
 func LoadEvents(b *bot.Bot, c *container.AppContainer) {
-	b.RegisterHandlerMatchFunc(matchMyChatMember, addchannel.Handler(c))
+	b.RegisterHandlerMatchFunc(matchMyChatMember, addchannel.AskAddChannelHandler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "add-yes:", bot.MatchTypePrefix, addchannel.AddYesHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "add-not:", bot.MatchTypePrefix, addchannel.AddNotHandler(c))
 }
 
 func matchMyChatMember(update *models.Update) bool {
