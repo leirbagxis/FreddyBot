@@ -31,7 +31,7 @@ func (r *ButtonRepository) GetUserChannelsAsButtons(ctx context.Context, userID 
 		row := []parser.Button{
 			{
 				Text:         channel.Title,
-				CallbackData: fmt.Sprintf("config:%d", channel.TelegramChannelID),
+				CallbackData: fmt.Sprintf("config:%d", channel.ID),
 			},
 		}
 		buttons = append(buttons, row)

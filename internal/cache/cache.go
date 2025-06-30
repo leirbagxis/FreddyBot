@@ -72,5 +72,5 @@ func generateSessionKey() (string, error) {
 		return "", err
 	}
 
-	return "channel_session:" + hex.EncodeToString(bytes), nil
+	return hex.EncodeToString(bytes), nil
 }

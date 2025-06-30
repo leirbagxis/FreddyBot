@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"gorm.io/gorm"
 )
@@ -28,7 +29,7 @@ func (r *ChannelRepository) CountUserChannels(ctx context.Context, userID int64)
 func (r *ChannelRepository) GetChannelByTwoID(ctx context.Context, userId, channelId int64) (*models.Channel, error) {
 	var channel models.Channel
 	err := r.db.WithContext(ctx).
-		Where("owner_id = ? AND telegram_channel_id = ?", userId, channelId).
+		Where("owner_id = ? AND id = ?", userId, channelId).
 		First(&channel).Error
 
 	if err != nil {
@@ -42,7 +43,7 @@ func (r *ChannelRepository) GetChannelByTwoID(ctx context.Context, userId, chann
 func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64) (*models.Channel, error) {
 	var channel models.Channel
 	err := r.db.WithContext(ctx).
-		Where("telegram_channel_id = ?", channelId).
+		Where("id = ?", channelId).
 		First(&channel).Error
 
 	if err != nil {
@@ -55,7 +56,7 @@ func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64)
 
 func (r *ChannelRepository) DeleteChannelByTwoId(ctx context.Context, userId, channelId int64) error {
 	result := r.db.WithContext(ctx).
-		Where("owner_id = ? AND telegram_channel_id = ?", userId, channelId).
+		Where("owner_id = ? AND id = ?", userId, channelId).
 		Delete(&models.Channel{})
 
 	if result.Error != nil {
@@ -68,4 +69,63 @@ func (r *ChannelRepository) DeleteChannelByTwoId(ctx context.Context, userId, ch
 
 	return nil
 
+}
+
+func (r *ChannelRepository) CreateChannel(ctx context.Context, channel *models.Channel) error {
+	return r.db.WithContext(ctx).Create(channel).Error
+}
+
+func (r *ChannelRepository) CreateChannelWithDefaults(ctx context.Context, channelID int64, title, inviteURL, newPackCaption, caption string, ownerID int64) (*models.Channel, error) {
+	channel := &models.Channel{
+		ID:             channelID,
+		Title:          title,
+		NewPackCaption: newPackCaption,
+		InviteURL:      inviteURL,
+		OwnerID:        ownerID,
+		DefaultCaption: &models.DefaultCaption{
+			CaptionID:      uuid.New().String(),
+			Caption:        caption,
+			OwnerChannelID: channelID,
+			MessagePermission: &models.MessagePermission{
+				MessagePermissionID: uuid.New().String(),
+				LinkPreview:         true,
+				Message:             true,
+				Audio:               true,
+				Video:               true,
+				Photo:               true,
+				Sticker:             true,
+				GIF:                 true,
+			},
+			ButtonsPermission: &models.ButtonsPermission{
+				ButtonsPermissionID: uuid.New().String(),
+				Message:             true,
+				Audio:               true,
+				Video:               true,
+				Photo:               true,
+				Sticker:             true,
+				GIF:                 true,
+			},
+		},
+		Buttons: []models.Button{
+			{
+				ButtonID:       uuid.NewString(),
+				NameButton:     title,
+				ButtonURL:      inviteURL,
+				PositionX:      0,
+				PositionY:      0,
+				OwnerChannelID: channelID,
+			},
+		},
+	}
+
+	captionID := channel.DefaultCaption.CaptionID
+	channel.DefaultCaption.MessagePermission.OwnerCaptionID = captionID
+	channel.DefaultCaption.ButtonsPermission.OwnerCaptionID = captionID
+
+	err := r.db.WithContext(ctx).Create(channel).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return channel, nil
 }

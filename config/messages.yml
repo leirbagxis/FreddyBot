@@ -89,3 +89,13 @@
         callback_data: "add-yes:{sessionKey}"
       - text: "❌ | Cancelar"
         callback_data: "add-not:{sessionKey}"
+
+- name: toadd-success-message
+  text: "<b>🎉 Sucesso, <a href='tg://user?id={botId}'>{firstName}</a>!</b>\n\n<b><i>✅ Seu <a href='tg://user?id={botId}'>Canal</a> foi vinculado com sucesso ao bot!</i></b>\n\n🔥 Agora, todas as postagens serão acompanhadas automaticamente por legendas personalizadas.\n\n📌 Se precisar ajustar alguma configuração, consulte a aba <a href='tg://user?id={botId}'>Ajuda</a>!"
+  buttons:
+    - - text: "⚙️ Configure Agora"
+        url: "{miniAppUrl}"
+      - text: "📢 Meu Canal"
+        callback_data: "config:{$channelId}"
+      - text: "🏠 Início"
+        callback_data: "start"

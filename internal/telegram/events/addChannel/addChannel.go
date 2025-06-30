@@ -58,7 +58,10 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		userID := update.CallbackQuery.From.ID
+		botInfo, _ := b.GetMe(ctx)
+		callback := update.CallbackQuery
+		from := update.CallbackQuery.From
+		userID := from.ID
 
 		callbackData := update.CallbackQuery.Data
 		parts := strings.Split(callbackData, ":")
@@ -76,6 +79,101 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			})
 			return
 		}
+
+		channelInfo, err := b.GetChat(ctx, &bot.GetChatParams{
+			ChatID: getSession.ChannelID,
+		})
+		if err != nil {
+			log.Printf("Erro ao obter info do canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "❌ Erro ao obter informações do canal!",
+				ShowAlert:       true,
+			})
+			return
+		}
+
+		inviteURL := channelInfo.InviteLink
+		if channelInfo.Username != "" {
+			inviteURL = fmt.Sprintf("t.me/%s", channelInfo.Username)
+		}
+
+		// Gerar newPackCaption
+		newPackCaption := fmt.Sprintf(`╔═━──━═༻✧༺═━──━═╗
+
+        𖦹⁠⁠⁠ ࣪ ⭑ ᥫ᭡
+        (｡•́︿•̀｡)っ✧.*ೃ༄
+        ˗ˏˋ [$name]($link) ⋆｡˚ ☁︎
+            彡♡ ₊˚
+
+⋆｡˚ ❀ @%s ☽⁺₊
+
+╚═━──━═༻✧༺═━──━═╝`, botInfo.Username)
+
+		defaultCaption := fmt.Sprintf("➽ 𝐛𝐲 @%s", botInfo.Username)
+
+		channel, err := c.ChannelRepo.CreateChannelWithDefaults(
+			ctx,
+			getSession.ChannelID,
+			getSession.Title,
+			inviteURL,
+			newPackCaption,
+			defaultCaption,
+			getSession.OwnerID,
+		)
+		if err != nil {
+			log.Printf("Erro ao criar canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: callback.ID,
+				Text:            "❌ Erro ao criar canal!",
+				ShowAlert:       true,
+			})
+			return
+		}
+
+		c.SessionManager.DeleteChannelSession(ctx, parts[1])
+
+		data := map[string]string{
+			"firstName":   from.FirstName,
+			"botId":       fmt.Sprintf("%s", botInfo.ID),
+			"channelName": channel.Title,
+			"channelId":   fmt.Sprintf("%d", channel.ID),
+			"miniAppUrl":  "https://caption.chelodev.shop/6762185696/-1001765135605?signature=53b8be8058f96458794c406e0f31fe91bb43e1a9cac2ed9e6f4e8b87efeccb86",
+		}
+
+		text, button := parser.GetMessage("toadd-success-message", data)
+
+		editMsg, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
+			MessageID:   update.CallbackQuery.Message.Message.ID,
+			Text:        text,
+			ReplyMarkup: button,
+			ParseMode:   "HTML",
+		})
+		if err != nil {
+			log.Printf("Erro ao editar mensagem: %v", err)
+			return
+		}
+
+		b.SetMessageReaction(ctx, &bot.SetMessageReactionParams{
+			ChatID:    editMsg.Chat.ID,
+			MessageID: editMsg.ID,
+			Reaction: []models.ReactionType{
+				{
+					Type: "emoji",
+					ReactionTypeCustomEmoji: &models.ReactionTypeCustomEmoji{
+						CustomEmojiID: "🎉",
+					},
+				},
+			},
+		})
+
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: callback.ID,
+			Text:            "✅ Canal adicionado com sucesso!",
+		})
+
+		fmt.Println(userID, getSession)
 
 	}
 }

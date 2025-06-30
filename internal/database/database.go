@@ -13,13 +13,20 @@ func InitDB() *gorm.DB {
 		panic(err)
 	}
 
-	db.AutoMigrate(
+	err = db.AutoMigrate(
 		&models.User{},
 		&models.Channel{},
 		&models.DefaultCaption{},
 		&models.MessagePermission{},
-		&models.ButtonPermission{},
+		&models.ButtonsPermission{},
 		&models.Button{},
+		&models.Separator{},
+		&models.CustomCaption{},
+		&models.CustomCaptionButton{},
 	)
+	if err != nil {
+		panic(err)
+	}
+
 	return db
 }
