@@ -18,4 +18,5 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer) {
 
 	// ## MY CHANNEL HANDLERS ## \\
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-user-channels", bot.MatchTypeExact, mychannel.Handler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "config:", bot.MatchTypePrefix, mychannel.ConfigHandler(c))
 }

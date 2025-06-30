@@ -23,3 +23,17 @@ func (r *ChannelRepository) CountUserChannels(ctx context.Context, userID int64)
 		Count(&count).Error
 	return count, err
 }
+
+func (r *ChannelRepository) GetChannelByTwoID(ctx context.Context, userId, channelId int64) (*models.Channel, error) {
+	var channel models.Channel
+	err := r.db.WithContext(ctx).
+		Where("owner_id = ? AND telegram_channel_id = ?", userId, channelId).
+		First(&channel).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &channel, nil
+
+}
