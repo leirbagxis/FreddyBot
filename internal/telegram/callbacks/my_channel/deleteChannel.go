@@ -69,10 +69,8 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		err = c.ChannelRepo.DeleteChannelWithRelations(ctx, userId, channelId)
 		if err != nil {
-			if err != nil {
-				log.Printf("Erro ao excluir canal: %v", err)
-				return
-			}
+			log.Printf("Erro ao excluir canal: %v", err)
+			return
 		}
 
 		data := map[string]string{
