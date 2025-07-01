@@ -14,6 +14,13 @@ import (
 
 func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Erro ao adicionar-chatmember: %v", r)
+				//sendErrorMessage(ctx, b, update)
+			}
+		}()
+
 		botInfo, _ := b.GetMe(ctx)
 		chat := update.MyChatMember.Chat
 		from := update.MyChatMember.From
@@ -38,6 +45,9 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 				Text:        text,
 				ReplyMarkup: button,
 				ParseMode:   "HTML",
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
 			})
 			return
 		}
@@ -55,7 +65,70 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			Text:        text,
 			ReplyMarkup: button,
 			ParseMode:   "HTML",
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
 		})
+	}
+}
+
+func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("Erro ao adicionar-forward: %v", r)
+				//sendErrorMessage(ctx, b, update)
+			}
+		}()
+
+		botInfo, _ := b.GetMe(ctx)
+		from := update.Message.From
+		forwardedChannelID := update.Message.ForwardOrigin.MessageOriginChannel.Chat.ID
+		forwardedChannelTitle := update.Message.ForwardOrigin.MessageOriginChannel.Chat.Title
+
+		getChannel, _ := c.ChannelRepo.GetChannelByID(ctx, forwardedChannelID)
+
+		data := map[string]string{
+			"channelName": forwardedChannelTitle,
+			"channelId":   fmt.Sprintf("%d", forwardedChannelID),
+			"botId":       fmt.Sprintf("%d", botInfo.ID),
+			"firstName":   from.FirstName,
+		}
+
+		if getChannel != nil {
+			text, button := parser.GetMessage("toadd-exist-channel", data)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:      from.ID,
+				Text:        text,
+				ReplyMarkup: button,
+				ParseMode:   "HTML",
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
+			})
+			return
+		}
+
+		session, err := c.SessionManager.CreateChannelSession(ctx, forwardedChannelID, from.ID, forwardedChannelTitle)
+		if err != nil {
+			log.Printf("Erro ao criar sessão: %v", err)
+			return
+		}
+		data["sessionKey"] = session.Key
+
+		text, button := parser.GetMessage("toadd-require-message", data)
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      from.ID,
+			Text:        text,
+			ReplyMarkup: button,
+			ParseMode:   "HTML",
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
+		})
+
+		fmt.Println(from, forwardedChannelID)
+
 	}
 }
 

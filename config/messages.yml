@@ -109,3 +109,11 @@
         callback_data: "profile-info"
       - text: "🏠 Início"
         callback_data: "start"
+
+- name: toadd-notfound-permissions-message
+  text: "⚠️ <b>Permissões Insuficientes</b>\n\n<blockquote>📌 O bot precisa de permissões específicas para funcionar corretamente no canal.</blockquote>\n\n<b>✅ Verifique se o bot tem as seguintes permissões:</b>\n  • Editar mensagens\n  • Excluir mensagens\n  • Postar mensagens\n  • Convidar via link\n\n<blockquote>ℹ️ Consulte a aba <b>📖 Como Usar</b> para ver o passo a passo de como vincular seu canal corretamente.</blockquote>"
+  buttons:
+    - - text: "🏠 Início"
+        callback_data: "start"
+      - text: "🆘 Como Usar"
+        callback_data: "help"
