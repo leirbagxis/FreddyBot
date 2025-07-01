@@ -210,3 +210,26 @@ func (r *ChannelRepository) DeleteChannelWithRelations(ctx context.Context, user
 		return nil
 	})
 }
+
+func (r *ChannelRepository) GetChannelWithRelations(ctx context.Context, channelId int64) (*models.Channel, error) {
+	var channel models.Channel
+
+	err := r.db.WithContext(ctx).
+		// Usar Joins para relações 1:1 (melhor performance)
+		Joins("DefaultCaption").
+		Joins("DefaultCaption.MessagePermission").
+		Joins("DefaultCaption.ButtonsPermission").
+		Joins("Separator").
+		// Usar Preload para relações 1:N
+		Preload("Buttons").
+		Preload("CustomCaptions").
+		Preload("CustomCaptions.Buttons").
+		Where("channels.id = ?", channelId).
+		First(&channel).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &channel, nil
+}
