@@ -27,6 +27,8 @@ type MessageProcessor struct {
 	mediaGroupManager *MediaGroupManager
 }
 
+var groupCreationMutex sync.Mutex
+
 func NewMessageProcessor(b *bot.Bot) *MessageProcessor {
 	return &MessageProcessor{
 		bot:               b,
@@ -371,8 +373,100 @@ func (mp *MessageProcessor) processMessageWithHashtagPreservingFormat(text strin
 	return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
 }
 
-// ✅ CORRIGIDO: Grupos de mídia com formatação
+// ✅ MUTEX MAIS ESPECÍFICO POR GRUPO
+var groupMutexes = sync.Map{} // string -> *sync.Mutex
+
+// ✅ FUNÇÃO PARA OBTER MUTEX ESPECÍFICO DO GRUPO
+func getGroupMutex(groupID string) *sync.Mutex {
+	value, _ := groupMutexes.LoadOrStore(groupID, &sync.Mutex{})
+	return value.(*sync.Mutex)
+}
+
+// ✅ CORRIGIDO: Mídia em grupo com mutex específico por grupo
+func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
+	mediaGroupID := post.MediaGroupID
+	messageID := post.ID
+	caption := post.Caption
+
+	log.Printf("📸 Processando mídia do grupo: %s, ID: %d", mediaGroupID, messageID)
+
+	// ✅ USAR MUTEX ESPECÍFICO PARA ESTE GRUPO
+	groupMutex := getGroupMutex(mediaGroupID)
+	groupMutex.Lock()
+	defer groupMutex.Unlock()
+
+	// ✅ VERIFICAR SE GRUPO JÁ FOI PROCESSADO
+	if value, ok := mp.mediaGroupManager.groups.Load(mediaGroupID); ok {
+		groupInfo := value.(*MediaGroupInfo)
+		if groupInfo.Processed {
+			log.Printf("📸 Grupo já processado, ignorando: %s", mediaGroupID)
+			return nil
+		}
+	}
+
+	// ✅ CRIAR OU OBTER GRUPO (agora thread-safe com mutex específico)
+	value, loaded := mp.mediaGroupManager.groups.LoadOrStore(mediaGroupID, &MediaGroupInfo{
+		Messages:           make([]MediaMessage, 0),
+		Processed:          false,
+		MessageEditAllowed: messageEditAllowed,
+	})
+
+	groupInfo := value.(*MediaGroupInfo)
+
+	if !loaded {
+		log.Printf("📸 Novo grupo criado: %s", mediaGroupID)
+	} else {
+		log.Printf("📸 Usando grupo existente: %s", mediaGroupID)
+	}
+
+	// ✅ VERIFICAR NOVAMENTE SE FOI PROCESSADO (dentro do mutex)
+	if groupInfo.Processed {
+		log.Printf("📸 Grupo já processado (double-check): %s", mediaGroupID)
+		return nil
+	}
+
+	// ✅ ADICIONAR MENSAGEM
+	groupInfo.Messages = append(groupInfo.Messages, MediaMessage{
+		MessageID:       messageID,
+		HasCaption:      caption != "",
+		Caption:         caption,
+		CaptionEntities: convertMessageEntitiesToInterface(post.CaptionEntities),
+	})
+
+	// ✅ CANCELAR TIMER ANTERIOR
+	if groupInfo.Timer != nil {
+		groupInfo.Timer.Stop()
+		log.Printf("📸 Timer anterior cancelado para grupo: %s", mediaGroupID)
+	}
+
+	// ✅ TIMEOUT BASEADO NO TAMANHO REAL DO GRUPO
+	timeout := time.Duration(2000+len(groupInfo.Messages)*500) * time.Millisecond
+	if timeout > 5*time.Second {
+		timeout = 5 * time.Second
+	}
+
+	log.Printf("📸 Grupo %s: %d mensagens, timeout: %v", mediaGroupID, len(groupInfo.Messages), timeout)
+
+	// ✅ CRIAR TIMER (apenas um por grupo)
+	groupInfo.Timer = time.AfterFunc(timeout, func() {
+		log.Printf("📸 Timer disparado para grupo: %s", mediaGroupID)
+		processCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		mp.finishGroupProcessing(processCtx, mediaGroupID, channel, buttons, post.Chat.ID)
+	})
+
+	return nil
+}
+
+// ✅ CORRIGIDO: Processar grupo com verificação mais rigorosa
 func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button, chatID int64) {
+	log.Printf("📸 Iniciando finishGroupProcessing para: %s", groupID)
+
+	// ✅ USAR O MESMO MUTEX DO GRUPO
+	groupMutex := getGroupMutex(groupID)
+	groupMutex.Lock()
+	defer groupMutex.Unlock()
+
 	value, ok := mp.mediaGroupManager.groups.Load(groupID)
 	if !ok {
 		log.Printf("❌ Grupo não encontrado: %s", groupID)
@@ -380,17 +474,20 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	}
 
 	groupInfo := value.(*MediaGroupInfo)
-	groupInfo.mu.Lock()
-	defer groupInfo.mu.Unlock()
 
+	// ✅ VERIFICAR SE JÁ FOI PROCESSADO
 	if groupInfo.Processed {
 		log.Printf("📸 Grupo já processado: %s", groupID)
 		return
 	}
+
+	// ✅ MARCAR COMO PROCESSADO IMEDIATAMENTE
 	groupInfo.Processed = true
+	log.Printf("📸 Marcando grupo como processado: %s", groupID)
 
 	log.Printf("📸 Finalizando processamento do grupo: %s com %d mensagens", groupID, len(groupInfo.Messages))
 
+	// ✅ ENCONTRAR MENSAGEM ALVO
 	var targetMessage *MediaMessage
 	for i := range groupInfo.Messages {
 		if groupInfo.Messages[i].HasCaption {
@@ -410,27 +507,35 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		return
 	}
 
+	// ✅ PROCESSAR APENAS BOTÕES SE NÃO PODE EDITAR
 	if !groupInfo.MessageEditAllowed {
 		if len(buttons) == 0 {
+			log.Printf("📸 Sem botões para adicionar ao grupo: %s", groupID)
 			return
 		}
 		keyboard := mp.CreateInlineKeyboard(buttons, nil)
 		if keyboard == nil {
 			return
 		}
-		mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+
+		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
 			ChatID:      chatID,
 			MessageID:   targetMessage.MessageID,
 			ReplyMarkup: keyboard,
 		})
+		if err != nil {
+			log.Printf("❌ Erro ao editar markup do grupo: %v", err)
+		} else {
+			log.Printf("✅ Markup editado para grupo: %s, mensagem: %d", groupID, targetMessage.MessageID)
+		}
 		return
 	}
 
+	// ✅ PROCESSAR CAPTION DA MENSAGEM ALVO
 	var finalMessage string
 	var customCaption *dbmodels.CustomCaption
 
 	if targetMessage.HasCaption {
-		// ✅ APLICAR FORMATAÇÃO PARA GRUPOS
 		entities := convertInterfaceToMessageEntities(targetMessage.CaptionEntities)
 		formattedCaption := processTextWithFormatting(targetMessage.Caption, entities)
 		finalMessage, customCaption = mp.processMessageWithHashtagPreservingFormat(formattedCaption, channel)
@@ -448,74 +553,82 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		ChatID:    chatID,
 		MessageID: targetMessage.MessageID,
 		Caption:   finalMessage,
-		ParseMode: "HTML", // ✅ IMPORTANTE: HTML para formatação
+		ParseMode: "HTML",
 	}
 
 	if keyboard != nil {
 		editParams.ReplyMarkup = keyboard
 	}
 
+	// ✅ EDITAR APENAS A MENSAGEM ALVO
 	_, err := mp.bot.EditMessageCaption(ctx, editParams)
 	if err != nil {
 		log.Printf("❌ Erro ao editar caption do grupo: %v", err)
 	} else {
-		log.Printf("✅ Grupo processado com sucesso e formatação aplicada: %s", groupID)
+		log.Printf("✅ SUCESSO: Grupo %s processado - APENAS mensagem %d editada", groupID, targetMessage.MessageID)
 	}
 
-	time.AfterFunc(10*time.Second, func() {
+	// ✅ CLEANUP após 15 segundos
+	time.AfterFunc(15*time.Second, func() {
 		mp.mediaGroupManager.groups.Delete(groupID)
+		groupMutexes.Delete(groupID) // ✅ Limpar mutex também
 		log.Printf("🧹 Grupo removido da memória: %s", groupID)
 	})
 }
 
-// ✅ MÍDIA EM GRUPO: Apenas primeira mídia recebe legenda
-func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
-	mediaGroupID := post.MediaGroupID
-	messageID := post.ID
-	caption := post.Caption
+// ✅ NOVA FUNÇÃO: Retry para edit caption
+func (mp *MessageProcessor) editMessageCaptionWithRetry(ctx context.Context, params *bot.EditMessageCaptionParams) error {
+	maxRetries := 3
+	baseDelay := 1 * time.Second
 
-	log.Printf("📸 Adicionando mídia ao grupo: %s, ID: %d", mediaGroupID, messageID)
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		// Context com timeout para cada tentativa
+		attemptCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 
-	var groupInfo *MediaGroupInfo
-	if value, ok := mp.mediaGroupManager.groups.Load(mediaGroupID); ok {
-		groupInfo = value.(*MediaGroupInfo)
-	} else {
-		groupInfo = &MediaGroupInfo{
-			Messages:           make([]MediaMessage, 0),
-			Processed:          false,
-			MessageEditAllowed: messageEditAllowed,
+		_, err := mp.bot.EditMessageCaption(attemptCtx, params)
+		cancel()
+
+		if err == nil {
+			return nil
 		}
-		mp.mediaGroupManager.groups.Store(mediaGroupID, groupInfo)
-		log.Printf("📸 Novo grupo criado: %s", mediaGroupID)
+
+		// Verificar tipos específicos de erro
+		if strings.Contains(err.Error(), "context canceled") {
+			if attempt < maxRetries-1 {
+				delay := baseDelay * time.Duration(attempt+1)
+				log.Printf("Context canceled, retry %d/%d after %v", attempt+1, maxRetries, delay)
+				time.Sleep(delay)
+				continue
+			}
+		}
+
+		if strings.Contains(err.Error(), "Message is not modified") {
+			log.Printf("Caption not modified, skipping edit")
+			return nil
+		}
+
+		if strings.Contains(err.Error(), "Bad Request") {
+			log.Printf("Bad request error: %v", err)
+			return err // Não retry para bad requests
+		}
+
+		if attempt < maxRetries-1 {
+			delay := baseDelay * time.Duration(attempt+1)
+			log.Printf("Caption edit failed, retry %d/%d after %v: %v", attempt+1, maxRetries, delay, err)
+			time.Sleep(delay)
+		}
 	}
 
-	groupInfo.mu.Lock()
-	groupInfo.MessageEditAllowed = messageEditAllowed
-	groupInfo.Messages = append(groupInfo.Messages, MediaMessage{
-		MessageID:       messageID,
-		HasCaption:      caption != "",
-		Caption:         caption,
-		CaptionEntities: convertToInterfaceSlice(post.CaptionEntities),
-	})
+	return fmt.Errorf("failed to edit caption after %d attempts", maxRetries)
+}
 
-	if groupInfo.Timer != nil {
-		groupInfo.Timer.Stop()
+// ✅ FUNÇÃO AUXILIAR: Converter MessageEntity para interface{}
+func convertMessageEntitiesToInterface(entities []models.MessageEntity) []interface{} {
+	result := make([]interface{}, len(entities))
+	for i, entity := range entities {
+		result[i] = entity
 	}
-
-	// Timeout adaptativo baseado no tamanho do grupo
-	timeout := time.Duration(1000+len(groupInfo.Messages)*200) * time.Millisecond
-	if timeout > 3*time.Second {
-		timeout = 3 * time.Second
-	}
-
-	log.Printf("📸 Grupo %s agora tem %d mensagens, timeout: %v", mediaGroupID, len(groupInfo.Messages), timeout)
-
-	groupInfo.Timer = time.AfterFunc(timeout, func() {
-		mp.finishGroupProcessing(ctx, mediaGroupID, channel, buttons, post.Chat.ID)
-	})
-	groupInfo.mu.Unlock()
-
-	return nil
+	return result
 }
 
 func convertToInterfaceSlice[T any](s []T) []interface{} {
