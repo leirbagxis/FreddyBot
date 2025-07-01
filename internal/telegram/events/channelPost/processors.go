@@ -641,7 +641,6 @@ func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.Cust
 	return nil
 }
 
-// ✅ CORRIGIDO: Processar hashtag com custom caption buttons
 // ✅ CORRIGIDO: Só processar hashtags que existem no banco
 func (mp *MessageProcessor) processMessageWithHashtag(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
 	hashtag := extractHashtag(text)
