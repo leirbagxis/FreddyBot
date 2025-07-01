@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 	"log"
+	"reflect"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -27,7 +27,10 @@ func CheckAddBotMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
 			return
 		}
 
-		if update.Message != nil && update.Message.ForwardOrigin.MessageOriginChannel != nil {
+		// Verificar mensagem encaminhada com verificações de nil adequadas
+		if update.Message != nil &&
+			update.Message.ForwardOrigin != nil &&
+			update.Message.ForwardOrigin.MessageOriginChannel != nil {
 			if !handleForwardedMessage(ctx, b, update.Message) {
 				return
 			}
@@ -40,6 +43,31 @@ func CheckAddBotMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
 }
 
 func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.ChatMemberUpdated) bool {
+	if chatMember == nil {
+		log.Printf("ChatMemberUpdated is nil")
+		return false
+	}
+
+	if isEmpty(chatMember.Chat) {
+		log.Printf("Chat is empty")
+		return false
+	}
+
+	if isEmpty(chatMember.OldChatMember) {
+		log.Printf("OldChatMember is nil")
+		return false
+	}
+
+	if isEmpty(chatMember.NewChatMember) {
+		log.Printf("NewChatMember is nil")
+		return false
+	}
+
+	if isEmpty(chatMember.From) {
+		log.Printf("From is empty")
+		return false
+	}
+
 	chatId := chatMember.Chat.ID
 	oldStatus := chatMember.OldChatMember.Type
 	newStatus := chatMember.NewChatMember.Type
@@ -51,7 +79,7 @@ func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.Chat
 		return false
 	}
 
-	if oldStatus == "member" || oldStatus == "admnistrator" || oldStatus == "creator" {
+	if oldStatus == "member" || oldStatus == "administrator" || oldStatus == "creator" {
 		log.Printf("Bot was already in channel %d. Skipping.", chatId)
 		return false
 	}
@@ -72,8 +100,38 @@ func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.Chat
 }
 
 func handleForwardedMessage(ctx context.Context, b *bot.Bot, message *models.Message) bool {
+	if message == nil {
+		log.Printf("Message is nil")
+		return false
+	}
+
+	if isEmpty(message.From) {
+		log.Printf("Message.From is empty")
+		return false
+	}
+
+	if message.ForwardOrigin == nil {
+		log.Printf("ForwardOrigin is nil")
+		return false
+	}
+
+	if message.ForwardOrigin.MessageOriginChannel == nil {
+		log.Printf("MessageOriginChannel is nil")
+		return false
+	}
+
+	if isEmpty(message.ForwardOrigin.MessageOriginChannel.Chat) {
+		log.Printf("MessageOriginChannel.Chat is empty")
+		return false
+	}
+
 	forwardedChatID := message.ForwardOrigin.MessageOriginChannel.Chat.ID
-	botInfo, _ := b.GetMe(ctx)
+
+	botInfo, err := b.GetMe(ctx)
+	if err != nil {
+		log.Printf("Failed to get bot info: %v", err)
+		return false
+	}
 
 	botMember, err := b.GetChatMember(ctx, &bot.GetChatMemberParams{
 		ChatID: forwardedChatID,
@@ -85,9 +143,6 @@ func handleForwardedMessage(ctx context.Context, b *bot.Bot, message *models.Mes
 		return false
 	}
 
-	fmt.Println(message.ForwardOrigin.MessageOriginUser.SenderUser)
-
-	// Verificar permissões
 	if !hasRequiredPermissions(botMember) {
 		sendPermissionErrorMessage(ctx, b, message.From.ID)
 		log.Printf("Bot is in forwarded chat %d, but lacks required permissions.", forwardedChatID)
@@ -99,24 +154,50 @@ func handleForwardedMessage(ctx context.Context, b *bot.Bot, message *models.Mes
 }
 
 func hasRequiredPermissions(chatMember *models.ChatMember) bool {
-	// Verificar se é administrator
-	if chatMember.Type != "administrator" {
+	if chatMember == nil {
+		log.Printf("ChatMember is nil")
 		return false
 	}
 
-	// Acessar diretamente o campo Administrator
-	admin := chatMember.Administrator
-	if admin == nil {
+	switch chatMember.Type {
+	case "administrator":
+		admin := chatMember.Administrator
+		if admin == nil {
+			log.Printf("Administrator field is nil")
+			return false
+		}
+
+		canPost := admin.CanPostMessages
+		canEdit := admin.CanEditMessages
+		canDelete := admin.CanDeleteMessages
+		canInvite := admin.CanInviteUsers
+
+		log.Printf("Admin permissions - Post: %v, Edit: %v, Delete: %v, Invite: %v",
+			canPost, canEdit, canDelete, canInvite)
+
+		return canPost && canEdit && canDelete && canInvite
+
+	case "creator":
+		log.Printf("User is creator, has all permissions")
+		return true
+
+	default:
+		log.Printf("ChatMember type is not administrator or creator: %s", chatMember.Type)
 		return false
 	}
+}
 
-	// Verificar as 4 permissões necessárias
-	canPostMessages := admin.CanPostMessages
-	canEditMessages := admin.CanEditMessages
-	canDeleteMessages := admin.CanDeleteMessages
-	canInviteUsers := admin.CanInviteUsers
+func isEmpty(v interface{}) bool {
+	if v == nil {
+		return true
+	}
 
-	return canPostMessages && canEditMessages && canDeleteMessages && canInviteUsers
+	val := reflect.ValueOf(v)
+	if val.Kind() == reflect.Ptr {
+		return val.IsNil()
+	}
+
+	return val.IsZero()
 }
 
 func sendPermissionErrorMessage(ctx context.Context, b *bot.Bot, userID int64) {
