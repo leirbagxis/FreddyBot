@@ -2,6 +2,7 @@ package channelpost
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
@@ -68,12 +69,13 @@ func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
 	return ""
 }
 
-// ✅ CRIAR KEYBOARD SIMPLES
+// ✅ CORRIGIDO: Priorizar botões do custom caption
 func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption) *models.InlineKeyboardMarkup {
 	var finalButtons []dbmodels.Button
 
-	// Usar custom caption buttons se existirem
+	// ✅ PRIORIDADE: Se tem custom caption, usar APENAS seus botões
 	if customCaption != nil && len(customCaption.Buttons) > 0 {
+		log.Printf("🔘 Usando botões do custom caption: %s (%d botões)", customCaption.Code, len(customCaption.Buttons))
 		finalButtons = make([]dbmodels.Button, 0, len(customCaption.Buttons))
 		for _, cb := range customCaption.Buttons {
 			finalButtons = append(finalButtons, dbmodels.Button{
@@ -84,10 +86,13 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			})
 		}
 	} else {
+		// ✅ FALLBACK: Usar botões padrão do canal
+		log.Printf("🔘 Usando botões padrão do canal (%d botões)", len(buttons))
 		finalButtons = buttons
 	}
 
 	if len(finalButtons) == 0 {
+		log.Printf("🔘 Nenhum botão disponível")
 		return nil
 	}
 
@@ -96,6 +101,7 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 
 	for i, button := range finalButtons {
 		if button.NameButton == "" || button.ButtonURL == "" {
+			log.Printf("⚠️ Botão inválido ignorado: %+v", button)
 			continue
 		}
 
@@ -113,6 +119,8 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			Text: button.NameButton,
 			URL:  button.ButtonURL,
 		}
+
+		log.Printf("🔘 Botão adicionado: %s -> %s (linha %d, coluna %d)", button.NameButton, button.ButtonURL, row, col)
 	}
 
 	// Construir keyboard final
@@ -132,9 +140,11 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 	}
 
 	if len(keyboard) == 0 {
+		log.Printf("🔘 Nenhuma linha de botões criada")
 		return nil
 	}
 
+	log.Printf("✅ Keyboard criado com %d linhas de botões", len(keyboard))
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: keyboard,
 	}
@@ -144,6 +154,8 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	text := post.Text
 	messageID := post.ID
+	teste, _ := json.Marshal(channel)
+	fmt.Println(string(teste))
 
 	if text == "" {
 		return fmt.Errorf("texto da mensagem está vazio")
@@ -408,7 +420,7 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 	return nil
 }
 
-// ✅ CORRIGIDO: Finalizar processamento de grupo - EDITA APENAS UMA MENSAGEM
+// ✅ CORRIGIDO: Finalizar processamento de grupo com custom caption
 func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button) {
 	log.Printf("📸 Iniciando processamento final do grupo: %s", groupID)
 
@@ -477,7 +489,7 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		return
 	}
 
-	// ✅ PROCESSAR CAPTION E EDITAR APENAS UMA MENSAGEM
+	// ✅ PROCESSAR CAPTION COM CUSTOM CAPTION
 	var finalMessage string
 	var customCaption *dbmodels.CustomCaption
 
@@ -485,7 +497,14 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		// Aplicar formatação se tiver entities
 		entities := convertInterfaceToMessageEntities(targetMessage.CaptionEntities)
 		formattedCaption := processTextWithFormatting(targetMessage.Caption, entities)
+
+		// ✅ PROCESSAR HASHTAG E OBTER CUSTOM CAPTION
 		finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
+
+		if customCaption != nil {
+			log.Printf("📸 Custom caption encontrado: %s", customCaption.Code)
+		}
+
 		log.Printf("📸 Processando com caption formatado: %s -> %s", targetMessage.Caption, finalMessage)
 	} else {
 		// Usar caption padrão se não houver caption na mensagem
@@ -495,6 +514,7 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		log.Printf("📸 Usando caption padrão: %s", finalMessage)
 	}
 
+	// ✅ CRIAR KEYBOARD COM CUSTOM CAPTION BUTTONS
 	keyboard := mp.CreateInlineKeyboard(buttons, customCaption)
 
 	// ✅ EDITAR APENAS A MENSAGEM ALVO
@@ -517,6 +537,9 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		log.Printf("❌ Erro ao editar caption do grupo %s, mensagem %d: %v", groupID, targetMessage.MessageID, err)
 	} else {
 		log.Printf("✅ SUCESSO: Grupo %s processado - APENAS mensagem %d editada com caption: %q", groupID, targetMessage.MessageID, finalMessage)
+		if customCaption != nil {
+			log.Printf("✅ Custom caption aplicado: %s com %d botões", customCaption.Code, len(customCaption.Buttons))
+		}
 	}
 
 	// ✅ CLEANUP
@@ -551,13 +574,16 @@ func (mp *MessageProcessor) ProcessStickerMessage(ctx context.Context, post *mod
 }
 
 // ✅ FUNÇÕES AUXILIARES
+// ✅ CORRIGIDO: Extrair hashtag sem o #
 func extractHashtag(text string) string {
 	if text == "" {
 		return ""
 	}
 	matches := hashtagRegex.FindStringSubmatch(text)
 	if len(matches) > 1 {
-		return strings.ToLower(matches[1])
+		hashtag := strings.ToLower(matches[1]) // SEM o #
+		log.Printf("📝 Hashtag extraída: #%s", hashtag)
+		return hashtag
 	}
 	return ""
 }
@@ -578,53 +604,77 @@ func removeHashtag(text, hashtag string) string {
 	return strings.TrimSpace(re.ReplaceAllString(text, ""))
 }
 
+// ✅ CORRIGIDO: Buscar custom caption com logs detalhados
 func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.CustomCaption {
 	cacheKey := fmt.Sprintf("%d_%s", channel.ID, hashtag)
 
+	// Verificar cache primeiro
 	if value, ok := customCaptionCache.Load(cacheKey); ok {
 		if caption, ok := value.(*dbmodels.CustomCaption); ok {
+			log.Printf("📝 Custom caption encontrado no cache: #%s -> %s", hashtag, caption.Code)
 			return caption
 		}
+		log.Printf("📝 Custom caption não existe (cache): #%s", hashtag)
 		return nil
 	}
 
+	// Buscar no banco
+	log.Printf("📝 Buscando custom caption no banco para hashtag: #%s", hashtag)
+	log.Printf("📝 Custom captions disponíveis no canal:")
+	for i, cc := range channel.CustomCaptions {
+		log.Printf("  [%d] Code: %s, Caption: %s", i, cc.Code, cc.Caption)
+	}
+
 	for i := range channel.CustomCaptions {
-		if strings.EqualFold(channel.CustomCaptions[i].Code, hashtag) {
+		// ✅ COMPARAR SEM O # (code já vem com #)
+		ccCode := strings.TrimPrefix(channel.CustomCaptions[i].Code, "#")
+		if strings.EqualFold(ccCode, hashtag) {
+			log.Printf("📝 ✅ Custom caption encontrado: #%s -> %s", hashtag, channel.CustomCaptions[i].Code)
 			customCaptionCache.Store(cacheKey, &channel.CustomCaptions[i])
 			return &channel.CustomCaptions[i]
 		}
 	}
 
+	// Cache miss - não existe
+	log.Printf("📝 ❌ Custom caption não encontrado para: #%s", hashtag)
 	customCaptionCache.Store(cacheKey, (*dbmodels.CustomCaption)(nil))
 	return nil
 }
 
-// ✅ PROCESSAR HASHTAG (CONCATENAÇÃO)
+// ✅ CORRIGIDO: Processar hashtag com custom caption buttons
+// ✅ CORRIGIDO: Só processar hashtags que existem no banco
 func (mp *MessageProcessor) processMessageWithHashtag(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
 	hashtag := extractHashtag(text)
-	var customCaption *dbmodels.CustomCaption
 
-	if hashtag != "" {
-		customCaption = findCustomCaption(channel, hashtag)
-		cleanText := removeHashtag(text, hashtag)
-
-		if customCaption != nil {
-			return fmt.Sprintf("%s\n\n%s", cleanText, customCaption.Caption), customCaption
-		}
-
+	// ✅ SE NÃO TEM HASHTAG, usar caption padrão
+	if hashtag == "" {
 		defaultCaption := ""
 		if channel.DefaultCaption != nil {
 			defaultCaption = channel.DefaultCaption.Caption
 		}
-		return fmt.Sprintf("%s\n\n%s", cleanText, defaultCaption), nil
+		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
 	}
 
-	defaultCaption := ""
-	if channel.DefaultCaption != nil {
-		defaultCaption = channel.DefaultCaption.Caption
+	// ✅ VERIFICAR SE A HASHTAG EXISTE NO BANCO PRIMEIRO
+	customCaption := findCustomCaption(channel, hashtag)
+
+	// ✅ SE A HASHTAG NÃO EXISTE NO BANCO, tratar como texto normal
+	if customCaption == nil {
+		log.Printf("📝 Hashtag #%s não encontrada no banco, tratando como texto normal", hashtag)
+		defaultCaption := ""
+		if channel.DefaultCaption != nil {
+			defaultCaption = channel.DefaultCaption.Caption
+		}
+		// ✅ NÃO REMOVER A HASHTAG, manter texto original
+		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
 	}
 
-	return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
+	// ✅ SE A HASHTAG EXISTE NO BANCO, processar
+	log.Printf("📝 Hashtag #%s encontrada no banco: %s", hashtag, customCaption.Code)
+	cleanText := removeHashtag(text, hashtag)
+
+	// ✅ USAR CUSTOM CAPTION E SEUS BOTÕES
+	return fmt.Sprintf("%s\n\n%s", cleanText, customCaption.Caption), customCaption
 }
 
 // ✅ FUNÇÕES DE CONVERSÃO
