@@ -3,8 +3,8 @@ package models
 import "time"
 
 type User struct {
-	UserId       int64     `gorm:"primaryKey" json:"user_id"` // ID do Telegram
-	FirstName    string    `json:"first_name"`
+	UserId       int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
+	FirstName    string    `json:"firstName"`
 	IsContribute bool      `gorm:"default:false" json:"isContribute"`
 	Channels     []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`

@@ -10,5 +10,6 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	api := r.Group("/api")
 	{
 		api.GET("/ping", handlers.PingHandler(c))
+		api.GET("/user/:userId/:channelId", handlers.GetChannelByTwoID(c))
 	}
 }

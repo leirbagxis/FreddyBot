@@ -21,6 +21,12 @@ func StartApi(db *gorm.DB) error {
 	router := gin.Default()
 	routes.RegisterRoutes(router, app)
 
+	router.Static("/assets", "./webapp/assets")
+	// Se quiser servir /app como root HTML
+	router.GET("/:userId/:channelId", func(c *gin.Context) {
+		c.File("./webapp/index.html")
+	})
+
 	srv := &http.Server{
 		Addr:    ":7000",
 		Handler: router,

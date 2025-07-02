@@ -30,7 +30,16 @@ func (r *ChannelRepository) CountUserChannels(ctx context.Context, userID int64)
 func (r *ChannelRepository) GetChannelByTwoID(ctx context.Context, userId, channelId int64) (*models.Channel, error) {
 	var channel models.Channel
 	err := r.db.WithContext(ctx).
-		Where("owner_id = ? AND id = ?", userId, channelId).
+		// Usar Joins para relações 1:1 (melhor performance)
+		Joins("DefaultCaption").
+		Joins("DefaultCaption.MessagePermission").
+		Joins("DefaultCaption.ButtonsPermission").
+		Joins("Separator").
+		// Usar Preload para relações 1:N
+		Preload("Buttons").
+		Preload("CustomCaptions").
+		Preload("CustomCaptions.Buttons").
+		Where("channels.owner_id = ? AND channels.id = ?", userId, channelId).
 		First(&channel).Error
 
 	if err != nil {
