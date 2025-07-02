@@ -2,8 +2,11 @@ package channelpost
 
 import (
 	"fmt"
+	"html"
 	"regexp"
+	"sort"
 	"strings"
+	"unicode/utf16"
 
 	"github.com/go-telegram/bot/models"
 )
@@ -187,7 +190,7 @@ func applyEntities(text string, entities []models.MessageEntity) string {
 }
 
 // ✅ FUNÇÃO PARA PROCESSAR TEXTO COM FORMATAÇÃO COMPLETA
-func processTextWithFormatting(text string, entities []models.MessageEntity) string {
+func aprocessTextWithFormatting(text string, entities []models.MessageEntity) string {
 	if text == "" {
 		return ""
 	}
@@ -199,4 +202,174 @@ func processTextWithFormatting(text string, entities []models.MessageEntity) str
 	finalText := detectParseMode(formattedText)
 
 	return finalText
+}
+
+// processTextWithFormatting converte MessageEntities do Telegram para HTML
+func processTextWithFormatting(text string, entities []models.MessageEntity) string {
+	if len(entities) == 0 {
+		return html.EscapeString(text)
+	}
+
+	// Converter string para UTF-16 para cálculos corretos de offset
+	textRunes := []rune(text)
+	textUTF16 := utf16.Encode(textRunes)
+
+	// Ordenar entidades por offset
+	sort.Slice(entities, func(i, j int) bool {
+		return entities[i].Offset < entities[j].Offset
+	})
+
+	var result strings.Builder
+	lastOffset := 0
+
+	for _, entity := range entities {
+		// Adicionar texto antes da entidade (escapado)
+		if entity.Offset > lastOffset {
+			beforeText := string(utf16.Decode(textUTF16[lastOffset:entity.Offset]))
+			result.WriteString(html.EscapeString(beforeText))
+		}
+
+		// Extrair o texto da entidade
+		entityEnd := entity.Offset + entity.Length
+		if entityEnd > len(textUTF16) {
+			entityEnd = len(textUTF16)
+		}
+		entityText := string(utf16.Decode(textUTF16[entity.Offset:entityEnd]))
+
+		// Aplicar formatação baseada no tipo de entidade
+		switch entity.Type {
+		case "bold":
+			result.WriteString("<b>")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</b>")
+		case "italic":
+			result.WriteString("<i>")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</i>")
+		case "underline":
+			result.WriteString("<u>")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</u>")
+		case "strikethrough":
+			result.WriteString("<s>")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</s>")
+		case "spoiler":
+			result.WriteString("<span class=\"tg-spoiler\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</span>")
+		case "code":
+			result.WriteString("<code>")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</code>")
+		case "pre":
+			if entity.Language != "" {
+				result.WriteString("<pre><code class=\"language-")
+				result.WriteString(html.EscapeString(entity.Language))
+				result.WriteString("\">")
+				result.WriteString(html.EscapeString(entityText))
+				result.WriteString("</code></pre>")
+			} else {
+				result.WriteString("<pre>")
+				result.WriteString(html.EscapeString(entityText))
+				result.WriteString("</pre>")
+			}
+		case "text_link":
+			result.WriteString("<a href=\"")
+			result.WriteString(html.EscapeString(entity.URL))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "url":
+			result.WriteString("<a href=\"")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "email":
+			result.WriteString("<a href=\"mailto:")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "phone_number":
+			result.WriteString("<a href=\"tel:")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "mention":
+			result.WriteString("<a href=\"https://t.me/")
+			result.WriteString(html.EscapeString(strings.TrimPrefix(entityText, "@")))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "hashtag":
+			result.WriteString("<a href=\"https://t.me/hashtag/")
+			result.WriteString(html.EscapeString(strings.TrimPrefix(entityText, "#")))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "cashtag":
+			result.WriteString("<a href=\"https://t.me/cashtag/")
+			result.WriteString(html.EscapeString(strings.TrimPrefix(entityText, "$")))
+			result.WriteString("\">")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</a>")
+		case "bot_command":
+			result.WriteString("<code>")
+			result.WriteString(html.EscapeString(entityText))
+			result.WriteString("</code>")
+		default:
+			// Para tipos desconhecidos, apenas escapar o texto
+			result.WriteString(html.EscapeString(entityText))
+		}
+
+		lastOffset = entityEnd
+	}
+
+	// Adicionar texto restante (escapado)
+	if lastOffset < len(textUTF16) {
+		remainingText := string(utf16.Decode(textUTF16[lastOffset:]))
+		result.WriteString(html.EscapeString(remainingText))
+	}
+
+	return result.String()
+}
+
+// Função auxiliar para processar entidades sobrepostas (se necessário)
+func mergeOverlappingEntities(entities []models.MessageEntity) []models.MessageEntity {
+	if len(entities) <= 1 {
+		return entities
+	}
+
+	// Ordenar por offset
+	sort.Slice(entities, func(i, j int) bool {
+		if entities[i].Offset == entities[j].Offset {
+			return entities[i].Length > entities[j].Length // Entidades maiores primeiro
+		}
+		return entities[i].Offset < entities[j].Offset
+	})
+
+	var merged []models.MessageEntity
+	for _, entity := range entities {
+		// Verificar se a entidade atual se sobrepõe com alguma já processada
+		overlaps := false
+		for i := range merged {
+			existingEnd := merged[i].Offset + merged[i].Length
+			entityEnd := entity.Offset + entity.Length
+
+			// Se há sobreposição, mesclar ou pular
+			if entity.Offset < existingEnd && merged[i].Offset < entityEnd {
+				overlaps = true
+				break
+			}
+		}
+
+		if !overlaps {
+			merged = append(merged, entity)
+		}
+	}
+
+	return merged
 }

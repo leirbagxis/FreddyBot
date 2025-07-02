@@ -2,9 +2,7 @@ package channelpost
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -15,7 +13,7 @@ import (
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
-// ✅ REGEX E CACHES GLOBAIS
+// ========== CACHES E REGEX ==========
 var (
 	hashtagRegex         = regexp.MustCompile(`#(\w+)`)
 	removeHashRegexCache = sync.Map{} // string -> *regexp.Regexp
@@ -23,7 +21,7 @@ var (
 	mediaGroups          = sync.Map{} // string -> *MediaGroup
 )
 
-// ✅ ESTRUTURA ÚNICA PARA GRUPOS DE MÍDIA
+// ========== ESTRUTURAS ==========
 type MediaGroup struct {
 	Messages           []MediaMessage
 	Processed          bool
@@ -47,37 +45,23 @@ func NewMessageProcessor(b *bot.Bot) *MessageProcessor {
 	}
 }
 
-func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
-	if post.Text != "" {
-		return MessageTypeText
+// ========== INLINE KEYBOARD ==========
+func (mp *MessageProcessor) CreateInlineKeyboard(
+	buttons []dbmodels.Button,
+	customCaption *dbmodels.CustomCaption,
+	allowButtons bool,
+) *models.InlineKeyboardMarkup {
+	if !allowButtons {
+		return nil
 	}
-	if post.Audio != nil {
-		return MessageTypeAudio
-	}
-	if post.Sticker != nil {
-		return MessageTypeSticker
-	}
-	if post.Photo != nil {
-		return MessageTypePhoto
-	}
-	if post.Video != nil {
-		return MessageTypeVideo
-	}
-	if post.Animation != nil {
-		return MessageTypeAnimation
-	}
-	return ""
-}
-
-// ✅ CORRIGIDO: Priorizar botões do custom caption
-func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption) *models.InlineKeyboardMarkup {
 	var finalButtons []dbmodels.Button
 
-	// ✅ PRIORIDADE: Se tem custom caption, usar APENAS seus botões
+	// Priorize botões do custom caption, se existirem
 	if customCaption != nil && len(customCaption.Buttons) > 0 {
-		log.Printf("🔘 Usando botões do custom caption: %s (%d botões)", customCaption.Code, len(customCaption.Buttons))
-		finalButtons = make([]dbmodels.Button, 0, len(customCaption.Buttons))
 		for _, cb := range customCaption.Buttons {
+			if cb.NameButton == "" || cb.ButtonURL == "" {
+				continue
+			}
 			finalButtons = append(finalButtons, dbmodels.Button{
 				NameButton: cb.NameButton,
 				ButtonURL:  cb.ButtonURL,
@@ -86,44 +70,34 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			})
 		}
 	} else {
-		// ✅ FALLBACK: Usar botões padrão do canal
-		log.Printf("🔘 Usando botões padrão do canal (%d botões)", len(buttons))
-		finalButtons = buttons
+		for _, b := range buttons {
+			if b.NameButton == "" || b.ButtonURL == "" {
+				continue
+			}
+			finalButtons = append(finalButtons, b)
+		}
 	}
 
 	if len(finalButtons) == 0 {
-		log.Printf("🔘 Nenhum botão disponível")
 		return nil
 	}
 
-	// Criar grid de botões
 	buttonGrid := make(map[int]map[int]models.InlineKeyboardButton)
-
 	for i, button := range finalButtons {
-		if button.NameButton == "" || button.ButtonURL == "" {
-			log.Printf("⚠️ Botão inválido ignorado: %+v", button)
-			continue
-		}
-
 		row := button.PositionY
 		col := button.PositionX
 		if col == 0 {
 			col = i
 		}
-
 		if buttonGrid[row] == nil {
 			buttonGrid[row] = make(map[int]models.InlineKeyboardButton)
 		}
-
 		buttonGrid[row][col] = models.InlineKeyboardButton{
 			Text: button.NameButton,
 			URL:  button.ButtonURL,
 		}
-
-		log.Printf("🔘 Botão adicionado: %s -> %s (linha %d, coluna %d)", button.NameButton, button.ButtonURL, row, col)
 	}
 
-	// Construir keyboard final
 	var keyboard [][]models.InlineKeyboardButton
 	for row := 0; row < 10; row++ {
 		if rowButtons, exists := buttonGrid[row]; exists {
@@ -140,112 +114,65 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 	}
 
 	if len(keyboard) == 0 {
-		log.Printf("🔘 Nenhuma linha de botões criada")
 		return nil
 	}
 
-	log.Printf("✅ Keyboard criado com %d linhas de botões", len(keyboard))
 	return &models.InlineKeyboardMarkup{
 		InlineKeyboard: keyboard,
 	}
 }
 
-// ✅ PROCESSAR TEXTO COM FORMATAÇÃO
+// ========== TEXTO ==========
 func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	text := post.Text
 	messageID := post.ID
-	teste, _ := json.Marshal(channel)
-	fmt.Println(string(teste))
-
 	if text == "" {
 		return fmt.Errorf("texto da mensagem está vazio")
 	}
-
 	if !messageEditAllowed {
-		if len(buttons) == 0 {
-			return nil
-		}
-		keyboard := mp.CreateInlineKeyboard(buttons, nil)
-		if keyboard == nil {
-			return nil
-		}
-		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID:      post.Chat.ID,
-			MessageID:   messageID,
-			ReplyMarkup: keyboard,
-		})
-		return err
+		return nil
+	}
+	finalText, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(text, post.Entities, channel)
+	if !msgPerm {
+		return nil
 	}
 
-	// ✅ APLICAR FORMATAÇÃO
-	formattedText := processTextWithFormatting(text, post.Entities)
-	message, customCaption := mp.processMessageWithHashtag(formattedText, channel)
-	keyboard := mp.CreateInlineKeyboard(buttons, customCaption)
-
-	editParams := &bot.EditMessageTextParams{
+	params := &bot.EditMessageTextParams{
 		ChatID:    post.Chat.ID,
 		MessageID: messageID,
-		Text:      message,
+		Text:      finalText,
 		ParseMode: "HTML",
+		LinkPreviewOptions: &models.LinkPreviewOptions{
+			IsDisabled: func(b bool) *bool { v := b; return &v }(!linkPrev),
+		},
 	}
 
-	if keyboard != nil {
-		editParams.ReplyMarkup = keyboard
+	if btnPerm {
+		keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+		if keyboard != nil {
+			params.ReplyMarkup = keyboard
+		}
 	}
 
-	_, err := mp.bot.EditMessageText(ctx, editParams)
+	_, err := mp.bot.EditMessageText(ctx, params)
 	return err
 }
 
-// ✅ PROCESSAR ÁUDIO (SUBSTITUIÇÃO TOTAL)
+// ========== ÁUDIO ==========
 func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	messageID := post.ID
 	caption := post.Caption
 	mediaGroupID := post.MediaGroupID
-
 	if !messageEditAllowed {
-		if len(buttons) == 0 {
-			return nil
-		}
-		keyboard := mp.CreateInlineKeyboard(buttons, nil)
-		if keyboard == nil {
-			return nil
-		}
-		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID:      post.Chat.ID,
-			MessageID:   messageID,
-			ReplyMarkup: keyboard,
-		})
-		return err
+		return nil
 	}
-
-	// Aguardar 1 segundo
 	time.Sleep(1 * time.Second)
-
-	// Para grupos de mídia: REENVIAR + DELETAR
 	if mediaGroupID != "" {
-		var finalMessage string
-		var customCaption *dbmodels.CustomCaption
-
-		hashtag := extractHashtag(caption)
-		if hashtag != "" {
-			customCaption = findCustomCaption(channel, hashtag)
-			if customCaption != nil {
-				finalMessage = customCaption.Caption
-			} else {
-				if channel.DefaultCaption != nil {
-					finalMessage = channel.DefaultCaption.Caption
-				}
-			}
-		} else {
-			if channel.DefaultCaption != nil {
-				finalMessage = channel.DefaultCaption.Caption
-			}
+		finalMessage, customCaption, msgPerm, btnPerm, _ := mp.processMessageWithHashtagFormatting(caption, post.CaptionEntities, channel)
+		if !msgPerm {
+			return nil
 		}
 
-		keyboard := mp.CreateInlineKeyboard(buttons, customCaption)
-
-		// Reenviar áudio
 		sendParams := &bot.SendAudioParams{
 			ChatID:    post.Chat.ID,
 			Audio:     &models.InputFileString{Data: post.Audio.FileID},
@@ -253,337 +180,201 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 			ParseMode: "HTML",
 		}
 
-		if keyboard != nil {
-			sendParams.ReplyMarkup = keyboard
+		if btnPerm {
+			keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+			if keyboard != nil {
+				sendParams.ReplyMarkup = keyboard
+			}
 		}
-
 		_, err := mp.bot.SendAudio(ctx, sendParams)
 		if err != nil {
 			return err
 		}
-
-		// Deletar original
 		_, err = mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
 			ChatID:    post.Chat.ID,
 			MessageID: messageID,
 		})
 		return err
 	}
+	finalMessage, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(caption, post.CaptionEntities, channel)
+	if !msgPerm {
+		return nil
+	}
 
-	// Para áudios individuais: SUBSTITUIÇÃO TOTAL
-	var finalMessage string
-	var customCaption *dbmodels.CustomCaption
+	params := &bot.EditMessageCaptionParams{
+		ChatID:                post.Chat.ID,
+		MessageID:             messageID,
+		Caption:               finalMessage,
+		ParseMode:             "HTML",
+		DisableWebPagePreview: !linkPrev,
+	}
 
-	hashtag := extractHashtag(caption)
-	if hashtag != "" {
-		customCaption = findCustomCaption(channel, hashtag)
-		if customCaption != nil {
-			finalMessage = customCaption.Caption
-		} else {
-			if channel.DefaultCaption != nil {
-				finalMessage = channel.DefaultCaption.Caption
-			}
+	if btnPerm {
+		keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+		if keyboard != nil {
+			params.ReplyMarkup = keyboard
 		}
-	} else {
-		if channel.DefaultCaption != nil {
-			finalMessage = channel.DefaultCaption.Caption
-		}
 	}
 
-	keyboard := mp.CreateInlineKeyboard(buttons, customCaption)
-
-	editParams := &bot.EditMessageCaptionParams{
-		ChatID:    post.Chat.ID,
-		MessageID: messageID,
-		Caption:   finalMessage,
-		ParseMode: "HTML",
-	}
-
-	if keyboard != nil {
-		editParams.ReplyMarkup = keyboard
-	}
-
-	_, err := mp.bot.EditMessageCaption(ctx, editParams)
+	_, err := mp.bot.EditMessageCaption(ctx, params)
 	return err
 }
 
-// ✅ PROCESSAR MÍDIA
+// ========== MÍDIA ==========
 func (mp *MessageProcessor) ProcessMediaMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	mediaGroupID := post.MediaGroupID
-
 	if mediaGroupID != "" {
 		return mp.handleGroupedMedia(ctx, channel, post, buttons, messageEditAllowed)
 	}
-
 	return mp.handleSingleMedia(ctx, channel, post, buttons, messageEditAllowed)
 }
 
-// ✅ MÍDIA INDIVIDUAL COM FORMATAÇÃO
 func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	messageID := post.ID
 	caption := post.Caption
-
 	if !messageEditAllowed {
-		if len(buttons) == 0 {
-			return nil
+		return nil
+	}
+	finalCaption, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(caption, post.CaptionEntities, channel)
+	if !msgPerm {
+		return nil
+	}
+
+	params := &bot.EditMessageCaptionParams{
+		ChatID:                post.Chat.ID,
+		MessageID:             messageID,
+		Caption:               finalCaption,
+		ParseMode:             "HTML",
+		DisableWebPagePreview: !linkPrev,
+	}
+
+	if btnPerm {
+		keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+		if keyboard != nil {
+			params.ReplyMarkup = keyboard
 		}
-		keyboard := mp.CreateInlineKeyboard(buttons, nil)
-		if keyboard == nil {
-			return nil
-		}
-		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID:      post.Chat.ID,
-			MessageID:   messageID,
-			ReplyMarkup: keyboard,
-		})
-		return err
 	}
 
-	// ✅ APLICAR FORMATAÇÃO NA CAPTION
-	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
-	message, customCaption := mp.processMessageWithHashtag(formattedCaption, channel)
-	keyboard := mp.CreateInlineKeyboard(buttons, customCaption)
-
-	editParams := &bot.EditMessageCaptionParams{
-		ChatID:    post.Chat.ID,
-		MessageID: messageID,
-		Caption:   message,
-		ParseMode: "HTML",
-	}
-
-	if keyboard != nil {
-		editParams.ReplyMarkup = keyboard
-	}
-
-	_, err := mp.bot.EditMessageCaption(ctx, editParams)
+	_, err := mp.bot.EditMessageCaption(ctx, params)
 	return err
 }
 
-// ✅ CORRIGIDO: Grupo de mídia com estrutura unificada
+// ========== GRUPO DE MÍDIA ==========
 func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	mediaGroupID := post.MediaGroupID
 	messageID := post.ID
 	caption := post.Caption
-
-	log.Printf("📸 Processando mídia do grupo: %s, ID: %d, Caption: %q", mediaGroupID, messageID, caption)
-
-	// ✅ USAR LoadOrStore ATÔMICO
-	value, loaded := mediaGroups.LoadOrStore(mediaGroupID, &MediaGroup{
+	value, _ := mediaGroups.LoadOrStore(mediaGroupID, &MediaGroup{
 		Messages:           make([]MediaMessage, 0),
 		Processed:          false,
 		MessageEditAllowed: messageEditAllowed,
 		ChatID:             post.Chat.ID,
 	})
-
 	group := value.(*MediaGroup)
 	group.mu.Lock()
 	defer group.mu.Unlock()
-
-	if !loaded {
-		log.Printf("📸 Novo grupo criado: %s", mediaGroupID)
-	} else {
-		log.Printf("📸 Usando grupo existente: %s", mediaGroupID)
-	}
-
-	// ✅ VERIFICAR SE JÁ FOI PROCESSADO
 	if group.Processed {
-		log.Printf("📸 Grupo já processado: %s", mediaGroupID)
 		return nil
 	}
-
-	// ✅ ADICIONAR MENSAGEM
 	group.Messages = append(group.Messages, MediaMessage{
 		MessageID:       messageID,
 		HasCaption:      caption != "",
 		Caption:         caption,
 		CaptionEntities: convertMessageEntitiesToInterface(post.CaptionEntities),
 	})
-
-	// ✅ CANCELAR TIMER ANTERIOR
 	if group.Timer != nil {
 		group.Timer.Stop()
 	}
-
-	// ✅ TIMEOUT ADAPTATIVO (reduzido para ser mais responsivo)
 	timeout := time.Duration(800+len(group.Messages)*200) * time.Millisecond
 	if timeout > 2*time.Second {
 		timeout = 2 * time.Second
 	}
-
-	log.Printf("📸 Grupo %s: %d mensagens, timeout: %v", mediaGroupID, len(group.Messages), timeout)
-
-	// ✅ CRIAR TIMER
 	group.Timer = time.AfterFunc(timeout, func() {
 		mp.finishGroupProcessing(ctx, mediaGroupID, channel, buttons)
 	})
-
 	return nil
 }
 
-// ✅ CORRIGIDO: Finalizar processamento de grupo com custom caption
 func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button) {
-	log.Printf("📸 Iniciando processamento final do grupo: %s", groupID)
-
 	value, ok := mediaGroups.Load(groupID)
 	if !ok {
-		log.Printf("❌ Grupo não encontrado: %s", groupID)
 		return
 	}
-
 	group := value.(*MediaGroup)
 	group.mu.Lock()
 	defer group.mu.Unlock()
-
 	if group.Processed {
-		log.Printf("📸 Grupo já processado: %s", groupID)
 		return
 	}
-
 	group.Processed = true
-	log.Printf("📸 Marcando grupo como processado: %s com %d mensagens", groupID, len(group.Messages))
-
 	if len(group.Messages) == 0 {
-		log.Printf("❌ Nenhuma mensagem no grupo: %s", groupID)
 		return
 	}
-
-	// ✅ ENCONTRAR A MENSAGEM IDEAL PARA EDITAR
 	var targetMessage *MediaMessage
-
-	// Prioridade 1: Mensagem com caption
 	for i := range group.Messages {
 		if group.Messages[i].HasCaption {
 			targetMessage = &group.Messages[i]
-			log.Printf("📸 Usando mensagem com caption: %d (caption: %q)", targetMessage.MessageID, targetMessage.Caption)
 			break
 		}
 	}
-
-	// Prioridade 2: Primeira mensagem se não houver caption
 	if targetMessage == nil {
 		targetMessage = &group.Messages[0]
-		log.Printf("📸 Usando primeira mensagem (sem caption): %d", targetMessage.MessageID)
 	}
-
-	// ✅ SE NÃO PODE EDITAR MENSAGEM, APENAS ADICIONAR BOTÕES
-	if !group.MessageEditAllowed {
-		if len(buttons) > 0 {
-			keyboard := mp.CreateInlineKeyboard(buttons, nil)
-			if keyboard != nil {
-				editCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-
-				_, err := mp.bot.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
-					ChatID:      group.ChatID,
-					MessageID:   targetMessage.MessageID,
-					ReplyMarkup: keyboard,
-				})
-				if err != nil {
-					log.Printf("❌ Erro ao editar markup do grupo %s: %v", groupID, err)
-				} else {
-					log.Printf("✅ Markup editado para grupo: %s, mensagem: %d", groupID, targetMessage.MessageID)
-				}
-			}
-		}
-		mp.cleanupGroup(groupID)
+	finalCaption, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(
+		targetMessage.Caption,
+		convertInterfaceToMessageEntities(targetMessage.CaptionEntities),
+		channel,
+	)
+	if !msgPerm {
 		return
 	}
 
-	// ✅ PROCESSAR CAPTION COM CUSTOM CAPTION
-	var finalMessage string
-	var customCaption *dbmodels.CustomCaption
-
-	if targetMessage.HasCaption {
-		// Aplicar formatação se tiver entities
-		entities := convertInterfaceToMessageEntities(targetMessage.CaptionEntities)
-		formattedCaption := processTextWithFormatting(targetMessage.Caption, entities)
-
-		// ✅ PROCESSAR HASHTAG E OBTER CUSTOM CAPTION
-		finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
-
-		if customCaption != nil {
-			log.Printf("📸 Custom caption encontrado: %s", customCaption.Code)
-		}
-
-		log.Printf("📸 Processando com caption formatado: %s -> %s", targetMessage.Caption, finalMessage)
-	} else {
-		// Usar caption padrão se não houver caption na mensagem
-		if channel.DefaultCaption != nil {
-			finalMessage = channel.DefaultCaption.Caption
-		}
-		log.Printf("📸 Usando caption padrão: %s", finalMessage)
+	params := &bot.EditMessageCaptionParams{
+		ChatID:                group.ChatID,
+		MessageID:             targetMessage.MessageID,
+		Caption:               finalCaption,
+		ParseMode:             "HTML",
+		DisableWebPagePreview: !linkPrev,
 	}
 
-	// ✅ CRIAR KEYBOARD COM CUSTOM CAPTION BUTTONS
-	keyboard := mp.CreateInlineKeyboard(buttons, customCaption)
-
-	// ✅ EDITAR APENAS A MENSAGEM ALVO
-	editCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	editParams := &bot.EditMessageCaptionParams{
-		ChatID:    group.ChatID,
-		MessageID: targetMessage.MessageID,
-		Caption:   finalMessage,
-		ParseMode: "HTML",
-	}
-
-	if keyboard != nil {
-		editParams.ReplyMarkup = keyboard
-	}
-
-	_, err := mp.bot.EditMessageCaption(editCtx, editParams)
-	if err != nil {
-		log.Printf("❌ Erro ao editar caption do grupo %s, mensagem %d: %v", groupID, targetMessage.MessageID, err)
-	} else {
-		log.Printf("✅ SUCESSO: Grupo %s processado - APENAS mensagem %d editada com caption: %q", groupID, targetMessage.MessageID, finalMessage)
-		if customCaption != nil {
-			log.Printf("✅ Custom caption aplicado: %s com %d botões", customCaption.Code, len(customCaption.Buttons))
+	if btnPerm {
+		keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+		if keyboard != nil {
+			params.ReplyMarkup = keyboard
 		}
 	}
 
-	// ✅ CLEANUP
-	mp.cleanupGroup(groupID)
-}
-
-// ✅ FUNÇÃO PARA LIMPEZA DO GRUPO
-func (mp *MessageProcessor) cleanupGroup(groupID string) {
+	_, _ = mp.bot.EditMessageCaption(ctx, params)
 	time.AfterFunc(10*time.Second, func() {
 		mediaGroups.Delete(groupID)
-		log.Printf("🧹 Grupo removido da memória: %s", groupID)
 	})
 }
 
+// ========== STICKER ==========
 func (mp *MessageProcessor) ProcessStickerMessage(ctx context.Context, post *models.Message, buttons []dbmodels.Button) error {
 	if len(buttons) == 0 {
 		return nil
 	}
-
-	keyboard := mp.CreateInlineKeyboard(buttons, nil)
+	keyboard := mp.CreateInlineKeyboard(buttons, nil, true)
 	if keyboard == nil {
 		return nil
 	}
-
 	_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
 		ChatID:      post.Chat.ID,
 		MessageID:   post.ID,
 		ReplyMarkup: keyboard,
 	})
-
 	return err
 }
 
-// ✅ FUNÇÕES AUXILIARES
-// ✅ CORRIGIDO: Extrair hashtag sem o #
+// ========== AUXILIARES ==========
 func extractHashtag(text string) string {
 	if text == "" {
 		return ""
 	}
 	matches := hashtagRegex.FindStringSubmatch(text)
 	if len(matches) > 1 {
-		hashtag := strings.ToLower(matches[1]) // SEM o #
-		log.Printf("📝 Hashtag extraída: #%s", hashtag)
-		return hashtag
+		return strings.ToLower(matches[1])
 	}
 	return ""
 }
@@ -592,7 +383,6 @@ func removeHashtag(text, hashtag string) string {
 	if text == "" || hashtag == "" {
 		return text
 	}
-
 	var re *regexp.Regexp
 	if value, ok := removeHashRegexCache.Load(hashtag); ok {
 		re = value.(*regexp.Regexp)
@@ -600,83 +390,28 @@ func removeHashtag(text, hashtag string) string {
 		re = regexp.MustCompile(`#` + regexp.QuoteMeta(hashtag) + `\s*`)
 		removeHashRegexCache.Store(hashtag, re)
 	}
-
 	return strings.TrimSpace(re.ReplaceAllString(text, ""))
 }
 
-// ✅ CORRIGIDO: Buscar custom caption com logs detalhados
 func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.CustomCaption {
 	cacheKey := fmt.Sprintf("%d_%s", channel.ID, hashtag)
-
-	// Verificar cache primeiro
 	if value, ok := customCaptionCache.Load(cacheKey); ok {
 		if caption, ok := value.(*dbmodels.CustomCaption); ok {
-			log.Printf("📝 Custom caption encontrado no cache: #%s -> %s", hashtag, caption.Code)
 			return caption
 		}
-		log.Printf("📝 Custom caption não existe (cache): #%s", hashtag)
 		return nil
 	}
-
-	// Buscar no banco
-	log.Printf("📝 Buscando custom caption no banco para hashtag: #%s", hashtag)
-	log.Printf("📝 Custom captions disponíveis no canal:")
-	for i, cc := range channel.CustomCaptions {
-		log.Printf("  [%d] Code: %s, Caption: %s", i, cc.Code, cc.Caption)
-	}
-
 	for i := range channel.CustomCaptions {
-		// ✅ COMPARAR SEM O # (code já vem com #)
 		ccCode := strings.TrimPrefix(channel.CustomCaptions[i].Code, "#")
 		if strings.EqualFold(ccCode, hashtag) {
-			log.Printf("📝 ✅ Custom caption encontrado: #%s -> %s", hashtag, channel.CustomCaptions[i].Code)
 			customCaptionCache.Store(cacheKey, &channel.CustomCaptions[i])
 			return &channel.CustomCaptions[i]
 		}
 	}
-
-	// Cache miss - não existe
-	log.Printf("📝 ❌ Custom caption não encontrado para: #%s", hashtag)
 	customCaptionCache.Store(cacheKey, (*dbmodels.CustomCaption)(nil))
 	return nil
 }
 
-// ✅ CORRIGIDO: Só processar hashtags que existem no banco
-func (mp *MessageProcessor) processMessageWithHashtag(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
-	hashtag := extractHashtag(text)
-
-	// ✅ SE NÃO TEM HASHTAG, usar caption padrão
-	if hashtag == "" {
-		defaultCaption := ""
-		if channel.DefaultCaption != nil {
-			defaultCaption = channel.DefaultCaption.Caption
-		}
-		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
-	}
-
-	// ✅ VERIFICAR SE A HASHTAG EXISTE NO BANCO PRIMEIRO
-	customCaption := findCustomCaption(channel, hashtag)
-
-	// ✅ SE A HASHTAG NÃO EXISTE NO BANCO, tratar como texto normal
-	if customCaption == nil {
-		log.Printf("📝 Hashtag #%s não encontrada no banco, tratando como texto normal", hashtag)
-		defaultCaption := ""
-		if channel.DefaultCaption != nil {
-			defaultCaption = channel.DefaultCaption.Caption
-		}
-		// ✅ NÃO REMOVER A HASHTAG, manter texto original
-		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
-	}
-
-	// ✅ SE A HASHTAG EXISTE NO BANCO, processar
-	log.Printf("📝 Hashtag #%s encontrada no banco: %s", hashtag, customCaption.Code)
-	cleanText := removeHashtag(text, hashtag)
-
-	// ✅ USAR CUSTOM CAPTION E SEUS BOTÕES
-	return fmt.Sprintf("%s\n\n%s", cleanText, customCaption.Caption), customCaption
-}
-
-// ✅ FUNÇÕES DE CONVERSÃO
 func convertMessageEntitiesToInterface(entities []models.MessageEntity) []interface{} {
 	result := make([]interface{}, len(entities))
 	for i, entity := range entities {
@@ -695,7 +430,191 @@ func convertInterfaceToMessageEntities(entities []interface{}) []models.MessageE
 	return result
 }
 
-// ✅ MÉTODOS BÁSICOS
+// ========== CONVERSÃO MARKDOWN PARA HTML ==========
+func convertMarkdownToHTML(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	result := text
+
+	// Processar em ordem específica para evitar conflitos
+
+	// 1. Code blocks primeiro (```código```)
+	codeBlockRegex := regexp.MustCompile("```([\\s\\S]*?)```")
+	result = codeBlockRegex.ReplaceAllString(result, "<pre>$1</pre>")
+
+	// 2. Inline code (`código`)
+	inlineCodeRegex := regexp.MustCompile("`([^`]+)`")
+	result = inlineCodeRegex.ReplaceAllString(result, "<code>$1</code>")
+
+	// 3. Bold (**texto**)
+	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	result = boldRegex.ReplaceAllString(result, "<b>$1</b>")
+
+	// 4. Italic (*texto*)
+	italicRegex := regexp.MustCompile(`\*([^*]+)\*`)
+	result = italicRegex.ReplaceAllString(result, "<i>$1</i>")
+
+	// 5. Underline (__texto__)
+	underlineRegex := regexp.MustCompile(`__([^_]+)__`)
+	result = underlineRegex.ReplaceAllString(result, "<u>$1</u>")
+
+	// 6. Strikethrough (~~texto~~)
+	strikeRegex := regexp.MustCompile(`~~([^~]+)~~`)
+	result = strikeRegex.ReplaceAllString(result, "<s>$1</s>")
+
+	// 7. Spoiler (||texto||)
+	spoilerRegex := regexp.MustCompile(`\|\|([^|]+)\|\|`)
+	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
+
+	// 8. Links [texto](url) - fazer por último
+	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	result = linkRegex.ReplaceAllString(result, `<a href="$2">$1</a>`)
+
+	return result
+}
+
+// ========== PROCESSAMENTO DE MENSAGEM COM HASHTAG ==========
+func (mp *MessageProcessor) processMessageWithHashtagFormatting(
+	text string,
+	entities []models.MessageEntity,
+	channel *dbmodels.Channel,
+) (string, *dbmodels.CustomCaption, bool, bool, bool) {
+
+	// Processa o texto original com as entidades do Telegram
+	formatted := processTextWithFormatting(text, entities)
+
+	hashtag := extractHashtag(text)
+
+	// Valores padrão para permissões
+	msgPerm, btnPerm, linkPrev := true, true, true
+
+	// Aplicar permissões padrão
+	if channel.DefaultCaption != nil {
+		if channel.DefaultCaption.MessagePermission != nil {
+			msgPerm = channel.DefaultCaption.MessagePermission.Message
+			linkPrev = channel.DefaultCaption.MessagePermission.LinkPreview
+		}
+		if channel.DefaultCaption.ButtonsPermission != nil {
+			btnPerm = channel.DefaultCaption.ButtonsPermission.Message
+		}
+	}
+
+	// Caso 1: Sem hashtag - usar default caption
+	if hashtag == "" {
+		finalText := formatted
+		if channel.DefaultCaption != nil && channel.DefaultCaption.Caption != "" {
+			processedCaption := convertMarkdownToHTML(channel.DefaultCaption.Caption)
+			finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
+		}
+		return finalText, nil, msgPerm, btnPerm, linkPrev
+	}
+
+	// Caso 2: Com hashtag - buscar custom caption
+	var customCaption *dbmodels.CustomCaption
+	for i := range channel.CustomCaptions {
+		code := strings.TrimPrefix(channel.CustomCaptions[i].Code, "#")
+		if strings.EqualFold(code, hashtag) {
+			customCaption = &channel.CustomCaptions[i]
+			break
+		}
+	}
+
+	// Caso 3: Hashtag não encontrada - usar default caption
+	if customCaption == nil {
+		finalText := formatted
+		if channel.DefaultCaption != nil && channel.DefaultCaption.Caption != "" {
+			processedCaption := convertMarkdownToHTML(channel.DefaultCaption.Caption)
+			finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
+		}
+		return finalText, nil, msgPerm, btnPerm, linkPrev
+	}
+
+	// Caso 4: Custom caption encontrada
+	// Remove hashtag do texto original
+	cleanText := removeHashtag(text, hashtag)
+	formattedCleanText := processTextWithFormatting(cleanText, adjustEntitiesAfterHashtagRemoval(entities, text, hashtag))
+
+	// Aplicar linkPreview do customCaption
+	linkPrev = customCaption.LinkPreview
+
+	finalText := formattedCleanText
+	if customCaption.Caption != "" {
+		processedCaption := convertMarkdownToHTML(customCaption.Caption)
+		finalText = fmt.Sprintf("%s\n\n%s", formattedCleanText, processedCaption)
+	}
+
+	return finalText, customCaption, msgPerm, btnPerm, linkPrev
+}
+
+// ========== FUNÇÕES AUXILIARES ==========
+func processMarkdownText(text string) string {
+	if text == "" {
+		return ""
+	}
+	return detectParseMode(text)
+}
+
+func processCustomCaptionText(caption string) string {
+	if caption == "" {
+		return ""
+	}
+	return detectParseMode(caption)
+}
+
+// Função auxiliar para ajustar as entidades após remoção de hashtag
+func adjustEntitiesAfterHashtagRemoval(entities []models.MessageEntity, originalText, hashtag string) []models.MessageEntity {
+	hashtagPattern := "#" + hashtag
+	hashtagIndex := strings.Index(strings.ToLower(originalText), strings.ToLower(hashtagPattern))
+
+	if hashtagIndex == -1 {
+		return entities
+	}
+
+	// Calcular o deslocamento após remoção da hashtag
+	hashtagLength := len(hashtagPattern)
+	endIndex := hashtagIndex + hashtagLength
+	for endIndex < len(originalText) && (originalText[endIndex] == ' ' || originalText[endIndex] == '\n') {
+		endIndex++
+	}
+
+	removedLength := endIndex - hashtagIndex
+
+	var adjustedEntities []models.MessageEntity
+	for _, entity := range entities {
+		// Se a entidade está completamente antes da hashtag, manter como está
+		if entity.Offset+entity.Length <= hashtagIndex {
+			adjustedEntities = append(adjustedEntities, entity)
+			continue
+		}
+
+		// Se a entidade está completamente depois da hashtag, ajustar offset
+		if entity.Offset >= endIndex {
+			newEntity := entity
+			newEntity.Offset -= removedLength
+			adjustedEntities = append(adjustedEntities, newEntity)
+			continue
+		}
+
+		// Se a entidade se sobrepõe com a hashtag, ajustar ou pular
+		if entity.Offset < hashtagIndex && entity.Offset+entity.Length > endIndex {
+			// Entidade atravessa a hashtag - dividir ou ajustar
+			newEntity := entity
+			newEntity.Length -= removedLength
+			if newEntity.Length > 0 {
+				adjustedEntities = append(adjustedEntities, newEntity)
+			}
+		} else if entity.Offset < endIndex && entity.Offset+entity.Length > hashtagIndex {
+			// Entidade se sobrepõe parcialmente - pode ser necessário ajustar
+			// Implementar lógica específica conforme necessário
+		}
+	}
+
+	return adjustedEntities
+}
+
+// ========== MÉTODOS THREAD-SAFE ==========
 func (mp *MessageProcessor) IsNewPackActive(channelID int64) bool {
 	return mp.mediaGroupManager.IsNewPackActive(channelID)
 }

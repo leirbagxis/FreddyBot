@@ -74,6 +74,29 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 	}
 }
 
+// GetMessageType determines the type of the incoming message.
+func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
+	if post.Text != "" {
+		return MessageTypeText
+	}
+	if post.Audio != nil {
+		return MessageTypeAudio
+	}
+	if post.Sticker != nil {
+		return MessageTypeSticker
+	}
+	if post.Photo != nil && len(post.Photo) > 0 {
+		return MessageTypePhoto
+	}
+	if post.Video != nil {
+		return MessageTypeVideo
+	}
+	if post.Animation != nil {
+		return MessageTypeAnimation
+	}
+	return ""
+}
+
 // ✅ CORRIGIDO: ProcessMessage usando as funções corretas do processors.go
 func (mp *MessageProcessor) ProcessMessage(ctx context.Context, messageType MessageType, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	switch messageType {
