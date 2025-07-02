@@ -23,7 +23,6 @@ func StartBot(db *gorm.DB) error {
 	if err != nil {
 		log.Fatal("Error loading .env file")
 	}
-	cache.GetRedisClient()
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer cancel()
@@ -34,6 +33,7 @@ func StartBot(db *gorm.DB) error {
 		),
 	}
 
+	cache.GetRedisClient()
 	app := container.NewAppContainer(db)
 
 	b, err := bot.New(config.TelegramBotToken, opts...)
@@ -44,8 +44,9 @@ func StartBot(db *gorm.DB) error {
 	commands.LoadCommandHandlers(b)
 	events.LoadEvents(b, app)
 	callbacks.LoadCallbacksHandlers(b, app)
+	bot, _ := b.GetMe(ctx)
 
-	log.Println("Bot iniciado...")
+	log.Println("Bot iniciado...", bot.Username)
 
 	go func() {
 		<-ctx.Done()
