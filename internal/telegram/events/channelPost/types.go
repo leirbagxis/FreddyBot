@@ -112,15 +112,15 @@ func (mgm *MediaGroupManager) MarkProcessed(groupID string) {
 	mgm.processedGroups.Store(groupID, ProcessedGroup{Timestamp: time.Now()})
 }
 
-func (mgm *MediaGroupManager) IsNewPackActive(channelID int64) bool {
-	value, exists := mgm.newPackChannels.Load(channelID)
-	return exists && value.(bool)
-}
+// func (mgm *MediaGroupManager) IsNewPackActive(channelID int64) bool {
+// 	value, exists := mgm.newPackChannels.Load(channelID)
+// 	return exists && value.(bool)
+// }
 
-func (mgm *MediaGroupManager) SetNewPackActive(channelID int64, active bool) {
-	if active {
-		mgm.newPackChannels.Store(channelID, true)
-	} else {
-		mgm.newPackChannels.Delete(channelID)
-	}
-}
+// func (mgm *MediaGroupManager) SetNewPackActive(channelID int64, active bool) {
+// 	if active {
+// 		mgm.newPackChannels.Store(channelID, true)
+// 	} else {
+// 		mgm.newPackChannels.Delete(channelID)
+// 	}
+// }

@@ -13,6 +13,9 @@ import (
 
 func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		dbCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
 		post := update.ChannelPost
 		if post == nil {
 			return
@@ -20,10 +23,6 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 		processor := NewMessageProcessor(b)
 		chat := post.Chat
-
-		// Context com timeout adequado
-		dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
 
 		channel, err := c.ChannelRepo.GetChannelWithRelations(dbCtx, chat.ID)
 		if err != nil {

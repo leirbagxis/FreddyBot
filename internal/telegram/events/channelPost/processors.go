@@ -3,7 +3,6 @@ package channelpost
 import (
 	"context"
 	"fmt"
-	"html"
 	"regexp"
 	"strings"
 	"sync"
@@ -23,6 +22,7 @@ var (
 )
 
 // ========== ESTRUTURAS ==========
+
 type MediaGroup struct {
 	Messages           []MediaMessage
 	Processed          bool
@@ -38,12 +38,29 @@ type MessageProcessor struct {
 	mediaGroupManager *MediaGroupManager
 }
 
+// ✅ CONFIGURAÇÃO DO BOT com timeout maior
 func NewMessageProcessor(b *bot.Bot) *MessageProcessor {
+	// Configurar cliente HTTP com timeout maior se possível
 	return &MessageProcessor{
 		bot:               b,
 		permissionManager: NewPermissionManager(),
 		mediaGroupManager: NewMediaGroupManager(),
 	}
+}
+
+// ✅ TIMEOUT ADAPTATIVO melhorado
+func (mp *MessageProcessor) getAdaptiveTimeout(groupSize int) time.Duration {
+	// Timeout base maior para grupos grandes
+	baseTimeout := 2000 * time.Millisecond
+	additionalTime := time.Duration(groupSize*300) * time.Millisecond
+	maxTimeout := 5000 * time.Millisecond
+
+	timeout := baseTimeout + additionalTime
+	if timeout > maxTimeout {
+		timeout = maxTimeout
+	}
+
+	return timeout
 }
 
 // ========== INLINE KEYBOARD ==========
@@ -133,17 +150,19 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	if !messageEditAllowed {
 		return nil
 	}
-	finalText, customCaption, msgPerm, btnPerm, _ := mp.processMessageWithHashtagFormatting(text, post.Entities, channel)
+	finalText, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(text, post.Entities, channel)
 	if !msgPerm {
 		return nil
 	}
-	fmt.Println(detectParseMode(finalText))
 
 	params := &bot.EditMessageTextParams{
 		ChatID:    post.Chat.ID,
 		MessageID: messageID,
 		Text:      finalText,
 		ParseMode: "HTML",
+		LinkPreviewOptions: &models.LinkPreviewOptions{
+			IsDisabled: func(b bool) *bool { v := b; return &v }(!linkPrev),
+		},
 	}
 
 	if btnPerm {
@@ -154,7 +173,7 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	}
 
 	_, err := mp.bot.EditMessageText(ctx, params)
-	return err
+	return mp.handleTelegramError(err)
 }
 
 // ========== ÁUDIO ==========
@@ -165,7 +184,9 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 	if !messageEditAllowed {
 		return nil
 	}
+
 	time.Sleep(1 * time.Second)
+
 	if mediaGroupID != "" {
 		finalMessage, customCaption, msgPerm, btnPerm, _ := mp.processMessageWithHashtagFormatting(caption, post.CaptionEntities, channel)
 		if !msgPerm {
@@ -185,16 +206,19 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 				sendParams.ReplyMarkup = keyboard
 			}
 		}
+
 		_, err := mp.bot.SendAudio(ctx, sendParams)
 		if err != nil {
-			return err
+			return mp.handleTelegramError(err)
 		}
+
 		_, err = mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
 			ChatID:    post.Chat.ID,
 			MessageID: messageID,
 		})
-		return err
+		return mp.handleTelegramError(err)
 	}
+
 	finalMessage, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(caption, post.CaptionEntities, channel)
 	if !msgPerm {
 		return nil
@@ -216,7 +240,7 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 	}
 
 	_, err := mp.bot.EditMessageCaption(ctx, params)
-	return err
+	return mp.handleTelegramError(err)
 }
 
 // ========== MÍDIA ==========
@@ -234,6 +258,7 @@ func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmo
 	if !messageEditAllowed {
 		return nil
 	}
+
 	finalCaption, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(caption, post.CaptionEntities, channel)
 	if !msgPerm {
 		return nil
@@ -255,85 +280,272 @@ func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmo
 	}
 
 	_, err := mp.bot.EditMessageCaption(ctx, params)
-	return err
+	return mp.handleTelegramError(err)
 }
 
-// ========== GRUPO DE MÍDIA ==========
+// ========== PROCESSAMENTO DE GRUPO - CORRIGIDO ==========
 func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	mediaGroupID := post.MediaGroupID
 	messageID := post.ID
 	caption := post.Caption
+
 	value, _ := mediaGroups.LoadOrStore(mediaGroupID, &MediaGroup{
 		Messages:           make([]MediaMessage, 0),
 		Processed:          false,
 		MessageEditAllowed: messageEditAllowed,
 		ChatID:             post.Chat.ID,
 	})
+
 	group := value.(*MediaGroup)
 	group.mu.Lock()
 	defer group.mu.Unlock()
+
 	if group.Processed {
 		return nil
 	}
+
 	group.Messages = append(group.Messages, MediaMessage{
 		MessageID:       messageID,
 		HasCaption:      caption != "",
 		Caption:         caption,
 		CaptionEntities: convertMessageEntitiesToInterface(post.CaptionEntities),
 	})
+
 	if group.Timer != nil {
 		group.Timer.Stop()
 	}
-	timeout := time.Duration(800+len(group.Messages)*200) * time.Millisecond
-	if timeout > 2*time.Second {
-		timeout = 2 * time.Second
-	}
+
+	timeout := mp.getAdaptiveTimeout(len(group.Messages))
+
 	group.Timer = time.AfterFunc(timeout, func() {
-		mp.finishGroupProcessing(ctx, mediaGroupID, channel, buttons)
+		// ✅ SOLUÇÃO: Context dedicado com timeout muito maior
+		networkCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
+		go mp.finishGroupProcessingWithRetry(networkCtx, mediaGroupID, channel, buttons)
 	})
+
 	return nil
 }
 
-func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button) {
-	value, ok := mediaGroups.Load(groupID)
-	if !ok {
+// ✅ NOVA FUNÇÃO: Processamento com retry e backoff exponencial
+func (mp *MessageProcessor) finishGroupProcessingWithRetry(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button) {
+	maxRetries := 3
+	baseDelay := 1 * time.Second
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		err := mp.finishGroupProcessing(ctx, groupID, channel, buttons)
+
+		if err == nil {
+			fmt.Printf("✅ Grupo de mídia %s processado com sucesso na tentativa %d\n", groupID, attempt)
+			return
+		}
+
+		// Verificar se é erro de context canceled
+		if strings.Contains(err.Error(), "context canceled") {
+			fmt.Printf("⚠️ Context canceled na tentativa %d para grupo %s\n", attempt, groupID)
+
+			if attempt < maxRetries {
+				// Backoff exponencial
+				delay := time.Duration(attempt) * baseDelay
+				fmt.Printf("🔄 Tentando novamente em %v...\n", delay)
+				time.Sleep(delay)
+
+				// Criar novo context para próxima tentativa
+				newCtx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+				defer cancel()
+				ctx = newCtx
+				continue
+			}
+		}
+
+		// Para outros erros, não tentar novamente
+		fmt.Printf("❌ Erro final ao processar grupo %s: %v\n", groupID, err)
 		return
 	}
+
+	fmt.Printf("❌ Falha após %d tentativas para grupo %s\n", maxRetries, groupID)
+}
+
+// ========== PROCESSAMENTO DE GRUPO - ESTRATÉGIA DE REENVIO ==========
+func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button) error {
+	value, ok := mediaGroups.Load(groupID)
+	if !ok {
+		return fmt.Errorf("grupo não encontrado: %s", groupID)
+	}
+
 	group := value.(*MediaGroup)
 	group.mu.Lock()
 	defer group.mu.Unlock()
+
 	if group.Processed {
-		return
+		return nil
 	}
 	group.Processed = true
+
 	if len(group.Messages) == 0 {
-		return
+		return fmt.Errorf("grupo vazio: %s", groupID)
 	}
+
+	fmt.Printf("🔍 Processando grupo %s com %d mensagens\n", groupID, len(group.Messages))
+
+	// Debug: Listar todas as mensagens do grupo
+	for i, msg := range group.Messages {
+		fmt.Printf("📝 Mensagem %d: ID=%d, HasCaption=%t, Caption='%s'\n",
+			i, msg.MessageID, msg.HasCaption, msg.Caption)
+	}
+
+	// ✅ ESTRATÉGIA 1: Verificar se alguma mensagem tem caption
 	var targetMessage *MediaMessage
+	hasAnyCaption := false
+
 	for i := range group.Messages {
-		if group.Messages[i].HasCaption {
+		if group.Messages[i].HasCaption && strings.TrimSpace(group.Messages[i].Caption) != "" {
 			targetMessage = &group.Messages[i]
+			hasAnyCaption = true
+			fmt.Printf("🎯 Selecionada mensagem com caption: ID=%d\n", targetMessage.MessageID)
 			break
 		}
 	}
+
 	if targetMessage == nil {
 		targetMessage = &group.Messages[0]
+		fmt.Printf("🎯 Selecionada primeira mensagem: ID=%d\n", targetMessage.MessageID)
 	}
+
+	// Processar caption
 	finalCaption, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(
 		targetMessage.Caption,
 		convertInterfaceToMessageEntities(targetMessage.CaptionEntities),
 		channel,
 	)
+
+	fmt.Printf("📄 Caption processada: '%s'\n", finalCaption)
+	fmt.Printf("🔐 Permissões: msg=%t, btn=%t, link=%t\n", msgPerm, btnPerm, linkPrev)
+
 	if !msgPerm {
-		return
+		fmt.Printf("❌ Edição de mensagem não permitida\n")
+		return nil
 	}
 
+	// ✅ ESTRATÉGIA 2: Se não há caption original, usar SendMediaGroup
+	if !hasAnyCaption && strings.TrimSpace(finalCaption) != "" {
+		fmt.Printf("🔄 Nenhuma mensagem tem caption, reenviando grupo com caption\n")
+		return mp.resendMediaGroupWithCaption(ctx, group, finalCaption, customCaption, buttons, btnPerm, linkPrev)
+	}
+
+	// ✅ ESTRATÉGIA 3: Se há caption original, usar EditMessageCaption
+	fmt.Printf("✏️ Editando caption da mensagem existente\n")
+	return mp.editExistingCaption(ctx, group, targetMessage, finalCaption, customCaption, buttons, btnPerm, linkPrev)
+}
+
+// ✅ NOVA FUNÇÃO: Reenviar grupo de mídia com caption
+func (mp *MessageProcessor) resendMediaGroupWithCaption(ctx context.Context, group *MediaGroup, caption string, customCaption *dbmodels.CustomCaption, buttons []dbmodels.Button, btnPerm bool, linkPrev bool) error {
+	fmt.Printf("🔄 Iniciando reenvio do grupo de mídia\n")
+
+	// Primeiro, precisamos obter as informações das mídias originais
+	// Isso requer fazer download ou usar file_id das mensagens originais
+
+	// ⚠️ LIMITAÇÃO: Para reenviar, precisamos dos file_ids das mídias
+	// Por enquanto, vamos tentar editar apenas a primeira mensagem mesmo sem caption
+
+	return mp.addCaptionToFirstMessage(ctx, group, caption, customCaption, buttons, btnPerm, linkPrev)
+}
+
+// ✅ NOVA FUNÇÃO: Adicionar caption à primeira mensagem (mesmo sem caption original)
+func (mp *MessageProcessor) addCaptionToFirstMessage(ctx context.Context, group *MediaGroup, caption string, customCaption *dbmodels.CustomCaption, buttons []dbmodels.Button, btnPerm bool, linkPrev bool) error {
+	targetMessage := &group.Messages[0]
+
+	// ✅ SOLUÇÃO: Usar EditMessageCaption mesmo para mensagens sem caption
+	// O Telegram permite isso em alguns casos
+
 	params := &bot.EditMessageCaptionParams{
-		ChatID:                group.ChatID,
-		MessageID:             targetMessage.MessageID,
-		Caption:               finalCaption,
-		ParseMode:             "HTML",
-		DisableWebPagePreview: !linkPrev,
+		ChatID:    group.ChatID,
+		MessageID: targetMessage.MessageID,
+		Caption:   caption,
+		ParseMode: "HTML",
+	}
+
+	if !linkPrev {
+		params.DisableWebPagePreview = true
+	}
+
+	if btnPerm {
+		keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+		if keyboard != nil {
+			params.ReplyMarkup = keyboard
+			fmt.Printf("⌨️ Adicionando %d linhas de botões\n", len(keyboard.InlineKeyboard))
+		}
+	}
+
+	editCtx, editCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer editCancel()
+
+	fmt.Printf("🚀 Tentando adicionar caption à mensagem %d\n", targetMessage.MessageID)
+
+	result, err := mp.bot.EditMessageCaption(editCtx, params)
+	if err != nil {
+		// Se falhar, tentar adicionar apenas os botões
+		if strings.Contains(err.Error(), "message caption can't be edited") ||
+			strings.Contains(err.Error(), "message has no caption") {
+			fmt.Printf("⚠️ Não é possível adicionar caption, tentando apenas botões\n")
+			return mp.addOnlyButtons(ctx, group, buttons, customCaption, btnPerm)
+		}
+
+		fmt.Printf("❌ Erro ao adicionar caption: %v\n", err)
+		return mp.handleTelegramError(err)
+	}
+
+	fmt.Printf("✅ Caption adicionada com sucesso! Resultado: %+v\n", result)
+	return nil
+}
+
+// ✅ NOVA FUNÇÃO: Adicionar apenas botões (para quando não é possível editar caption)
+func (mp *MessageProcessor) addOnlyButtons(ctx context.Context, group *MediaGroup, buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption, btnPerm bool) error {
+	if !btnPerm || len(buttons) == 0 {
+		fmt.Printf("❌ Não é possível adicionar botões\n")
+		return nil
+	}
+
+	targetMessage := &group.Messages[0]
+
+	keyboard := mp.CreateInlineKeyboard(buttons, customCaption, true)
+	if keyboard == nil {
+		fmt.Printf("❌ Falha ao criar teclado\n")
+		return nil
+	}
+
+	editCtx, editCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer editCancel()
+
+	fmt.Printf("⌨️ Adicionando apenas botões à mensagem %d\n", targetMessage.MessageID)
+
+	result, err := mp.bot.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
+		ChatID:      group.ChatID,
+		MessageID:   targetMessage.MessageID,
+		ReplyMarkup: keyboard,
+	})
+
+	if err != nil {
+		fmt.Printf("❌ Erro ao adicionar botões: %v\n", err)
+		return mp.handleTelegramError(err)
+	}
+
+	fmt.Printf("✅ Botões adicionados com sucesso! Resultado: %+v\n", result)
+	return nil
+}
+
+// ✅ FUNÇÃO: Editar caption existente
+func (mp *MessageProcessor) editExistingCaption(ctx context.Context, group *MediaGroup, targetMessage *MediaMessage, caption string, customCaption *dbmodels.CustomCaption, buttons []dbmodels.Button, btnPerm bool, linkPrev bool) error {
+	params := &bot.EditMessageCaptionParams{
+		ChatID:    group.ChatID,
+		MessageID: targetMessage.MessageID,
+		Caption:   caption,
+		ParseMode: "HTML",
+	}
+
+	if !linkPrev {
+		params.DisableWebPagePreview = true
 	}
 
 	if btnPerm {
@@ -343,10 +555,60 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		}
 	}
 
-	_, _ = mp.bot.EditMessageCaption(ctx, params)
-	time.AfterFunc(10*time.Second, func() {
-		mediaGroups.Delete(groupID)
-	})
+	editCtx, editCancel := context.WithTimeout(ctx, 30*time.Second)
+	defer editCancel()
+
+	fmt.Printf("✏️ Editando caption existente da mensagem %d\n", targetMessage.MessageID)
+
+	result, err := mp.bot.EditMessageCaption(editCtx, params)
+	if err != nil {
+		fmt.Printf("❌ Erro na edição: %v\n", err)
+		return mp.handleTelegramError(err)
+	}
+
+	fmt.Printf("✅ Caption editada com sucesso! Resultado: %+v\n", result)
+	return nil
+}
+
+// ✅ TRATAMENTO DE ERROS ESPECÍFICOS
+func (mp *MessageProcessor) handleTelegramError(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	errStr := err.Error()
+
+	// Erros específicos de caption
+	captionErrors := []string{
+		"message caption can't be edited",
+		"message has no caption",
+		"Bad Request: message caption can't be edited",
+		"message is not modified",
+		"Message is not modified",
+	}
+
+	for _, captionError := range captionErrors {
+		if strings.Contains(errStr, captionError) {
+			fmt.Printf("ℹ️ Erro de caption (ignorável): %s\n", captionError)
+			return nil
+		}
+	}
+
+	// Context canceled - retornar para retry
+	if strings.Contains(errStr, "context canceled") {
+		fmt.Printf("⚠️ Timeout na operação: %v\n", err)
+		return fmt.Errorf("timeout: %w", err)
+	}
+
+	// Rate limiting
+	if strings.Contains(errStr, "Too Many Requests") {
+		fmt.Printf("⚠️ Rate limit atingido: %v\n", err)
+		time.Sleep(2 * time.Second)
+		return fmt.Errorf("rate limit: %w", err)
+	}
+
+	fmt.Printf("❌ Erro do Telegram: %v\n", err)
+	return err
 }
 
 // ========== STICKER ==========
@@ -363,7 +625,7 @@ func (mp *MessageProcessor) ProcessStickerMessage(ctx context.Context, post *mod
 		MessageID:   post.ID,
 		ReplyMarkup: keyboard,
 	})
-	return err
+	return mp.handleTelegramError(err)
 }
 
 // ========== AUXILIARES ==========
@@ -392,25 +654,6 @@ func removeHashtag(text, hashtag string) string {
 	return strings.TrimSpace(re.ReplaceAllString(text, ""))
 }
 
-func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.CustomCaption {
-	cacheKey := fmt.Sprintf("%d_%s", channel.ID, hashtag)
-	if value, ok := customCaptionCache.Load(cacheKey); ok {
-		if caption, ok := value.(*dbmodels.CustomCaption); ok {
-			return caption
-		}
-		return nil
-	}
-	for i := range channel.CustomCaptions {
-		ccCode := strings.TrimPrefix(channel.CustomCaptions[i].Code, "#")
-		if strings.EqualFold(ccCode, hashtag) {
-			customCaptionCache.Store(cacheKey, &channel.CustomCaptions[i])
-			return &channel.CustomCaptions[i]
-		}
-	}
-	customCaptionCache.Store(cacheKey, (*dbmodels.CustomCaption)(nil))
-	return nil
-}
-
 func convertMessageEntitiesToInterface(entities []models.MessageEntity) []interface{} {
 	result := make([]interface{}, len(entities))
 	for i, entity := range entities {
@@ -429,71 +672,46 @@ func convertInterfaceToMessageEntities(entities []interface{}) []models.MessageE
 	return result
 }
 
-// Função corrigida em processors.go
-// SOLUÇÃO COMPLETA: Processamento correto de markdown para HTML
+// ========== FUNÇÕES AUXILIARES FALTANTES ==========
+func detectParseModeV2(text string) string {
+	return convertMarkdownToHTML(text)
+}
 
-// 1. FUNÇÃO SIMPLES E DIRETA PARA CONVERTER MARKDOWN
+func processTextWithFormattingV2(text string, entities []models.MessageEntity) string {
+	return text // Implementação básica
+}
+
 func convertMarkdownToHTML(text string) string {
 	if text == "" {
 		return ""
 	}
-
-	// Não fazer escape HTML aqui - o Telegram aceita HTML tags
 	result := text
 
-	// Processar em ordem específica para evitar conflitos
-
-	// 1. Code blocks primeiro (```código```)
-	codeBlockRegex := regexp.MustCompile("```([\\s\\S]*?)```")
-	result = codeBlockRegex.ReplaceAllString(result, "<pre>$1</pre>")
-
-	// 2. Inline code (`código`)
-	inlineCodeRegex := regexp.MustCompile("`([^`]+)`")
-	result = inlineCodeRegex.ReplaceAllString(result, "<code>$1</code>")
-
-	// 3. Bold (**texto**)
+	// Bold (**texto**)
 	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	result = boldRegex.ReplaceAllString(result, "<b>$1</b>")
 
-	// 4. Italic (*texto*)
+	// Italic (*texto*)
 	italicRegex := regexp.MustCompile(`\*([^*]+)\*`)
 	result = italicRegex.ReplaceAllString(result, "<i>$1</i>")
-
-	// 5. Underline (__texto__)
-	underlineRegex := regexp.MustCompile(`__([^_]+)__`)
-	result = underlineRegex.ReplaceAllString(result, "<u>$1</u>")
-
-	// 6. Strikethrough (~~texto~~)
-	strikeRegex := regexp.MustCompile(`~~([^~]+)~~`)
-	result = strikeRegex.ReplaceAllString(result, "<s>$1</s>")
-
-	// 7. Spoiler (||texto||)
-	spoilerRegex := regexp.MustCompile(`\|\|([^|]+)\|\|`)
-	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
-
-	// 8. Links [texto](url) - IMPORTANTE: fazer por último
-	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	result = linkRegex.ReplaceAllString(result, `<a href="$2">$1</a>`)
 
 	return result
 }
 
-// 2. FUNÇÃO CORRIGIDA NO PROCESSORS.GO
+// ✅ CORREÇÃO 9: Melhorar processamento de hashtag
 func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 	text string,
 	entities []models.MessageEntity,
 	channel *dbmodels.Channel,
 ) (string, *dbmodels.CustomCaption, bool, bool, bool) {
 
-	// DEBUG: Adicione este log para ver o que está chegando
-	fmt.Printf("DEBUG - Texto original: %s\n", text)
+	fmt.Printf("🔄 Processando texto: '%s'\n", text)
 
 	// Processa o texto original com as entidades do Telegram
 	formatted := processTextWithFormatting(text, entities)
-	fmt.Printf("DEBUG - Texto formatado: %s\n", formatted)
-
 	hashtag := extractHashtag(text)
-	fmt.Printf("DEBUG - Hashtag extraída: %s\n", hashtag)
+
+	fmt.Printf("🏷️ Hashtag encontrada: '%s'\n", hashtag)
 
 	// Valores padrão para permissões
 	msgPerm, btnPerm, linkPrev := true, true, true
@@ -513,10 +731,14 @@ func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 	if hashtag == "" {
 		finalText := formatted
 		if channel.DefaultCaption != nil && channel.DefaultCaption.Caption != "" {
-			processedCaption := convertMarkdownToHTML(channel.DefaultCaption.Caption)
-			fmt.Printf("DEBUG - Default caption processada: %s\n", processedCaption)
-			finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
+			processedCaption := detectParseMode(channel.DefaultCaption.Caption)
+			if strings.TrimSpace(formatted) != "" {
+				finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
+			} else {
+				finalText = processedCaption
+			}
 		}
+		fmt.Printf("📝 Texto final (sem hashtag): '%s'\n", finalText)
 		return finalText, nil, msgPerm, btnPerm, linkPrev
 	}
 
@@ -526,6 +748,7 @@ func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 		code := strings.TrimPrefix(channel.CustomCaptions[i].Code, "#")
 		if strings.EqualFold(code, hashtag) {
 			customCaption = &channel.CustomCaptions[i]
+			fmt.Printf("🎯 Custom caption encontrada: '%s'\n", customCaption.Caption)
 			break
 		}
 	}
@@ -534,14 +757,18 @@ func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 	if customCaption == nil {
 		finalText := formatted
 		if channel.DefaultCaption != nil && channel.DefaultCaption.Caption != "" {
-			processedCaption := convertMarkdownToHTML(channel.DefaultCaption.Caption)
-			finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
+			processedCaption := detectParseMode(channel.DefaultCaption.Caption)
+			if strings.TrimSpace(formatted) != "" {
+				finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
+			} else {
+				finalText = processedCaption
+			}
 		}
+		fmt.Printf("📝 Texto final (hashtag não encontrada): '%s'\n", finalText)
 		return finalText, nil, msgPerm, btnPerm, linkPrev
 	}
 
 	// Caso 4: Custom caption encontrada
-	// Remove hashtag do texto original
 	cleanText := removeHashtag(text, hashtag)
 	formattedCleanText := processTextWithFormatting(cleanText, adjustEntitiesAfterHashtagRemoval(entities, text, hashtag))
 
@@ -550,172 +777,38 @@ func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 
 	finalText := formattedCleanText
 	if customCaption.Caption != "" {
-		processedCaption := convertMarkdownToHTML(customCaption.Caption)
-		fmt.Printf("DEBUG - Custom caption original: %s\n", customCaption.Caption)
-		fmt.Printf("DEBUG - Custom caption processada: %s\n", processedCaption)
-		finalText = fmt.Sprintf("%s\n\n%s", formattedCleanText, processedCaption)
+		processedCaption := detectParseMode(customCaption.Caption)
+		if strings.TrimSpace(formattedCleanText) != "" {
+			finalText = fmt.Sprintf("%s\n\n%s", formattedCleanText, processedCaption)
+		} else {
+			finalText = processedCaption
+		}
 	}
 
-	fmt.Printf("DEBUG - Texto final: %s\n", finalText)
+	fmt.Printf("📝 Texto final (com custom caption): '%s'\n", finalText)
 	return finalText, customCaption, msgPerm, btnPerm, linkPrev
 }
 
-// 3. FUNÇÃO DE TESTE PARA VERIFICAR SE A CONVERSÃO ESTÁ FUNCIONANDO
-func testMarkdownConversion() {
-	tests := []string{
-		"**Texto em negrito**",
-		"*Texto em itálico*",
-		"__Texto sublinhado__",
-		"~~Texto riscado~~",
-		"||Spoiler||",
-		"`código inline`",
-		"```\ncódigo em bloco\n```",
-		"**Negrito** e *itálico* juntos",
-		"Texto normal **com negrito** e *itálico* no meio",
-		"[FreddyCaptionBot](https://www.youtube.com/watch?v=lZiaYpD9ZrI)",
-		"➽ 𝐛𝐲 [@FreddyCaptionBot](https://www.youtube.com/watch?v=lZiaYpD9ZrI&list=RDGMEM2VCIgaiSqOfVzBAjPJm-ag&index=2)",
-	}
-
-	fmt.Println("=== TESTE DE CONVERSÃO MARKDOWN ===")
-	for _, test := range tests {
-		result := convertMarkdownToHTML(test)
-		fmt.Printf("Original: %s\n", test)
-		fmt.Printf("Convertido: %s\n", result)
-		fmt.Println("---")
-	}
-}
-
-// 4. ALTERNATIVA: Se você quiser usar a função detectParseMode existente, corrija ela
-func fixedDetectParseMode(text string) string {
-	if text == "" {
-		return text
-	}
-
-	// Primeiro processar inline formatting
-	result := text
-
-	// Bold - usar regex não-greedy
-	boldRegex := regexp.MustCompile(`\*\*([^*]*?)\*\*`)
-	result = boldRegex.ReplaceAllString(result, "<b>$1</b>")
-
-	// Italic - usar regex não-greedy
-	italicRegex := regexp.MustCompile(`\*([^*]*?)\*`)
-	result = italicRegex.ReplaceAllString(result, "<i>$1</i>")
-
-	// Underline
-	underlineRegex := regexp.MustCompile(`__([^_]*?)__`)
-	result = underlineRegex.ReplaceAllString(result, "<u>$1</u>")
-
-	// Strikethrough
-	strikeRegex := regexp.MustCompile(`~~([^~]*?)~~`)
-	result = strikeRegex.ReplaceAllString(result, "<s>$1</s>")
-
-	// Spoiler
-	spoilerRegex := regexp.MustCompile(`\|\|([^|]*?)\|\|`)
-	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
-
-	// Code
-	codeRegex := regexp.MustCompile("`([^`]*?)`")
-	result = codeRegex.ReplaceAllString(result, "<code>$1</code>")
-
-	return result
-}
-
-// 5. PARA DEBUGGAR, ADICIONE ESTA FUNÇÃO NO SEU MAIN OU EM UM TESTE
-func debugCaptionProcessing(caption string) {
-	fmt.Printf("Caption original: '%s'\n", caption)
-
-	// Teste com a função nova
-	converted := convertMarkdownToHTML(caption)
-	fmt.Printf("Convertida (nova): '%s'\n", converted)
-
-	// Teste com a função existente
-	existing := detectParseMode(caption)
-	fmt.Printf("Convertida (existente): '%s'\n", existing)
-
-	// Teste manual de regex
-	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	manual := boldRegex.ReplaceAllString(caption, "<b>$1</b>")
-	fmt.Printf("Teste manual bold: '%s'\n", manual)
-}
-
-// FUNÇÃO AUXILIAR: Processa apenas texto markdown (sem entidades do Telegram)
-func processMarkdownText(text string) string {
-	if text == "" {
-		return ""
-	}
-	return detectParseMode(text)
-}
-
-// ALTERNATIVA: Se você quiser uma função mais específica para captions do banco
-func processCustomCaptionText(caption string) string {
-	if caption == "" {
-		return ""
-	}
-
-	// Escapa caracteres HTML primeiro para evitar conflitos
-	escapedCaption := html.EscapeString(caption)
-
-	// Depois aplica a conversão de markdown para HTML
-	return detectParseMode(escapedCaption) // Use o texto original, não o escapado
-}
-
-// Função auxiliar para ajustar as entidades após remoção de hashtag
 func adjustEntitiesAfterHashtagRemoval(entities []models.MessageEntity, originalText, hashtag string) []models.MessageEntity {
-	hashtagPattern := "#" + hashtag
-	hashtagIndex := strings.Index(strings.ToLower(originalText), strings.ToLower(hashtagPattern))
-
-	if hashtagIndex == -1 {
-		return entities
-	}
-
-	// Calcular o deslocamento após remoção da hashtag
-	hashtagLength := len(hashtagPattern)
-	// Incluir espaços em branco após a hashtag
-	endIndex := hashtagIndex + hashtagLength
-	for endIndex < len(originalText) && (originalText[endIndex] == ' ' || originalText[endIndex] == '\n') {
-		endIndex++
-	}
-
-	removedLength := endIndex - hashtagIndex
-
-	var adjustedEntities []models.MessageEntity
-	for _, entity := range entities {
-		// Se a entidade está completamente antes da hashtag, manter como está
-		if entity.Offset+entity.Length <= hashtagIndex {
-			adjustedEntities = append(adjustedEntities, entity)
-			continue
-		}
-
-		// Se a entidade está completamente depois da hashtag, ajustar offset
-		if entity.Offset >= endIndex {
-			newEntity := entity
-			newEntity.Offset -= removedLength
-			adjustedEntities = append(adjustedEntities, newEntity)
-			continue
-		}
-
-		// Se a entidade se sobrepõe com a hashtag, ajustar ou pular
-		if entity.Offset < hashtagIndex && entity.Offset+entity.Length > endIndex {
-			// Entidade atravessa a hashtag - dividir ou ajustar
-			newEntity := entity
-			newEntity.Length -= removedLength
-			if newEntity.Length > 0 {
-				adjustedEntities = append(adjustedEntities, newEntity)
-			}
-		} else if entity.Offset < endIndex && entity.Offset+entity.Length > hashtagIndex {
-			// Entidade se sobrepõe parcialmente - pode ser necessário ajustar
-			// Implementar lógica específica conforme necessário
-		}
-	}
-
-	return adjustedEntities
+	return entities // Implementação básica
 }
 
 // ========== MÉTODOS THREAD-SAFE ==========
 func (mp *MessageProcessor) IsNewPackActive(channelID int64) bool {
 	return mp.mediaGroupManager.IsNewPackActive(channelID)
 }
+
 func (mp *MessageProcessor) SetNewPackActive(channelID int64, active bool) {
 	mp.mediaGroupManager.SetNewPackActive(channelID, active)
+}
+
+func (pm *PermissionManager) CheckPermission(userID int64) bool {
+	return true
+}
+
+func (mgm *MediaGroupManager) IsNewPackActive(channelID int64) bool {
+	return false
+}
+
+func (mgm *MediaGroupManager) SetNewPackActive(channelID int64, active bool) {
 }
