@@ -2,6 +2,7 @@ package channelpost
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
@@ -415,11 +416,14 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 	}
 }
 
-// ✅ CORRIGIDO: ProcessTextMessage com verificação correta de permissões
+// ✅ CORRIGIDO: ProcessTextMessage com formatação HTML e LinkPreview
 func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	text := post.Text
 	messageID := post.ID
 	messageType := MessageTypeText
+	te, _ := json.Marshal(post)
+
+	fmt.Println(string(te))
 
 	if text == "" {
 		return fmt.Errorf("texto da mensagem está vazio")
@@ -433,7 +437,6 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	}
 
 	if !messageEditAllowed {
-		// ✅ VERIFICAR ButtonsPermissions APENAS para botões padrão
 		if len(buttons) == 0 || !permissions.CanAddButtons {
 			return nil
 		}
@@ -451,8 +454,11 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 		return err
 	}
 
-	// ✅ APLICAR FORMATAÇÃO
+	// ✅ APLICAR FORMATAÇÃO HTML
 	formattedText := processTextWithFormatting(text, post.Entities)
+	log.Printf("📝 Texto original: %q", text)
+	log.Printf("📝 Texto formatado: %q", formattedText)
+
 	message, customCaption := mp.processMessageWithHashtag(formattedText, channel)
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
@@ -502,7 +508,7 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	return err
 }
 
-// ✅ CORRIGIDO: ProcessAudioMessage com verificação correta de permissões
+// ✅ CORRIGIDO: ProcessAudioMessage com formatação HTML em TODOS os casos
 func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	messageID := post.ID
 	caption := post.Caption
@@ -537,24 +543,32 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 	// Aguardar 1 segundo
 	time.Sleep(1 * time.Second)
 
+	// ✅ APLICAR FORMATAÇÃO HTML ANTES DE QUALQUER PROCESSAMENTO
+	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
+	log.Printf("📝 Caption original: %q", caption)
+	log.Printf("📝 Caption formatada: %q", formattedCaption)
+
 	// Para grupos de mídia: REENVIAR + DELETAR
 	if mediaGroupID != "" {
 		var finalMessage string
 		var customCaption *dbmodels.CustomCaption
 
-		hashtag := extractHashtag(caption)
+		// ✅ USAR CAPTION FORMATADA PARA EXTRAIR HASHTAG
+		hashtag := extractHashtag(formattedCaption)
 		if hashtag != "" {
 			customCaption = findCustomCaption(channel, hashtag)
 			if customCaption != nil {
-				finalMessage = customCaption.Caption
+				// ✅ PROCESSAR COM CAPTION FORMATADA
+				finalMessage, _ = mp.processMessageWithHashtag(formattedCaption, channel)
 			} else {
 				if channel.DefaultCaption != nil {
-					finalMessage = channel.DefaultCaption.Caption
+					cleanText := removeHashtag(formattedCaption, hashtag)
+					finalMessage = fmt.Sprintf("%s\n\n%s", cleanText, channel.DefaultCaption.Caption)
 				}
 			}
 		} else {
 			if channel.DefaultCaption != nil {
-				finalMessage = channel.DefaultCaption.Caption
+				finalMessage = fmt.Sprintf("%s\n\n%s", formattedCaption, channel.DefaultCaption.Caption)
 			}
 		}
 
@@ -595,21 +609,8 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 	var finalMessage string
 	var customCaption *dbmodels.CustomCaption
 
-	hashtag := extractHashtag(caption)
-	if hashtag != "" {
-		customCaption = findCustomCaption(channel, hashtag)
-		if customCaption != nil {
-			finalMessage = customCaption.Caption
-		} else {
-			if channel.DefaultCaption != nil {
-				finalMessage = channel.DefaultCaption.Caption
-			}
-		}
-	} else {
-		if channel.DefaultCaption != nil {
-			finalMessage = channel.DefaultCaption.Caption
-		}
-	}
+	// ✅ PROCESSAR COM CAPTION FORMATADA
+	finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
@@ -661,7 +662,7 @@ func (mp *MessageProcessor) ProcessMediaMessage(ctx context.Context, channel *db
 	return mp.handleSingleMedia(ctx, channel, post, buttons, messageEditAllowed, messageType)
 }
 
-// ✅ CORRIGIDO: handleSingleMedia com verificação de permissões
+// ✅ CORRIGIDO: handleSingleMedia com formatação HTML
 func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool, messageType MessageType) error {
 	messageID := post.ID
 	caption := post.Caption
@@ -686,8 +687,11 @@ func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmo
 		return err
 	}
 
-	// ✅ APLICAR FORMATAÇÃO NA CAPTION
+	// ✅ APLICAR FORMATAÇÃO HTML NA CAPTION
 	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
+	log.Printf("📝 Caption original: %q", caption)
+	log.Printf("📝 Caption formatada: %q", formattedCaption)
+
 	message, customCaption := mp.processMessageWithHashtag(formattedCaption, channel)
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
@@ -780,7 +784,7 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 	return nil
 }
 
-// ✅ CORRIGIDO: finishGroupProcessing com verificação de permissões
+// ✅ CORRIGIDO: finishGroupProcessing com formatação HTML
 func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button, messageType MessageType) {
 	log.Printf("📸 Iniciando processamento final do grupo: %s", groupID)
 
@@ -856,20 +860,24 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		return
 	}
 
-	// ✅ PROCESSAR CAPTION COM CUSTOM CAPTION
+	// ✅ PROCESSAR CAPTION COM FORMATAÇÃO HTML
 	var finalMessage string
 	var customCaption *dbmodels.CustomCaption
 
 	if targetMessage.HasCaption {
-		// Aplicar formatação se tiver entities
+		// ✅ APLICAR FORMATAÇÃO HTML ANTES DE PROCESSAR
 		entities := convertInterfaceToMessageEntities(targetMessage.CaptionEntities)
 		formattedCaption := processTextWithFormatting(targetMessage.Caption, entities)
-		// ✅ PROCESSAR HASHTAG E OBTER CUSTOM CAPTION
+
+		log.Printf("📸 Caption original: %q", targetMessage.Caption)
+		log.Printf("📸 Caption formatada: %q", formattedCaption)
+
+		// ✅ PROCESSAR HASHTAG E OBTER CUSTOM CAPTION COM CAPTION FORMATADA
 		finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
 		if customCaption != nil {
 			log.Printf("📸 Custom caption encontrado: %s", customCaption.Code)
 		}
-		log.Printf("📸 Processando com caption formatado: %s -> %s", targetMessage.Caption, finalMessage)
+		log.Printf("📸 Mensagem final: %q", finalMessage)
 	} else {
 		// Usar caption padrão se não houver caption na mensagem
 		if channel.DefaultCaption != nil {
@@ -948,7 +956,7 @@ func (mp *MessageProcessor) ProcessStickerMessage(ctx context.Context, channel *
 	return err
 }
 
-// ✅ FUNÇÕES AUXILIARES (mantidas iguais)
+// ✅ FUNÇÕES AUXILIARES
 func extractHashtag(text string) string {
 	if text == "" {
 		return ""
