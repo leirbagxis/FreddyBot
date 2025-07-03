@@ -35,11 +35,10 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		// Verificar permissões
-		messageEditAllowed := processor.permissionManager.IsMessageEditAllowed(channel, messageType)
-		buttonsAllowed := processor.permissionManager.IsButtonsAllowed(channel, messageType)
-
-		if !messageEditAllowed && !buttonsAllowed {
+		// ✅ VERIFICAR PERMISSÕES USANDO O SISTEMA CORRIGIDO
+		permissions := processor.CheckPermissions(channel, messageType)
+		if !permissions.CanEdit && !permissions.CanAddButtons {
+			log.Printf("❌ Sem permissões para processar mensagem no canal %d", channel.ID)
 			return
 		}
 
@@ -49,16 +48,16 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			defer cancel()
 
 			var finalButtons []dbmodels.Button
-			if buttonsAllowed {
+			if permissions.CanAddButtons {
 				finalButtons = channel.Buttons
 			}
 
-			err := processor.ProcessMessage(telegramCtx, messageType, channel, post, finalButtons, messageEditAllowed)
+			err := processor.ProcessMessage(telegramCtx, messageType, channel, post, finalButtons, permissions.CanEdit)
 			if err != nil {
 				log.Printf("Erro ao processar mensagem: %v", err)
 			}
 
-			if channel.Separator != nil && (messageEditAllowed || buttonsAllowed) {
+			if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
 				err := processor.ProcessSeparator(telegramCtx, channel, post)
 				if err != nil {
 					log.Printf("Erro ao processar separator: %v", err)
@@ -68,44 +67,19 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 	}
 }
 
-// GetMessageType determines the type of the incoming message.
-func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
-	if post.Text != "" {
-		return MessageTypeText
-	}
-	if post.Audio != nil {
-		return MessageTypeAudio
-	}
-	if post.Sticker != nil {
-		return MessageTypeSticker
-	}
-	if post.Photo != nil && len(post.Photo) > 0 {
-		return MessageTypePhoto
-	}
-	if post.Video != nil {
-		return MessageTypeVideo
-	}
-	if post.Animation != nil {
-		return MessageTypeAnimation
-	}
-	return ""
-}
-
 // ✅ CORRIGIDO: ProcessMessage usando as funções corretas do processors.go
 func (mp *MessageProcessor) ProcessMessage(ctx context.Context, messageType MessageType, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	switch messageType {
 	case MessageTypeText:
 		return mp.ProcessTextMessage(ctx, channel, post, buttons, messageEditAllowed)
 	case MessageTypeAudio:
-		// ✅ CORRIGIDO: Usar ProcessAudioMessage para áudios
 		return mp.ProcessAudioMessage(ctx, channel, post, buttons, messageEditAllowed)
 	case MessageTypeSticker:
 		if len(buttons) > 0 {
-			return mp.ProcessStickerMessage(ctx, post, buttons)
+			return mp.ProcessStickerMessage(ctx, channel, post, buttons)
 		}
 		return nil
 	case MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation:
-		// ✅ CORRIGIDO: Usar ProcessMediaMessage apenas para fotos/vídeos/gifs
 		return mp.ProcessMediaMessage(ctx, channel, post, buttons, messageEditAllowed)
 	default:
 		return nil
@@ -121,17 +95,5 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 		ChatID:  post.Chat.ID,
 		Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 	})
-
 	return err
 }
-
-// // ✅ FUNÇÃO PARA REGISTRAR O HANDLER
-// func LoadChannelPostHandlers(b *bot.Bot, app *container.AppContainer) {
-// 	b.RegisterHandler(
-// 		bot.HandlerTypeChannelPost,
-// 		"",
-// 		bot.MatchTypeExact,
-// 		Handler(app),
-// 		middleware.CheckAddBotMiddleware,
-// 	)
-// }
