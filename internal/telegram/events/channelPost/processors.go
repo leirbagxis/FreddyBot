@@ -164,7 +164,7 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 	}
 
 	if !result.CanAddButtons {
-		log.Printf("🔘 Botões bloqueados para canal %d, tipo %s", channel.ID, messageType)
+		log.Printf("🔘 Botões padrão bloqueados para canal %d, tipo %s", channel.ID, messageType)
 	}
 
 	return result
@@ -236,7 +236,7 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 		}
 	}
 
-	// ✅ VERIFICAR ButtonsPermission
+	// ✅ VERIFICAR ButtonsPermission APENAS para botões padrão
 	if channel.DefaultCaption.ButtonsPermission != nil {
 		buttonsPermission := channel.DefaultCaption.ButtonsPermission
 
@@ -282,10 +282,17 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 		}
 	}
 
+	// ✅ LOGS ESPECÍFICOS PARA CUSTOM CAPTION
+	if customCaption != nil {
+		log.Printf("✅ Custom caption %s: %d botões (sempre permitidos)", customCaption.Code, len(customCaption.Buttons))
+		log.Printf("✅ Permissões verificadas - Edit=%v, BotõesPadrão=%v, LinkPreview=%v",
+			result.CanEdit, result.CanAddButtons, result.CanUseLinkPreview)
+	}
+
 	return result
 }
 
-// ✅ CORRIGIDO: ApplyPermissions com messageType
+// ✅ CORRIGIDO: ApplyPermissions sem afetar botões de custom captions
 func (mp *MessageProcessor) ApplyPermissions(channel *dbmodels.Channel, messageType MessageType, customCaption *dbmodels.CustomCaption, buttons []dbmodels.Button) (bool, []dbmodels.Button, *dbmodels.CustomCaption) {
 	permissions := mp.CheckCustomCaptionPermissions(channel, customCaption, messageType)
 
@@ -294,14 +301,12 @@ func (mp *MessageProcessor) ApplyPermissions(channel *dbmodels.Channel, messageT
 		return false, nil, nil
 	}
 
+	// ✅ VERIFICAR ButtonsPermissions APENAS para botões padrão do canal
 	if !permissions.CanAddButtons {
-		log.Printf("⚠️ Botões removidos devido a permissões do canal")
+		log.Printf("⚠️ Botões padrão do canal removidos devido a ButtonsPermissions")
 		buttons = nil
-		if customCaption != nil {
-			captionCopy := *customCaption
-			captionCopy.Buttons = nil
-			customCaption = &captionCopy
-		}
+		// ✅ NÃO REMOVER botões da custom caption - eles são independentes
+		log.Printf("✅ Botões de custom caption mantidos (independentes de ButtonsPermissions)")
 	}
 
 	return true, buttons, customCaption
@@ -329,20 +334,13 @@ func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
 	return ""
 }
 
-// ✅ CORRIGIDO: Verificar permissões antes de criar botões
+// ✅ CORRIGIDO: Priorizar botões do custom caption SEM verificação de ButtonsPermissions
 func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption, channel *dbmodels.Channel, messageType MessageType) *models.InlineKeyboardMarkup {
-	// ✅ VERIFICAR PERMISSÕES ANTES DE CRIAR BOTÕES
-	permissions := mp.CheckPermissions(channel, messageType)
-	if !permissions.CanAddButtons {
-		log.Printf("🔘 Botões bloqueados para canal %d, tipo %s", channel.ID, messageType)
-		return nil
-	}
-
 	var finalButtons []dbmodels.Button
 
-	// ✅ PRIORIDADE: Se tem custom caption, usar APENAS seus botões
+	// ✅ PRIORIDADE: Se tem custom caption, usar APENAS seus botões (SEM verificar ButtonsPermissions)
 	if customCaption != nil && len(customCaption.Buttons) > 0 {
-		log.Printf("🔘 Usando botões do custom caption: %s (%d botões)", customCaption.Code, len(customCaption.Buttons))
+		log.Printf("🔘 Usando botões do custom caption: %s (%d botões) - IGNORANDO ButtonsPermissions", customCaption.Code, len(customCaption.Buttons))
 		finalButtons = make([]dbmodels.Button, 0, len(customCaption.Buttons))
 		for _, cb := range customCaption.Buttons {
 			finalButtons = append(finalButtons, dbmodels.Button{
@@ -353,7 +351,12 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			})
 		}
 	} else {
-		// ✅ FALLBACK: Usar botões padrão do canal
+		// ✅ FALLBACK: Usar botões padrão do canal (COM verificação de ButtonsPermissions)
+		permissions := mp.CheckPermissions(channel, messageType)
+		if !permissions.CanAddButtons {
+			log.Printf("🔘 Botões padrão bloqueados: ButtonsPermissions para canal %d", channel.ID)
+			return nil
+		}
 		log.Printf("🔘 Usando botões padrão do canal (%d botões)", len(buttons))
 		finalButtons = buttons
 	}
@@ -412,7 +415,7 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 	}
 }
 
-// ✅ CORRIGIDO: ProcessTextMessage com LinkPreview para MessagePermission E CustomCaption
+// ✅ CORRIGIDO: ProcessTextMessage com verificação correta de permissões
 func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	text := post.Text
 	messageID := post.ID
@@ -430,6 +433,7 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	}
 
 	if !messageEditAllowed {
+		// ✅ VERIFICAR ButtonsPermissions APENAS para botões padrão
 		if len(buttons) == 0 || !permissions.CanAddButtons {
 			return nil
 		}
@@ -481,8 +485,7 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 		log.Printf("🔗 Link preview desabilitado por CustomCaption %s para canal %d", customCaption.Code, channel.ID)
 	}
 
-	fmt.Println(disableLinkPreview)
-
+	// ✅ USAR LinkPreviewOptions ao invés de DisableWebPagePreview
 	if disableLinkPreview {
 		val := true
 		editParams.LinkPreviewOptions = &models.LinkPreviewOptions{
@@ -499,14 +502,14 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	return err
 }
 
-// ✅ CORRIGIDO: ProcessAudioMessage SEM LinkPreview
+// ✅ CORRIGIDO: ProcessAudioMessage com verificação correta de permissões
 func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	messageID := post.ID
 	caption := post.Caption
 	mediaGroupID := post.MediaGroupID
 	messageType := MessageTypeAudio
 
-	// ✅ VERIFICAR PERMISSÕES (sem LinkPreview para áudio)
+	// ✅ VERIFICAR PERMISSÕES
 	permissions := mp.CheckPermissions(channel, messageType)
 	if !permissions.CanEdit {
 		log.Printf("❌ Edição de áudio bloqueada para canal %d: %s", channel.ID, permissions.Reason)
@@ -563,7 +566,7 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 
 		keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
 
-		// ✅ REENVIAR ÁUDIO SEM LinkPreview (não se aplica a áudios)
+		// Reenviar áudio
 		sendParams := &bot.SendAudioParams{
 			ChatID:    post.Chat.ID,
 			Audio:     &models.InputFileString{Data: post.Audio.FileID},
@@ -945,7 +948,7 @@ func (mp *MessageProcessor) ProcessStickerMessage(ctx context.Context, channel *
 	return err
 }
 
-// ✅ FUNÇÕES AUXILIARES
+// ✅ FUNÇÕES AUXILIARES (mantidas iguais)
 func extractHashtag(text string) string {
 	if text == "" {
 		return ""
