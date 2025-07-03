@@ -3,7 +3,6 @@ package channelpost
 import (
 	"context"
 	"log"
-	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -21,10 +20,6 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 		processor := NewMessageProcessor(b)
 		chat := post.Chat
-
-		if processor.IsNewPackActive(chat.ID) || strings.HasPrefix(post.Text, "!newpack") {
-			return
-		}
 
 		// Context com timeout adequado
 		dbCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

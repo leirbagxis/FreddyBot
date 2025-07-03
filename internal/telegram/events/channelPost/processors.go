@@ -3,6 +3,7 @@ package channelpost
 import (
 	"context"
 	"fmt"
+	"html"
 	"regexp"
 	"strings"
 	"sync"
@@ -132,19 +133,17 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	if !messageEditAllowed {
 		return nil
 	}
-	finalText, customCaption, msgPerm, btnPerm, linkPrev := mp.processMessageWithHashtagFormatting(text, post.Entities, channel)
+	finalText, customCaption, msgPerm, btnPerm, _ := mp.processMessageWithHashtagFormatting(text, post.Entities, channel)
 	if !msgPerm {
 		return nil
 	}
+	fmt.Println(detectParseMode(finalText))
 
 	params := &bot.EditMessageTextParams{
 		ChatID:    post.Chat.ID,
 		MessageID: messageID,
 		Text:      finalText,
 		ParseMode: "HTML",
-		LinkPreviewOptions: &models.LinkPreviewOptions{
-			IsDisabled: func(b bool) *bool { v := b; return &v }(!linkPrev),
-		},
 	}
 
 	if btnPerm {
@@ -430,12 +429,16 @@ func convertInterfaceToMessageEntities(entities []interface{}) []models.MessageE
 	return result
 }
 
-// ========== CONVERSÃO MARKDOWN PARA HTML ==========
+// Função corrigida em processors.go
+// SOLUÇÃO COMPLETA: Processamento correto de markdown para HTML
+
+// 1. FUNÇÃO SIMPLES E DIRETA PARA CONVERTER MARKDOWN
 func convertMarkdownToHTML(text string) string {
 	if text == "" {
 		return ""
 	}
 
+	// Não fazer escape HTML aqui - o Telegram aceita HTML tags
 	result := text
 
 	// Processar em ordem específica para evitar conflitos
@@ -468,24 +471,29 @@ func convertMarkdownToHTML(text string) string {
 	spoilerRegex := regexp.MustCompile(`\|\|([^|]+)\|\|`)
 	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
 
-	// 8. Links [texto](url) - fazer por último
+	// 8. Links [texto](url) - IMPORTANTE: fazer por último
 	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 	result = linkRegex.ReplaceAllString(result, `<a href="$2">$1</a>`)
 
 	return result
 }
 
-// ========== PROCESSAMENTO DE MENSAGEM COM HASHTAG ==========
+// 2. FUNÇÃO CORRIGIDA NO PROCESSORS.GO
 func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 	text string,
 	entities []models.MessageEntity,
 	channel *dbmodels.Channel,
 ) (string, *dbmodels.CustomCaption, bool, bool, bool) {
 
+	// DEBUG: Adicione este log para ver o que está chegando
+	fmt.Printf("DEBUG - Texto original: %s\n", text)
+
 	// Processa o texto original com as entidades do Telegram
 	formatted := processTextWithFormatting(text, entities)
+	fmt.Printf("DEBUG - Texto formatado: %s\n", formatted)
 
 	hashtag := extractHashtag(text)
+	fmt.Printf("DEBUG - Hashtag extraída: %s\n", hashtag)
 
 	// Valores padrão para permissões
 	msgPerm, btnPerm, linkPrev := true, true, true
@@ -506,6 +514,7 @@ func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 		finalText := formatted
 		if channel.DefaultCaption != nil && channel.DefaultCaption.Caption != "" {
 			processedCaption := convertMarkdownToHTML(channel.DefaultCaption.Caption)
+			fmt.Printf("DEBUG - Default caption processada: %s\n", processedCaption)
 			finalText = fmt.Sprintf("%s\n\n%s", formatted, processedCaption)
 		}
 		return finalText, nil, msgPerm, btnPerm, linkPrev
@@ -542,13 +551,95 @@ func (mp *MessageProcessor) processMessageWithHashtagFormatting(
 	finalText := formattedCleanText
 	if customCaption.Caption != "" {
 		processedCaption := convertMarkdownToHTML(customCaption.Caption)
+		fmt.Printf("DEBUG - Custom caption original: %s\n", customCaption.Caption)
+		fmt.Printf("DEBUG - Custom caption processada: %s\n", processedCaption)
 		finalText = fmt.Sprintf("%s\n\n%s", formattedCleanText, processedCaption)
 	}
 
+	fmt.Printf("DEBUG - Texto final: %s\n", finalText)
 	return finalText, customCaption, msgPerm, btnPerm, linkPrev
 }
 
-// ========== FUNÇÕES AUXILIARES ==========
+// 3. FUNÇÃO DE TESTE PARA VERIFICAR SE A CONVERSÃO ESTÁ FUNCIONANDO
+func testMarkdownConversion() {
+	tests := []string{
+		"**Texto em negrito**",
+		"*Texto em itálico*",
+		"__Texto sublinhado__",
+		"~~Texto riscado~~",
+		"||Spoiler||",
+		"`código inline`",
+		"```\ncódigo em bloco\n```",
+		"**Negrito** e *itálico* juntos",
+		"Texto normal **com negrito** e *itálico* no meio",
+		"[FreddyCaptionBot](https://www.youtube.com/watch?v=lZiaYpD9ZrI)",
+		"➽ 𝐛𝐲 [@FreddyCaptionBot](https://www.youtube.com/watch?v=lZiaYpD9ZrI&list=RDGMEM2VCIgaiSqOfVzBAjPJm-ag&index=2)",
+	}
+
+	fmt.Println("=== TESTE DE CONVERSÃO MARKDOWN ===")
+	for _, test := range tests {
+		result := convertMarkdownToHTML(test)
+		fmt.Printf("Original: %s\n", test)
+		fmt.Printf("Convertido: %s\n", result)
+		fmt.Println("---")
+	}
+}
+
+// 4. ALTERNATIVA: Se você quiser usar a função detectParseMode existente, corrija ela
+func fixedDetectParseMode(text string) string {
+	if text == "" {
+		return text
+	}
+
+	// Primeiro processar inline formatting
+	result := text
+
+	// Bold - usar regex não-greedy
+	boldRegex := regexp.MustCompile(`\*\*([^*]*?)\*\*`)
+	result = boldRegex.ReplaceAllString(result, "<b>$1</b>")
+
+	// Italic - usar regex não-greedy
+	italicRegex := regexp.MustCompile(`\*([^*]*?)\*`)
+	result = italicRegex.ReplaceAllString(result, "<i>$1</i>")
+
+	// Underline
+	underlineRegex := regexp.MustCompile(`__([^_]*?)__`)
+	result = underlineRegex.ReplaceAllString(result, "<u>$1</u>")
+
+	// Strikethrough
+	strikeRegex := regexp.MustCompile(`~~([^~]*?)~~`)
+	result = strikeRegex.ReplaceAllString(result, "<s>$1</s>")
+
+	// Spoiler
+	spoilerRegex := regexp.MustCompile(`\|\|([^|]*?)\|\|`)
+	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
+
+	// Code
+	codeRegex := regexp.MustCompile("`([^`]*?)`")
+	result = codeRegex.ReplaceAllString(result, "<code>$1</code>")
+
+	return result
+}
+
+// 5. PARA DEBUGGAR, ADICIONE ESTA FUNÇÃO NO SEU MAIN OU EM UM TESTE
+func debugCaptionProcessing(caption string) {
+	fmt.Printf("Caption original: '%s'\n", caption)
+
+	// Teste com a função nova
+	converted := convertMarkdownToHTML(caption)
+	fmt.Printf("Convertida (nova): '%s'\n", converted)
+
+	// Teste com a função existente
+	existing := detectParseMode(caption)
+	fmt.Printf("Convertida (existente): '%s'\n", existing)
+
+	// Teste manual de regex
+	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	manual := boldRegex.ReplaceAllString(caption, "<b>$1</b>")
+	fmt.Printf("Teste manual bold: '%s'\n", manual)
+}
+
+// FUNÇÃO AUXILIAR: Processa apenas texto markdown (sem entidades do Telegram)
 func processMarkdownText(text string) string {
 	if text == "" {
 		return ""
@@ -556,11 +647,17 @@ func processMarkdownText(text string) string {
 	return detectParseMode(text)
 }
 
+// ALTERNATIVA: Se você quiser uma função mais específica para captions do banco
 func processCustomCaptionText(caption string) string {
 	if caption == "" {
 		return ""
 	}
-	return detectParseMode(caption)
+
+	// Escapa caracteres HTML primeiro para evitar conflitos
+	escapedCaption := html.EscapeString(caption)
+
+	// Depois aplica a conversão de markdown para HTML
+	return detectParseMode(escapedCaption) // Use o texto original, não o escapado
 }
 
 // Função auxiliar para ajustar as entidades após remoção de hashtag
@@ -574,6 +671,7 @@ func adjustEntitiesAfterHashtagRemoval(entities []models.MessageEntity, original
 
 	// Calcular o deslocamento após remoção da hashtag
 	hashtagLength := len(hashtagPattern)
+	// Incluir espaços em branco após a hashtag
 	endIndex := hashtagIndex + hashtagLength
 	for endIndex < len(originalText) && (originalText[endIndex] == ' ' || originalText[endIndex] == '\n') {
 		endIndex++
@@ -618,7 +716,6 @@ func adjustEntitiesAfterHashtagRemoval(entities []models.MessageEntity, original
 func (mp *MessageProcessor) IsNewPackActive(channelID int64) bool {
 	return mp.mediaGroupManager.IsNewPackActive(channelID)
 }
-
 func (mp *MessageProcessor) SetNewPackActive(channelID int64, active bool) {
 	mp.mediaGroupManager.SetNewPackActive(channelID, active)
 }
