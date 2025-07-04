@@ -506,7 +506,7 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	return err
 }
 
-// ✅ CORRIGIDO: ProcessAudioMessage com formatação HTML em TODOS os casos
+// ✅ CORRIGIDO: ProcessAudioMessage - SUBSTITUIR caption por legenda do banco
 func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
 	messageID := post.ID
 	caption := post.Caption
@@ -551,26 +551,23 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 		var finalMessage string
 		var customCaption *dbmodels.CustomCaption
 
-		// ✅ USAR CAPTION FORMATADA PARA EXTRAIR HASHTAG
+		// ✅ VERIFICAR SE TEM HASHTAG NA CAPTION ORIGINAL
 		hashtag := extractHashtag(formattedCaption)
 		if hashtag != "" {
 			customCaption = findCustomCaption(channel, hashtag)
 			if customCaption != nil {
-				// ✅ PROCESSAR COM CAPTION FORMATADA E FORMATAR CUSTOM CAPTION
-				cleanText := removeHashtag(formattedCaption, hashtag)
-				formattedCustomCaption := detectParseMode(customCaption.Caption)
-				finalMessage = fmt.Sprintf("%s\n\n%s", cleanText, formattedCustomCaption)
+				// ✅ SUBSTITUIR COMPLETAMENTE pela custom caption
+				finalMessage = detectParseMode(customCaption.Caption)
 			} else {
+				// ✅ SUBSTITUIR COMPLETAMENTE pela default caption
 				if channel.DefaultCaption != nil {
-					cleanText := removeHashtag(formattedCaption, hashtag)
-					formattedDefaultCaption := detectParseMode(channel.DefaultCaption.Caption)
-					finalMessage = fmt.Sprintf("%s\n\n%s", cleanText, formattedDefaultCaption)
+					finalMessage = detectParseMode(channel.DefaultCaption.Caption)
 				}
 			}
 		} else {
+			// ✅ SEM HASHTAG: SUBSTITUIR pela default caption
 			if channel.DefaultCaption != nil {
-				formattedDefaultCaption := detectParseMode(channel.DefaultCaption.Caption)
-				finalMessage = fmt.Sprintf("%s\n\n%s", formattedCaption, formattedDefaultCaption)
+				finalMessage = detectParseMode(channel.DefaultCaption.Caption)
 			}
 		}
 
@@ -611,8 +608,25 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 	var finalMessage string
 	var customCaption *dbmodels.CustomCaption
 
-	// ✅ PROCESSAR COM CAPTION FORMATADA
-	finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
+	// ✅ VERIFICAR SE TEM HASHTAG NA CAPTION ORIGINAL
+	hashtag := extractHashtag(formattedCaption)
+	if hashtag != "" {
+		customCaption = findCustomCaption(channel, hashtag)
+		if customCaption != nil {
+			// ✅ SUBSTITUIR COMPLETAMENTE pela custom caption
+			finalMessage = detectParseMode(customCaption.Caption)
+		} else {
+			// ✅ SUBSTITUIR COMPLETAMENTE pela default caption
+			if channel.DefaultCaption != nil {
+				finalMessage = detectParseMode(channel.DefaultCaption.Caption)
+			}
+		}
+	} else {
+		// ✅ SEM HASHTAG: SUBSTITUIR pela default caption
+		if channel.DefaultCaption != nil {
+			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
+		}
+	}
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
