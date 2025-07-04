@@ -3,15 +3,29 @@ package channelpost
 import (
 	"fmt"
 	"html"
+	"log"
 	"regexp"
 	"sort"
 	"strings"
 	"unicode/utf16"
 
 	"github.com/go-telegram/bot/models"
+	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
-// ✅ CORRIGIDO: processTextWithFormatting - priorizar entities do Telegram
+// ✅ REGEX para conversão de Markdown para HTML
+var (
+	boldRegex          = regexp.MustCompile(`\*\*([^*]+)\*\*`)
+	italicRegex        = regexp.MustCompile(`\*([^*]+)\*`)
+	underlineRegex     = regexp.MustCompile(`__([^_]+)__`)
+	strikethroughRegex = regexp.MustCompile(`~~([^~]+)~~`)
+	codeRegex          = regexp.MustCompile("`([^`]+)`")
+	linkRegex          = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
+	spoilerRegex       = regexp.MustCompile(`\|\|([^|]+)\|\|`)
+	blockquoteRegex    = regexp.MustCompile(`(?m)^>\s*(.+)$`)
+)
+
+// ✅ CORRIGIDO: processTextWithFormatting
 func processTextWithFormatting(text string, entities []models.MessageEntity) string {
 	if text == "" {
 		return ""
@@ -23,10 +37,10 @@ func processTextWithFormatting(text string, entities []models.MessageEntity) str
 	}
 
 	// ✅ SE NÃO TEM ENTITIES, APLICAR FORMATAÇÃO MARKDOWN
-	return detectParseMode(html.EscapeString(text))
+	return detectParseMode(text)
 }
 
-// ✅ NOVA FUNÇÃO: Processar apenas entities do Telegram
+// ✅ CORRIGIDO: Processar entities para HTML
 func processEntitiesOnly(text string, entities []models.MessageEntity) string {
 	if len(entities) == 0 {
 		return html.EscapeString(text)
@@ -59,7 +73,7 @@ func processEntitiesOnly(text string, entities []models.MessageEntity) string {
 
 		entityText := string(utf16.Decode(textUTF16[entity.Offset:entityEnd]))
 
-		// ✅ APLICAR FORMATAÇÃO BASEADA NO TIPO DE ENTIDADE
+		// ✅ CORRIGIDO: GERAR HTML AO INVÉS DE MARKDOWN
 		switch entity.Type {
 		case "bold":
 			result.WriteString("<b>")
@@ -96,7 +110,6 @@ func processEntitiesOnly(text string, entities []models.MessageEntity) string {
 			result.WriteString(html.EscapeString(entityText))
 			result.WriteString("</code></pre>")
 		case "blockquote":
-			// ✅ BLOCKQUOTE - como no seu exemplo
 			result.WriteString("<blockquote>")
 			result.WriteString(html.EscapeString(entityText))
 			result.WriteString("</blockquote>")
@@ -151,7 +164,6 @@ func processEntitiesOnly(text string, entities []models.MessageEntity) string {
 			result.WriteString(html.EscapeString(entityText))
 			result.WriteString("</code>")
 		case "custom_emoji":
-			// ✅ CUSTOM EMOJI
 			if entity.CustomEmojiID != "" {
 				result.WriteString("<tg-emoji emoji-id=\"")
 				result.WriteString(html.EscapeString(entity.CustomEmojiID))
@@ -162,7 +174,6 @@ func processEntitiesOnly(text string, entities []models.MessageEntity) string {
 				result.WriteString(html.EscapeString(entityText))
 			}
 		default:
-			// Para tipos desconhecidos, apenas escapar o texto
 			result.WriteString(html.EscapeString(entityText))
 		}
 
@@ -178,8 +189,8 @@ func processEntitiesOnly(text string, entities []models.MessageEntity) string {
 	return result.String()
 }
 
-// ✅ MANTIDO: detectParseMode para quando NÃO há entities
-func detectParseMode(text string) string {
+// ✅ CORRIGIDO: detectParseMode para markdown manual COM ESCAPE ADEQUADO
+func detectParseModea(text string) string {
 	if text == "" {
 		return ""
 	}
@@ -210,7 +221,8 @@ func detectParseMode(text string) string {
 			continue
 		} else if strings.HasPrefix(line, "```") && inCodeBlock {
 			inCodeBlock = false
-			codeText := strings.Join(codeContent, "\n")
+			// ✅ ESCAPAR CONTEÚDO DO CODE BLOCK
+			codeText := html.EscapeString(strings.Join(codeContent, "\n"))
 			if codeLanguage != "" {
 				result = append(result, fmt.Sprintf(`<pre><code class="%s">%s</code></pre>`, html.EscapeString(codeLanguage), codeText))
 			} else {
@@ -219,6 +231,7 @@ func detectParseMode(text string) string {
 			i++
 			continue
 		} else if inCodeBlock {
+			// ✅ NÃO ESCAPAR AQUI - será escapado quando o bloco terminar
 			codeContent = append(codeContent, line)
 			i++
 			continue
@@ -257,52 +270,224 @@ func detectParseMode(text string) string {
 	return strings.Join(result, "\n")
 }
 
-// ✅ MANTIDO: processInlineFormatting para markdown manual
+// ✅ CORRIGIDO: processInlineFormatting para gerar HTML COM ESCAPE ADEQUADO
 func processInlineFormatting(line string) string {
 	if line == "" {
 		return ""
 	}
 
-	// 1. Code inline (maior prioridade)
+	// ✅ PROCESSAR EM ORDEM DE PRIORIDADE, ESCAPANDO ADEQUADAMENTE
+
+	// 1. Code inline (maior prioridade) - processa primeiro para evitar conflitos
 	codeRegex := regexp.MustCompile("`([^`]+)`")
 	line = codeRegex.ReplaceAllStringFunc(line, func(match string) string {
 		content := match[1 : len(match)-1]
-		return fmt.Sprintf("<code>%s</code>", content)
+		// ✅ ESCAPAR CONTEÚDO DO CODE
+		return fmt.Sprintf("<code>%s</code>", html.EscapeString(content))
 	})
 
 	// 2. Spoiler
 	spoilerRegex := regexp.MustCompile(`\|\|([^|]+)\|\|`)
-	line = spoilerRegex.ReplaceAllString(line, `<tg-spoiler>$1</tg-spoiler>`)
+	line = spoilerRegex.ReplaceAllStringFunc(line, func(match string) string {
+		content := spoilerRegex.FindStringSubmatch(match)[1]
+		// ✅ ESCAPAR CONTEÚDO DO SPOILER
+		return fmt.Sprintf("<tg-spoiler>%s</tg-spoiler>", html.EscapeString(content))
+	})
 
 	// 3. Bold
 	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	line = boldRegex.ReplaceAllString(line, "<b>$1</b>")
+	line = boldRegex.ReplaceAllStringFunc(line, func(match string) string {
+		content := boldRegex.FindStringSubmatch(match)[1]
+		// ✅ ESCAPAR CONTEÚDO DO BOLD
+		return fmt.Sprintf("<b>%s</b>", html.EscapeString(content))
+	})
 
 	// 4. Underline
 	underlineRegex := regexp.MustCompile(`__([^_]+)__`)
-	line = underlineRegex.ReplaceAllString(line, "<u>$1</u>")
+	line = underlineRegex.ReplaceAllStringFunc(line, func(match string) string {
+		content := underlineRegex.FindStringSubmatch(match)[1]
+		// ✅ ESCAPAR CONTEÚDO DO UNDERLINE
+		return fmt.Sprintf("<u>%s</u>", html.EscapeString(content))
+	})
 
 	// 5. Strikethrough
 	strikeRegex := regexp.MustCompile(`~~([^~]+)~~`)
-	line = strikeRegex.ReplaceAllString(line, "<s>$1</s>")
+	line = strikeRegex.ReplaceAllStringFunc(line, func(match string) string {
+		content := strikeRegex.FindStringSubmatch(match)[1]
+		// ✅ ESCAPAR CONTEÚDO DO STRIKETHROUGH
+		return fmt.Sprintf("<s>%s</s>", html.EscapeString(content))
+	})
 
-	// 6. Italic (deve vir por último)
+	// 6. Italic (deve vir por último para evitar conflitos com **)
 	italicRegex := regexp.MustCompile(`\*([^*]+)\*`)
-	line = italicRegex.ReplaceAllString(line, "<i>$1</i>")
+	line = italicRegex.ReplaceAllStringFunc(line, func(match string) string {
+		content := italicRegex.FindStringSubmatch(match)[1]
+		// ✅ ESCAPAR CONTEÚDO DO ITALIC
+		return fmt.Sprintf("<i>%s</i>", html.EscapeString(content))
+	})
+
+	// ✅ ESCAPAR QUALQUER TEXTO RESTANTE QUE NÃO ESTEJA DENTRO DE TAGS HTML
+	line = escapeRemainingText(line)
 
 	return line
 }
 
-// ✅ FUNÇÃO AUXILIAR: Debug para verificar entities
-func debugEntities(text string, entities []models.MessageEntity) {
-	fmt.Printf("=== DEBUG ENTITIES ===\n")
-	fmt.Printf("Text: %q\n", text)
-	fmt.Printf("Entities count: %d\n", len(entities))
-	for i, entity := range entities {
-		fmt.Printf("Entity %d: Type=%s, Offset=%d, Length=%d, URL=%s, Language=%s, CustomEmojiID=%s\n",
-			i, entity.Type, entity.Offset, entity.Length, entity.URL, entity.Language, entity.CustomEmojiID)
+// ✅ NOVA FUNÇÃO: Escapar texto que não está dentro de tags HTML
+func escapeRemainingText(text string) string {
+	// Regex para encontrar texto fora de tags HTML
+	htmlTagRegex := regexp.MustCompile(`(<[^>]+>)`)
+
+	// Dividir o texto em partes: tags HTML e texto normal
+	parts := htmlTagRegex.Split(text, -1)
+	tags := htmlTagRegex.FindAllString(text, -1)
+
+	var result strings.Builder
+
+	for i, part := range parts {
+		// Escapar apenas as partes que não são tags HTML
+		if part != "" {
+			result.WriteString(html.EscapeString(part))
+		}
+
+		// Adicionar a tag HTML (se existir) sem escapar
+		if i < len(tags) {
+			result.WriteString(tags[i])
+		}
 	}
-	formatted := processTextWithFormatting(text, entities)
-	fmt.Printf("Formatted: %q\n", formatted)
-	fmt.Printf("=== END DEBUG ===\n")
+
+	return result.String()
+}
+
+// ✅ FUNÇÃO PRINCIPAL: Converter Markdown para HTML
+func convertMarkdownToHTML(text string) string {
+	if text == "" {
+		return text
+	}
+
+	// Aplicar conversões na ordem correta
+	result := text
+
+	// 1. Blockquotes (deve ser primeiro para processar linhas inteiras)
+	result = blockquoteRegex.ReplaceAllString(result, "<blockquote>$1</blockquote>")
+
+	// 2. Links
+	result = linkRegex.ReplaceAllString(result, `<a href="$2">$1</a>`)
+
+	// 3. Formatação de texto
+	result = boldRegex.ReplaceAllString(result, "<b>$1</b>")
+	result = italicRegex.ReplaceAllString(result, "<i>$1</i>")
+	result = underlineRegex.ReplaceAllString(result, "<u>$1</u>")
+	result = strikethroughRegex.ReplaceAllString(result, "<s>$1</s>")
+	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
+	result = codeRegex.ReplaceAllString(result, "<code>$1</code>")
+
+	return result
+}
+
+// ✅ FUNÇÃO MELHORADA: Detectar formato e converter para HTML
+func detectParseMode(text string) string {
+	if text == "" {
+		return text
+	}
+
+	// Detectar se é Markdown
+	if isMarkdown(text) {
+		converted := convertMarkdownToHTML(text)
+		log.Printf("📝 Convertido Markdown -> HTML: %q -> %q", text, converted)
+		return converted
+	}
+
+	// Detectar se já é HTML
+	if isHTML(text) {
+		log.Printf("📝 Texto já é HTML: %q", text)
+		return text
+	}
+
+	// Texto plano
+	log.Printf("📝 Texto plano: %q", text)
+	return text
+}
+
+// ✅ FUNÇÃO: Detectar se texto é Markdown
+func isMarkdown(text string) bool {
+	if text == "" {
+		return false
+	}
+
+	markdownPatterns := []string{
+		`\*\*[^*]+\*\*`, // **bold**
+		`\*[^*]+\*`,     // *italic*
+		`__[^_]+__`,     // __underline__
+		`~~[^~]+~~`,     // ~~strikethrough~~
+		"`[^`]+`",       // `code`
+		`\[.+\]\(.+\)`,  // [link](url)
+		`\|\|[^|]+\|\|`, // ||spoiler||
+		`(?m)^>\s*.+$`,  // > blockquote
+	}
+
+	for _, pattern := range markdownPatterns {
+		if matched, _ := regexp.MatchString(pattern, text); matched {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ✅ FUNÇÃO: Detectar se texto é HTML
+func isHTML(text string) bool {
+	if text == "" {
+		return false
+	}
+
+	htmlPatterns := []string{
+		`<b>.*</b>`,
+		`<i>.*</i>`,
+		`<u>.*</u>`,
+		`<s>.*</s>`,
+		`<code>.*</code>`,
+		`<pre>.*</pre>`,
+		`<a href=.*>.*</a>`,
+		`<blockquote>.*</blockquote>`,
+		`<span class="tg-spoiler">.*</span>`,
+	}
+
+	for _, pattern := range htmlPatterns {
+		if matched, _ := regexp.MatchString(pattern, text); matched {
+			return true
+		}
+	}
+
+	return false
+}
+
+// ✅ FUNÇÃO ATUALIZADA: processMessageWithHashtag com conversão para HTML
+func (mp *MessageProcessor) processMessageWithHashtag(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
+	hashtag := extractHashtag(text)
+
+	if hashtag == "" {
+		defaultCaption := ""
+		if channel.DefaultCaption != nil {
+			// ✅ CONVERTER CAPTION PADRÃO PARA HTML
+			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
+		}
+		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
+	}
+
+	customCaption := findCustomCaption(channel, hashtag)
+	if customCaption == nil {
+		defaultCaption := ""
+		if channel.DefaultCaption != nil {
+			// ✅ CONVERTER CAPTION PADRÃO PARA HTML
+			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
+		}
+		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
+	}
+
+	cleanText := removeHashtag(text, hashtag)
+
+	// ✅ CONVERTER CUSTOM CAPTION PARA HTML
+	formattedCustomCaption := detectParseMode(customCaption.Caption)
+
+	return fmt.Sprintf("%s\n\n%s", cleanText, formattedCustomCaption), customCaption
 }

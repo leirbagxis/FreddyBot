@@ -2,7 +2,6 @@ package channelpost
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"regexp"
@@ -421,9 +420,6 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	text := post.Text
 	messageID := post.ID
 	messageType := MessageTypeText
-	te, _ := json.Marshal(post)
-
-	fmt.Println(string(te))
 
 	if text == "" {
 		return fmt.Errorf("texto da mensagem está vazio")
@@ -460,6 +456,8 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	log.Printf("📝 Texto formatado: %q", formattedText)
 
 	message, customCaption := mp.processMessageWithHashtag(formattedText, channel)
+	st := detectParseMode(message)
+	fmt.Println(st)
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
@@ -558,17 +556,21 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 		if hashtag != "" {
 			customCaption = findCustomCaption(channel, hashtag)
 			if customCaption != nil {
-				// ✅ PROCESSAR COM CAPTION FORMATADA
-				finalMessage, _ = mp.processMessageWithHashtag(formattedCaption, channel)
+				// ✅ PROCESSAR COM CAPTION FORMATADA E FORMATAR CUSTOM CAPTION
+				cleanText := removeHashtag(formattedCaption, hashtag)
+				formattedCustomCaption := detectParseMode(customCaption.Caption)
+				finalMessage = fmt.Sprintf("%s\n\n%s", cleanText, formattedCustomCaption)
 			} else {
 				if channel.DefaultCaption != nil {
 					cleanText := removeHashtag(formattedCaption, hashtag)
-					finalMessage = fmt.Sprintf("%s\n\n%s", cleanText, channel.DefaultCaption.Caption)
+					formattedDefaultCaption := detectParseMode(channel.DefaultCaption.Caption)
+					finalMessage = fmt.Sprintf("%s\n\n%s", cleanText, formattedDefaultCaption)
 				}
 			}
 		} else {
 			if channel.DefaultCaption != nil {
-				finalMessage = fmt.Sprintf("%s\n\n%s", formattedCaption, channel.DefaultCaption.Caption)
+				formattedDefaultCaption := detectParseMode(channel.DefaultCaption.Caption)
+				finalMessage = fmt.Sprintf("%s\n\n%s", formattedCaption, formattedDefaultCaption)
 			}
 		}
 
@@ -879,11 +881,11 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		}
 		log.Printf("📸 Mensagem final: %q", finalMessage)
 	} else {
-		// Usar caption padrão se não houver caption na mensagem
+		// ✅ USAR CAPTION PADRÃO FORMATADO se não houver caption na mensagem
 		if channel.DefaultCaption != nil {
-			finalMessage = channel.DefaultCaption.Caption
+			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
 		}
-		log.Printf("📸 Usando caption padrão: %s", finalMessage)
+		log.Printf("📸 Usando caption padrão formatado: %s", finalMessage)
 	}
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
@@ -1014,30 +1016,34 @@ func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.Cust
 	return nil
 }
 
-func (mp *MessageProcessor) processMessageWithHashtag(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
+// ✅ CORRIGIDO: processMessageWithHashtag com formatação das legendas do banco
+func (mp *MessageProcessor) processMessageWithHashtaga(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
 	hashtag := extractHashtag(text)
 
 	if hashtag == "" {
 		defaultCaption := ""
 		if channel.DefaultCaption != nil {
-			defaultCaption = channel.DefaultCaption.Caption
+			// ✅ FORMATAR CAPTION PADRÃO DO BANCO
+			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
 		}
 		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
 	}
 
 	customCaption := findCustomCaption(channel, hashtag)
 	if customCaption == nil {
-		log.Printf("📝 Hashtag #%s não encontrada no banco, tratando como texto normal", hashtag)
 		defaultCaption := ""
 		if channel.DefaultCaption != nil {
-			defaultCaption = channel.DefaultCaption.Caption
+			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
 		}
 		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
 	}
 
-	log.Printf("📝 Hashtag #%s encontrada no banco: %s", hashtag, customCaption.Code)
 	cleanText := removeHashtag(text, hashtag)
-	return fmt.Sprintf("%s\n\n%s", cleanText, customCaption.Caption), customCaption
+
+	// ✅ FORMATAR CUSTOM CAPTION DO BANCO
+	formattedCustomCaption := detectParseMode(customCaption.Caption)
+
+	return fmt.Sprintf("%s\n\n%s", cleanText, formattedCustomCaption), customCaption
 }
 
 // ✅ FUNÇÕES DE CONVERSÃO
