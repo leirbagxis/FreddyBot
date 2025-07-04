@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 )
 
@@ -62,6 +63,41 @@ func (s *Service) GetSession(ctx context.Context, key string) (*ChannelPayload, 
 
 func (s *Service) DeleteSession(ctx context.Context, key string) error {
 	client := GetRedisClient()
+	return client.Del(ctx, key).Err()
+}
+
+func (s *Service) SetAwaitingStickerSeparator(ctx context.Context, userID, channelID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("awaiting_sticker:%d", userID)
+	return client.Set(ctx, key, channelID, 5*time.Minute).Err()
+}
+
+func (s *Service) GetAwaitingStickerSeparator(ctx context.Context, userID int64) (int64, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("awaiting_sticker:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return 0, fmt.Errorf("session not found or expired")
+		}
+		return 0, fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	channelID, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return channelID, nil
+}
+
+func (s *Service) DeleteAwaitingStickerSeparator(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("awaiting_sticker:%d", userID)
+
 	return client.Del(ctx, key).Err()
 }
 

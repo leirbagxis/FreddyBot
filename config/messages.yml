@@ -117,3 +117,43 @@
         callback_data: "start"
       - text: "🆘 Como Usar"
         callback_data: "help"
+
+- name: ask-separator-message
+  text: "✨ <b>Sticker Separador</b>\n\n<blockquote>Vamos deixar o canal <b>{channelName}</b> mais organizado?</blockquote>\n\nAdicione um sticker separador entre as postagens e dê um charme especial ao seu conteúdo!"
+  buttons:
+    - - text: "🧩 Adicionar"
+        callback_data: "sptc-config:{channelId}"
+      - text: "🗑️ Excluir"
+        callback_data: "spex:{channelId}"
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: require-separator-message
+  text: "✨ <b>Sticker Separador</b>\n\n<blockquote>📌 Você está configurando um separador para o canal:</blockquote>\n\n🏷️ <b>Nome:</b> {channelName}\n🆔 <b>ID:</b> {channelId}\n\n<blockquote>📎 Envie um sticker que será usado como separador entre as postagens deste canal.</blockquote>\n\n<b>⚠️ Apenas stickers estáticos são recomendados para melhor visualização.</b>\n\n<b>✨ Deixe suas postagens com um toque especial e bem organizadas!</b>"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: failed-save-separator
+  text: "✨ <b>Sticker Separador</b>\n\n<blockquote>❌ Não foi possível configurar o separador.</blockquote>\n\n📎 Verifique se você enviou um sticker válido.  \n⚠️ Apenas stickers estáticos são recomendados para melhor visualização.\n\n<b>🔁 Tente novamente e deixe suas postagens ainda mais organizadas!</b>"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+
+- name: success-save-separator
+  text: "✅ <b>Separador salvo com sucesso!</b>\n\nO sticker foi definido como separador para o canal <b>{channelName}</b>. Agora suas postagens vão ficar muito mais organizadas e estilosas!"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: success-delete-separator
+  text: "✅ <b>Sticker Separador Removido!</b>\n\nO sticker separador do canal <b>{channelName}</b> foi excluído com sucesso.\n\n📌 Agora as postagens do canal não terão mais o separador entre elas. Se quiser, você pode adicionar um novo a qualquer momento!"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+
+
+
+
