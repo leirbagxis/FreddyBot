@@ -242,3 +242,25 @@ func (r *ChannelRepository) GetChannelWithRelations(ctx context.Context, channel
 
 	return &channel, nil
 }
+
+func (r *ChannelRepository) UpdateOwnerChannel(ctx context.Context, channelID, oldOwnerID, newOwnerID int64) error {
+	var channel models.Channel
+	err := r.db.WithContext(ctx).
+		Where("id = ? AND owner_id = ?", channelID, oldOwnerID).
+		First(&channel).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("canal não encontrado ou você não tem permissão para modificá-lo")
+		}
+		return fmt.Errorf("Ërro ao buscar canal %w", err)
+	}
+
+	err = r.db.WithContext(ctx).Model(&channel).Update("owner_id", newOwnerID).Error
+
+	if err != nil {
+		return fmt.Errorf("Erro ao atualizar proprietario do canal: %w", err)
+	}
+
+	return nil
+
+}

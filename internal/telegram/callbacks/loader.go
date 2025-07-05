@@ -2,6 +2,7 @@ package callbacks
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -28,10 +29,24 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sptc-config:", bot.MatchTypePrefix, mychannel.RequireStickerSeparatorHandler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "spex:", bot.MatchTypePrefix, mychannel.DeleteSeparatorHandler(c))
 
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "paccess-info:", bot.MatchTypePrefix, mychannel.AskTransferAccessHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "transfer:", bot.MatchTypePrefix, mychannel.TransferAcessHandler(c))
+
 	b.RegisterHandlerMatchFunc(matchAwaitingSticker, mychannel.SetStickerSeparatorHandler(c))
+	b.RegisterHandlerMatchFunc(matchAwaitingNewOwner, mychannel.SetTransferAccessHandler(c))
 }
 
 func matchAwaitingSticker(update *models.Update) bool {
 	fmt.Println("Checking AwaitSticker: ", update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Sticker != nil)
 	return update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Sticker != nil
+}
+
+func matchAwaitingNewOwner(update *models.Update) bool {
+	if update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Text != "" {
+		_, err := strconv.Atoi(update.Message.Text)
+		if err == nil {
+			return true
+		}
+	}
+	return false
 }

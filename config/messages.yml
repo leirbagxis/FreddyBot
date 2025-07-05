@@ -118,6 +118,7 @@
       - text: "🆘 Como Usar"
         callback_data: "help"
 
+
 - name: ask-separator-message
   text: "✨ <b>Sticker Separador</b>\n\n<blockquote>Vamos deixar o canal <b>{channelName}</b> mais organizado?</blockquote>\n\nAdicione um sticker separador entre as postagens e dê um charme especial ao seu conteúdo!"
   buttons:
@@ -140,7 +141,6 @@
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
 
-
 - name: success-save-separator
   text: "✅ <b>Separador salvo com sucesso!</b>\n\nO sticker foi definido como separador para o canal <b>{channelName}</b>. Agora suas postagens vão ficar muito mais organizadas e estilosas!"
   buttons:
@@ -154,6 +154,36 @@
         callback_data: "config:{channelId}"
 
 
+- name: ask-paccess-message
+  text: "<b>🔄 Transferência de Acesso</b>\n\n<blockquote>📌 Você pode transferir a posse deste canal para outro usuário. O novo proprietário poderá gerenciar todas as configurações normalmente.</blockquote>\n\n<b>⚠️ Atenção:</b>\n<i>- Apenas o usuário que cadastrou o canal pode transferi-lo.</i>\n<i>- O novo dono deve ter interagido com o bot anteriormente.</i>\n<i>- Após a transferência, você perderá o controle sobre as configurações do canal.</i>\n\n<b>✅ Para continuar, inicie o processo de transferência abaixo.</b>"
+  buttons:
+    - - text: "🔑 Transferir Acesso"
+        callback_data: "transfer:{channelId}"
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
 
+- name: require-paccess-message
+  text: "<b>📩 Informe o ID do Usuário</b>\n\n<blockquote>📌 Você está prestes a transferir a posse do canal:</blockquote>\n\n🏷️ <b>Nome:</b> {channelName}\n🆔 <b>ID:</b> {channelId}\n👤 <b>Registrado por:</b> {ownerName} ({ownerId})\n\n<blockquote>✏️ Envie o ID do usuário para quem deseja transferir a posse.</blockquote>\n\n<b>⚠️ Certifique-se de que o usuário já interagiu com o bot antes.</b>\n\n<b>🔹 Aguarde a confirmação antes de concluir a transferência.</b>"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: success-old-paccess-message
+  text: "<b>✅ Transferência Concluída</b>\n\n<blockquote>📌 A posse do canal foi transferida com sucesso para o novo usuário.</blockquote>\n\n🏷️ <b>Canal:</b> {channelName}\n🆔 <b>ID:</b> {channelId}\n\n👤 <b>Novo Dono:</b> {newOwnerName} ({newOwnerId})\n\n🚀 <b>Agora, o novo proprietário pode gerenciar as configurações do canal normalmente.</b>"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "profile-user-channels"
+      - text: "🏠 Início"
+        callback_data: "start"
+
+- name: success-new-paccess-message
+  text: "<b>✅ Sucesso!</b>\n\n<blockquote>Agora você é o novo administrador do canal <i>{channelName}</i> (ID: <code>{channelId}</code>)! Todos os controles e configurações do bot estão sob sua responsabilidade.</blockquote>\n\n<b>🔹 Lembre-se de ajustar as configurações de legenda conforme necessário!</b>"
+  buttons:
+    - - text: "⚙️ Configure Agora"
+        url: "{miniAppUrl}"
+    - - text: "📢 Meu Canal"
+        callback_data: "config:{channelId}"
+      - text: "🏠 Início"
+        callback_data: "start"
 
 
