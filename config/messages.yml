@@ -187,3 +187,21 @@
         callback_data: "start"
 
 
+- name: ask-gc-message
+  text: "<b>📌 Agrupamento de Canais</b>\n\n<blockquote>🔗 Este comando permite que você agrupe seus canais, exibindo os botões dos outros canais no canal selecionado.</blockquote>\n\n🛠️ <b>Como funciona?</b>\n➜ Se você tiver dois ou mais canais, pode vinculá-los para que os botões/plaquinhas de um canal apareçam no canal selecionado.\n➜ Isso facilita a navegação entre seus canais e melhora a experiência dos seus seguidores.\n\n⚙️ <b>Deseja prosseguir com o agrupamento?</b>\n✔️ Toque em 'Confirmar' para continuar.\n❌ Toque em 'Cancelar' para desistir"
+  buttons:
+    - - text: "✔️ Confirmar"
+        callback_data: "gc.yes:{channelId}"
+      - text: "❌ Cancelar"
+        callback_data: "config:{channelId}"
+
+
+
+
+
+
+- name: notfound-message
+  text: "❌ <b>Comando não reconhecido!</b>\n\n✨ Parece que você tentou fazer algo que nem eu entendi… Talvez um bug na Matrix? Ou só um toque de criatividade mesmo!\n\nSe estiver em dúvida, corre lá na aba <b>Ajuda</b> — prometo te guiar com carinho e sem bugs!"
+  buttons:
+    - - text: "🏠 Início"
+        callback_data: "start"

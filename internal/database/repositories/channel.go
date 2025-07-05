@@ -264,3 +264,16 @@ func (r *ChannelRepository) UpdateOwnerChannel(ctx context.Context, channelID, o
 	return nil
 
 }
+
+func (r *ChannelRepository) GetAllChannelsByUserID(ctx context.Context, userID int64) ([]models.Channel, error) {
+	var channel []models.Channel
+	err := r.db.WithContext(ctx).
+		Where("owner_id = ?", userID).
+		First(&channel).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return channel, nil
+}
