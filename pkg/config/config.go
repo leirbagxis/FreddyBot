@@ -13,6 +13,7 @@ var (
 	DatabaseFile     string
 	RedisAddr        string
 	OwnerID          int64
+	SecreteKey       string
 )
 
 func init() {
@@ -35,5 +36,10 @@ func init() {
 	OwnerID, _ = strconv.ParseInt(os.Getenv("OWNER_ID"), 10, 64)
 	if OwnerID == 0 {
 		log.Fatalf(`You need to set the "OWNER_ID" in the .env file!`)
+	}
+
+	SecreteKey = os.Getenv("SECRETE_KEY")
+	if SecreteKey == "" {
+		log.Fatalf(`You need to set the "SECRETE_KEY" in the .env file!`)
 	}
 }

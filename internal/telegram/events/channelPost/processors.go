@@ -702,6 +702,10 @@ func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmo
 		})
 		return err
 	}
+	isShowCaptionAboveMedia := false
+	if post.ShowCaptionAboveMedia {
+		isShowCaptionAboveMedia = true
+	}
 
 	// ✅ APLICAR FORMATAÇÃO HTML NA CAPTION
 	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
@@ -719,10 +723,11 @@ func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmo
 	keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
 
 	editParams := &bot.EditMessageCaptionParams{
-		ChatID:    post.Chat.ID,
-		MessageID: messageID,
-		Caption:   message,
-		ParseMode: "HTML",
+		ChatID:                post.Chat.ID,
+		MessageID:             messageID,
+		Caption:               message,
+		ParseMode:             "HTML",
+		ShowCaptionAboveMedia: isShowCaptionAboveMedia,
 	}
 
 	if keyboard != nil {
