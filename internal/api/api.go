@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"time"
 
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/routes"
 	"github.com/leirbagxis/FreddyBot/internal/container"
@@ -19,11 +21,20 @@ func StartApi(db *gorm.DB) error {
 
 	app := container.NewAppContainer(db)
 	router := gin.Default()
+
+	router.Use(cors.New(cors.Config{
+		AllowOrigins:     []string{"*"},
+		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
+		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		ExposeHeaders:    []string{"Content-Length"},
+		AllowCredentials: true,
+		MaxAge:           12 * time.Hour,
+	}))
+
 	routes.RegisterRoutes(router, app)
 
 	router.Static("/assets", "./webapp/assets")
-	// Se quiser servir /app como root HTML
-	router.GET("/:userId/:channelId", func(c *gin.Context) {
+	router.GET("/dashboard", func(c *gin.Context) {
 		c.File("./webapp/index.html")
 	})
 

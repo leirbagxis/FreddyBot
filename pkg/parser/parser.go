@@ -16,6 +16,7 @@ type Button struct {
 	CallbackData      string `yaml:"callback_data,omitempty"`
 	SwitchInlineQuery string `yaml:"switch_inline_query,omitempty"`
 	URL               string `yaml:"url,omitempty"`
+	WebApp            string `yaml:"web_app,omitempty"`
 }
 
 type Message struct {
@@ -104,6 +105,7 @@ func parseButtons(buttons [][]Button, vars map[string]string) [][]Button {
 				CallbackData:      ParseText(btn.CallbackData, vars, detectPlaceholders(btn.CallbackData)),
 				SwitchInlineQuery: ParseText(btn.SwitchInlineQuery, vars, detectPlaceholders(btn.SwitchInlineQuery)),
 				URL:               ParseText(btn.URL, vars, detectPlaceholders(btn.URL)),
+				WebApp:            ParseText(btn.WebApp, vars, detectPlaceholders(btn.WebApp)),
 			}
 		}
 		parsed[i] = newRow
@@ -125,6 +127,9 @@ func BuildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
 				CallbackData:      btn.CallbackData,
 				SwitchInlineQuery: btn.SwitchInlineQuery,
 				URL:               btn.URL,
+				WebApp: &models.WebAppInfo{
+					URL: btn.WebApp,
+				},
 			}
 		}
 		inlineKeyboard[i] = btnRow

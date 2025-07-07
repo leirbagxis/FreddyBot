@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -206,6 +207,9 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		userID := fmt.Sprintf("%d", from.ID)
+		channelID := fmt.Sprintf("%d", channel.ID)
+
 		c.SessionManager.DeleteChannelSession(ctx, parts[1])
 
 		data := map[string]string{
@@ -213,7 +217,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			"botId":       fmt.Sprintf("%d", botInfo.ID),
 			"channelName": channel.Title,
 			"channelId":   fmt.Sprintf("%d", channel.ID),
-			"miniAppUrl":  "https://caption.chelodev.shop/6762185696/-1001765135605?signature=53b8be8058f96458794c406e0f31fe91bb43e1a9cac2ed9e6f4e8b87efeccb86",
+			"miniAppUrl":  auth.GenerateMiniAppUrl(userID, channelID),
 		}
 
 		text, button := parser.GetMessage("toadd-success-message", data)

@@ -7,7 +7,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
-var secreteKey = config.SecreteKey
+var secreteKey = []byte(config.SecreteKey)
 
 type CustomClaims struct {
 	ChannelID string
@@ -25,7 +25,7 @@ func GenerateTokenJWT(channelID, ownerID string) (string, error) {
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodES256, claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(secreteKey)
 }
 

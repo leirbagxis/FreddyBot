@@ -44,7 +44,7 @@
   text: "<b>📢 Canal Selecionado</b>\n\n<blockquote>🔹 <b>Nome:</b> {title}\n🔹 <b>ID:</b> <code>{channelId}</code></blockquote>\n\n<b>⚙️ Aqui você pode gerenciar as configurações de legendas deste canal. Edite conforme necessário e salve as alterações.</b>"
   buttons:
     - - text: "⚙ Configure Agora"
-        url: "{webAppUrl}"
+        web_app: "{webAppUrl}"
     - - text: "✨ Sticker Separador"
         callback_data: "sptc:{channelId}"
     - - text: "🔑 Transferir Acesso"
@@ -94,7 +94,7 @@
   text: "<b>🎉 Sucesso, <a href='tg://user?id={botId}'>{firstName}</a>!</b>\n\n<b><i>✅ Seu <a href='tg://user?id={botId}'>Canal</a> foi vinculado com sucesso ao bot!</i></b>\n\n🔥 Agora, todas as postagens serão acompanhadas automaticamente por legendas personalizadas.\n\n📌 Se precisar ajustar alguma configuração, consulte a aba <a href='tg://user?id={botId}'>Ajuda</a>!"
   buttons:
     - - text: "⚙️ Configure Agora"
-        url: "{miniAppUrl}"
+        web_app: "{miniAppUrl}"
     - - text: "📢 Meu Canal"
         callback_data: "config:{channelId}"
       - text: "🏠 Início"

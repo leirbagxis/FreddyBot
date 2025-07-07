@@ -2,12 +2,14 @@ package mychannel
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -35,10 +37,12 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		userIDStr := fmt.Sprintf("%d", userID)
+
 		data := map[string]string{
 			"title":     channel.Title,
 			"channelId": channelIdString,
-			"webAppUrl": "https://caption.chelodev.shop/703450014/-1002824722434?signature=f830adccc8cadcf0b84ad8f6236dc4c22f39f67ef7bc1e0c223fa498a9a8cf89",
+			"webAppUrl": auth.GenerateMiniAppUrl(userIDStr, channelIdString),
 		}
 		text, button := parser.GetMessage("config-channel", data)
 

@@ -14,6 +14,7 @@ var (
 	RedisAddr        string
 	OwnerID          int64
 	SecreteKey       string
+	WebAppURL        string
 )
 
 func init() {
@@ -41,5 +42,10 @@ func init() {
 	SecreteKey = os.Getenv("SECRETE_KEY")
 	if SecreteKey == "" {
 		log.Fatalf(`You need to set the "SECRETE_KEY" in the .env file!`)
+	}
+
+	WebAppURL = os.Getenv("WEPAPP_URL")
+	if WebAppURL == "" {
+		log.Fatalf(`You need to set the "WEPAPP_URL" in the .env file!`)
 	}
 }

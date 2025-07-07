@@ -11,5 +11,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	{
 		api.GET("/ping", handlers.PingHandler(c))
 		api.GET("/user/:userId/:channelId", handlers.GetChannelByTwoID(c))
+		api.GET("/auth/verify-token", handlers.VerifyJWTHandler())
+		api.POST("/auth/generate-token", handlers.GenerateJWTHandler(c))
 	}
 }
