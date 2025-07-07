@@ -39,9 +39,9 @@ func init() {
 		log.Fatalf(`You need to set the "OWNER_ID" in the .env file!`)
 	}
 
-	SecreteKey = os.Getenv("SECRETE_KEY")
+	SecreteKey = os.Getenv("SECRET_KEY")
 	if SecreteKey == "" {
-		log.Fatalf(`You need to set the "SECRETE_KEY" in the .env file!`)
+		log.Fatalf(`You need to set the "SECRET_KEY" in the .env file!`)
 	}
 
 	WebAppURL = os.Getenv("WEPAPP_URL")

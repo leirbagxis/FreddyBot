@@ -53,7 +53,16 @@ func (r *ChannelRepository) GetChannelByTwoID(ctx context.Context, userId, chann
 func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64) (*models.Channel, error) {
 	var channel models.Channel
 	err := r.db.WithContext(ctx).
-		Where("id = ?", channelId).
+		// Usar Joins para relações 1:1 (melhor performance)
+		Joins("DefaultCaption").
+		Joins("DefaultCaption.MessagePermission").
+		Joins("DefaultCaption.ButtonsPermission").
+		Joins("Separator").
+		// Usar Preload para relações 1:N
+		Preload("Buttons").
+		Preload("CustomCaptions").
+		Preload("CustomCaptions.Buttons").
+		Where("channels.id = ?", channelId).
 		First(&channel).Error
 
 	if err != nil {
