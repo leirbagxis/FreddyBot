@@ -23,13 +23,14 @@ func (app *AppContainerLocal) CreateButtonService(ctx context.Context, channelID
 	}
 
 	newButton := &models.Button{
-		ButtonID:   uuid.NewString(),
-		NameButton: buttonData.NameButton,
-		ButtonURL:  buttonData.ButtonURL,
-		PositionX:  position.X,
-		PositionY:  position.Y,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		ButtonID:       uuid.NewString(),
+		OwnerChannelID: channelID,
+		NameButton:     buttonData.NameButton,
+		ButtonURL:      buttonData.ButtonURL,
+		PositionX:      position.X,
+		PositionY:      position.Y,
+		CreatedAt:      time.Now(),
+		UpdatedAt:      time.Now(),
 	}
 
 	err = app.ButtonRepo.CreateButton(ctx, newButton)
@@ -44,6 +45,31 @@ func (app *AppContainerLocal) CreateButtonService(ctx context.Context, channelID
 		Message: "Botão criado com sucesso",
 		Data:    newButton,
 	}, nil
+}
+
+func (app *AppContainerLocal) DeleteDefaulfButtonService(ctx context.Context, channelID int64, buttonID string) error {
+	if buttonID == "" {
+		return fmt.Errorf("ID do botão é obrigatório")
+	}
+
+	if channelID == 0 {
+		return fmt.Errorf("ID do canal é obrigatório")
+	}
+
+	result := app.DB.WithContext(ctx).
+		Debug().
+		Where("button_id = ? AND owner_channel_id = ?", buttonID, channelID).
+		Delete(&models.Button{})
+
+	if result.Error != nil {
+		return fmt.Errorf("erro ao deletar botão: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("botão não encontrado ou não pertence ao canal")
+	}
+
+	return nil
 }
 
 func (app *AppContainerLocal) calculateNextButtonPosition(ctx context.Context, channelId int64) (*types.ButtonPosition, error) {

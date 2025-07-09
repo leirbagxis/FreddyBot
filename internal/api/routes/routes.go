@@ -23,7 +23,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.GET("/channel/:channelId", handlers.GetChannelHandler(c))
 
 		api.PUT("/channel/:channelId/caption", captionController.UpdateDefaultCaptionController)
+
 		api.POST("/channel/:channelId/buttons", ButtonsController.CreateDefaultButtonController)
+		api.DELETE("/channel/:channelId/buttons/:buttonId", ButtonsController.DeleteDefaultButtonController)
 
 	}
 }
