@@ -286,3 +286,18 @@ func (r *ChannelRepository) GetAllChannelsByUserID(ctx context.Context, userID i
 
 	return channel, nil
 }
+
+func (r *ChannelRepository) GetChannelButtons(ctx context.Context, channelId int64) ([]models.Button, error) {
+	var buttons []models.Button
+
+	err := r.db.WithContext(ctx).
+		Where("owner_channel_id = ?", channelId).
+		Order("position_y ASC, position_x ASC").
+		Find(&buttons).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("erro ao buscar botões: %w", err)
+	}
+
+	return buttons, nil
+}

@@ -40,3 +40,16 @@ func (r *ButtonRepository) GetUserChannelsAsButtons(ctx context.Context, userID 
 	return buttons, nil
 
 }
+
+func (r *ButtonRepository) CreateButton(ctx context.Context, button *models.Button) error {
+	if button == nil {
+		return fmt.Errorf("botão não pode ser nil")
+	}
+
+	err := r.db.WithContext(ctx).Create(button).Error
+	if err != nil {
+		return fmt.Errorf("erro ao criar botão: %w", err)
+	}
+
+	return nil
+}

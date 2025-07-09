@@ -15,11 +15,15 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 	api := r.Group("/api")
 	captionController := controllers.NewCaptionController(c)
+	ButtonsController := controllers.NewButtonsController(c)
+
 	api.Use(auth.AuthMiddlewareJWT())
 	{
 		api.GET("/ping", handlers.PingHandler(c))
 		api.GET("/channel/:channelId", handlers.GetChannelHandler(c))
+
 		api.PUT("/channel/:channelId/caption", captionController.UpdateDefaultCaptionController)
+		api.POST("/channel/:channelId/buttons", ButtonsController.CreateDefaultButtonController)
 
 	}
 }
