@@ -25,3 +25,17 @@ type ButtonPosition struct {
 	X int `json:"x"`
 	Y int `json:"y"`
 }
+
+type ButtonLayoutItem struct {
+	ID string `json:"id" binding:"required"`
+}
+
+type UpdateLayoutRequest struct {
+	Layout [][]ButtonLayoutItem `json:"layout" binding:"required"`
+}
+
+type UpdateLayoutResponse struct {
+	Success bool                   `json:"success"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data"`
+}

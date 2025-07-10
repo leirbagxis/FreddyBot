@@ -127,3 +127,42 @@ func (c *ButtonsController) UpdateDefaultButtonController(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, result)
 
 }
+
+func (c *ButtonsController) UpdateLayoutDefaultButtons(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "ID do canal inválido",
+		})
+		return
+	}
+
+	var body types.UpdateLayoutRequest
+	if err := ctx.ShouldBindJSON(&body); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Dados inválidos: " + err.Error(),
+		})
+		return
+	}
+
+	appService := (*service.AppContainerLocal)(c.container)
+	result, err := appService.UpdateButtonsLayoutService(ctx, channelId, body)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if !result.Success {
+		ctx.JSON(http.StatusOK, result)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, result)
+}

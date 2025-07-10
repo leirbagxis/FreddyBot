@@ -30,6 +30,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.POST("/channel/:channelId/buttons", ButtonsController.CreateDefaultButtonController)
 		api.DELETE("/channel/:channelId/buttons/:buttonId", ButtonsController.DeleteDefaultButtonController)
 		api.PUT("/channel/:channelId/buttons/:buttonId", ButtonsController.UpdateDefaultButtonController)
+		api.PUT("/channel/:channelId/buttons/layout", ButtonsController.UpdateLayoutDefaultButtons)
 
 	}
 }

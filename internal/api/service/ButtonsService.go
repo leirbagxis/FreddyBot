@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"gorm.io/gorm"
 )
 
 func (app *AppContainerLocal) CreateButtonService(ctx context.Context, channelID int64, buttonData types.ButtonCreateRequest) (*types.ButtonCreateResponse, error) {
@@ -99,6 +101,75 @@ func (app *AppContainerLocal) DeleteDefaulfButtonService(ctx context.Context, ch
 	}
 
 	return nil
+}
+
+func (app *AppContainerLocal) UpdateButtonsLayoutService(ctx context.Context, channelID int64, layoutData types.UpdateLayoutRequest) (*types.UpdateLayoutResponse, error) {
+	if len(layoutData.Layout) == 0 {
+		return nil, errors.New("layout não pode ser vazio")
+	}
+
+	var channel models.Channel
+	err := app.DB.WithContext(ctx).
+		Where("id = ? ", channelID).
+		First(&channel).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("canal não encontrado ou sem permissão")
+		}
+		return nil, fmt.Errorf("erro ao buscar canal: %w", err)
+	}
+
+	var buttonsToUpdate []struct {
+		ID        string
+		PositionX int
+		PositionY int
+	}
+	for y, row := range layoutData.Layout {
+		for x, button := range row {
+			buttonsToUpdate = append(buttonsToUpdate, struct {
+				ID        string
+				PositionX int
+				PositionY int
+			}{
+				ID:        button.ID,
+				PositionX: x,
+				PositionY: y,
+			})
+		}
+	}
+
+	now := time.Now()
+	err = app.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, btn := range buttonsToUpdate {
+			result := tx.Model(&models.Button{}).
+				Where("button_id = ? AND owner_channel_id = ?", btn.ID, channelID).
+				Updates(map[string]interface{}{
+					"position_x": btn.PositionX,
+					"position_y": btn.PositionY,
+					"updated_at": now,
+				})
+
+			if result.Error != nil {
+				return result.Error
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("erro ao atualizar layout dos botões: %w", err)
+	}
+
+	fmt.Println("✅ Layout dos botões atualizado com sucesso")
+
+	return &types.UpdateLayoutResponse{
+		Success: true,
+		Message: "Layout dos botões atualizado com sucesso",
+		Data: map[string]interface{}{
+			"updated_at": now,
+			"total":      len(buttonsToUpdate),
+		},
+	}, nil
 }
 
 func (app *AppContainerLocal) calculateNextButtonPosition(ctx context.Context, channelId int64) (*types.ButtonPosition, error) {
