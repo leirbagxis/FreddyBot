@@ -33,7 +33,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.PUT("/channel/:channelId/buttons/:buttonId", ButtonsController.UpdateDefaultButtonController)
 		api.PUT("/channel/:channelId/buttons/layout", ButtonsController.UpdateLayoutDefaultButtons)
 
-		api.POST("/channel/:channelId/custom-captions", customCaptionController.Create)
+		api.POST("/channel/:channelId/custom-captions", customCaptionController.CreateCustomCaptionController)
+		api.POST("/channel/:channelId/custom-captions/:captionId/buttons", customCaptionController.CreateCustomCaptionButtonController)
+		api.PUT("/channel/:channelId/custom-captions/:captionId/buttons/:buttonId", customCaptionController.UpdateCustomCaptionButtonController)
 		api.DELETE("/channel/:channelId/custom-captions/:captionId", customCaptionController.DeleteCustomCaptionController)
 
 	}

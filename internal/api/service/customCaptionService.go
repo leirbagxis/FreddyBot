@@ -12,11 +12,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func (app *AppContainerLocal) CreateCustomCaptionService(
-	ctx context.Context,
-	channelID int64,
-	body types.CreateCustomCaptionRequest,
-) (*types.CreateCustomCaptionResponse, error) {
+func (app *AppContainerLocal) CreateCustomCaptionService(ctx context.Context, channelID int64, body types.CreateCustomCaptionRequest) (*types.CreateCustomCaptionResponse, error) {
 	var channel models.Channel
 	if err := app.DB.WithContext(ctx).
 		Where("id = ? ", channelID).
