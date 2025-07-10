@@ -86,7 +86,7 @@ type CustomCaption struct {
 	CaptionID      string                `gorm:"type:text;primaryKey" json:"captionId"`
 	Code           string                `json:"code"`
 	Caption        string                `json:"caption"`
-	LinkPreview    bool                  `gorm:"default:true" json:"linkPreview"`
+	LinkPreview    bool                  `json:"linkPreview"`
 	Buttons        []CustomCaptionButton `gorm:"foreignKey:OwnerCaptionID" json:"buttons"`
 	OwnerChannelID int64                 `json:"ownerChannelId"`
 	CreatedAt      time.Time             `gorm:"autoCreateTime" json:"created_at"`

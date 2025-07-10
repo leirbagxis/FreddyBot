@@ -17,6 +17,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	captionController := controllers.NewCaptionController(c)
 	ButtonsController := controllers.NewButtonsController(c)
 	permissionsController := controllers.NewPermissionController(c)
+	customCaptionController := controllers.NewCustomCaptionController(c)
 
 	api.Use(auth.AuthMiddlewareJWT())
 	{
@@ -31,6 +32,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.DELETE("/channel/:channelId/buttons/:buttonId", ButtonsController.DeleteDefaultButtonController)
 		api.PUT("/channel/:channelId/buttons/:buttonId", ButtonsController.UpdateDefaultButtonController)
 		api.PUT("/channel/:channelId/buttons/layout", ButtonsController.UpdateLayoutDefaultButtons)
+
+		api.POST("/channel/:channelId/custom-captions", customCaptionController.Create)
+		api.DELETE("/channel/:channelId/custom-captions/:captionId", customCaptionController.DeleteCustomCaptionController)
 
 	}
 }
