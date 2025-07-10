@@ -15,6 +15,12 @@ type ButtonCreateResponse struct {
 	Data    *models.Button `json:"data,omitempty"`
 }
 
+type ButtonResponse struct {
+	Success bool                   `json:"success"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data,omitempty"`
+}
+
 type ButtonPosition struct {
 	X int `json:"x"`
 	Y int `json:"y"`

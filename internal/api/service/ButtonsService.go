@@ -47,6 +47,35 @@ func (app *AppContainerLocal) CreateButtonService(ctx context.Context, channelID
 	}, nil
 }
 
+func (app *AppContainerLocal) UpdateButtonService(ctx context.Context, channelID int64, buttonID string, buttonData types.ButtonCreateRequest) (*types.ButtonResponse, error) {
+	if err := validateButtonData(buttonData); err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	result := app.DB.Model(&models.Button{}).
+		Where("button_id = ? AND owner_channel_id = ?", buttonID, channelID).
+		Updates(map[string]interface{}{
+			"name_button": buttonData.NameButton,
+			"button_url":  buttonData.ButtonURL,
+			"updated_at":  now,
+		})
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("erro ao atualizar um botao padrão: %w", result.Error)
+	}
+	fmt.Printf("✅ Botão padrão atualizado com sucesso")
+
+	return &types.ButtonResponse{
+		Success: true,
+		Message: "Botão padrao atualizado com sucesso",
+		Data: map[string]interface{}{
+			"rows_affected": result.RowsAffected,
+			"updated_at":    now,
+		},
+	}, nil
+}
+
 func (app *AppContainerLocal) DeleteDefaulfButtonService(ctx context.Context, channelID int64, buttonID string) error {
 	if buttonID == "" {
 		return fmt.Errorf("ID do botão é obrigatório")

@@ -86,3 +86,44 @@ func (c *ButtonsController) DeleteDefaultButtonController(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, "")
 
 }
+
+func (c *ButtonsController) UpdateDefaultButtonController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+	buttonID := ctx.Param("buttonId")
+
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "ID do canal inválido",
+		})
+		return
+	}
+
+	var buttonData types.ButtonCreateRequest
+	if err := ctx.ShouldBindJSON(&buttonData); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Dados inválidos: " + err.Error(),
+		})
+		return
+	}
+
+	appService := (*service.AppContainerLocal)(c.container)
+	result, err := appService.UpdateButtonService(ctx, channelId, buttonID, buttonData)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	if !result.Success {
+		ctx.JSON(http.StatusOK, result)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, result)
+
+}
