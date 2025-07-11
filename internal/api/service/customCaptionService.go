@@ -51,6 +51,41 @@ func (app *AppContainerLocal) CreateCustomCaptionService(ctx context.Context, ch
 	}, nil
 }
 
+func (app *AppContainerLocal) UpdateCustomCaptionService(ctx context.Context, channelID int64, captionID string, body types.CreateCustomCaptionRequest) (*types.CreateCustomCaptionResponse, error) {
+	var channel models.Channel
+	if err := app.DB.WithContext(ctx).
+		Where("id = ? ", channelID).
+		First(&channel).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("canal não encontrado ou não pertence ao usuário")
+		}
+		return nil, fmt.Errorf("erro ao buscar canal: %w", err)
+	}
+
+	now := time.Now()
+	result := app.DB.Model(&models.CustomCaption{}).
+		Where("caption_id = ? AND owner_channel_id = ?", captionID, channelID).
+		Updates(map[string]interface{}{
+			"caption":      body.Caption,
+			"link_preview": body.LinkPreview,
+			"updated_at":   now,
+		})
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("erro ao atualizar um legenda customizado: %w", result.Error)
+	}
+	fmt.Printf("✅ Legenda customizado atualizado com sucesso")
+
+	return &types.CreateCustomCaptionResponse{
+		Success: true,
+		Message: "Custom caption criada com sucesso",
+		Data: map[string]interface{}{
+			"rows_affected": result.RowsAffected,
+			"updated_at":    now,
+		},
+	}, nil
+}
+
 func (app *AppContainerLocal) DeleteCustomCaptionService(ctx context.Context, channelID int64, captionID string) error {
 	if captionID == "" {
 		return fmt.Errorf("ID do caption é obrigatório")

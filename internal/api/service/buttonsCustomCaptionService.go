@@ -101,6 +101,115 @@ func (app *AppContainerLocal) UpdateCustomCaptionButtonService(ctx context.Conte
 	}, nil
 }
 
+func (app *AppContainerLocal) DeleteCustomCaptionButtonService(ctx context.Context, channelID int64, captionID, buttonID string) error {
+	if buttonID == "" {
+		return fmt.Errorf("ID do botão é obrigatório")
+	}
+
+	if captionID == "" {
+		return fmt.Errorf("ID do caption é obrigatório")
+	}
+
+	if channelID == 0 {
+		return fmt.Errorf("ID do canal é obrigatório")
+	}
+
+	result := app.DB.WithContext(ctx).
+		Debug().
+		Where("button_id = ? AND owner_caption_id = ?", buttonID, captionID).
+		Delete(&models.CustomCaptionButton{})
+
+	if result.Error != nil {
+		return fmt.Errorf("erro ao deletar botão: %w", result.Error)
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf("botão não encontrado ou não pertence ao canal")
+	}
+
+	return nil
+}
+
+func (app *AppContainerLocal) UpdateCustomCaptionLayoutService(
+	ctx context.Context,
+	channelID int64,
+	captionID string,
+	layoutData types.UpdateCustomCaptionLayoutRequest,
+) (*types.CreateCustomCaptionResponse, error) {
+	if len(layoutData.Layout) == 0 {
+		return nil, errors.New("layout não pode ser vazio")
+	}
+
+	var channel models.Channel
+	if err := app.DB.WithContext(ctx).
+		Where("id = ? ", channelID).
+		First(&channel).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("canal não encontrado ou sem permissão")
+		}
+		return nil, fmt.Errorf("erro ao buscar canal: %w", err)
+	}
+
+	var caption models.CustomCaption
+	if err := app.DB.WithContext(ctx).
+		Where("owner_channel_id = ? AND caption_id = ?", channelID, captionID).
+		First(&caption).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("custom caption não encontrada")
+		}
+		return nil, fmt.Errorf("erro ao buscar custom caption: %w", err)
+	}
+
+	type ButtonPosition struct {
+		ID        string
+		PositionX int
+		PositionY int
+	}
+
+	var updates []ButtonPosition
+	for y, row := range layoutData.Layout {
+		for x, btn := range row {
+			updates = append(updates, ButtonPosition{
+				ID:        btn.ID,
+				PositionX: x,
+				PositionY: y,
+			})
+		}
+	}
+
+	now := time.Now()
+	err := app.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, btn := range updates {
+			result := tx.Model(&models.CustomCaptionButton{}).
+				Where("button_id = ? and owner_caption_id = ?", btn.ID, caption.CaptionID).
+				Updates(map[string]interface{}{
+					"position_x": btn.PositionX,
+					"position_y": btn.PositionY,
+					"updated_at": now,
+				})
+			if result.Error != nil {
+				return result.Error
+			}
+
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("erro ao atualizar layout dos botões: %w", err)
+	}
+
+	return &types.CreateCustomCaptionResponse{
+		Success: true,
+		Message: "Layout dos botões da custom caption atualizado com sucesso",
+		Data: map[string]interface{}{
+			"updated_at": now,
+			"total":      len(updates),
+		},
+	}, nil
+
+}
+
 func (app *AppContainerLocal) CalculateNextCustomButtonPosition(ctx context.Context, captionID string) (*types.ButtonPosition, error) {
 	buttons, err := app.GetCustomCaptionButtons(ctx, captionID)
 	if err != nil {

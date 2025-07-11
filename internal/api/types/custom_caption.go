@@ -11,3 +11,11 @@ type CreateCustomCaptionResponse struct {
 	Message string                 `json:"message"`
 	Data    map[string]interface{} `json:"data"`
 }
+
+type CustomCaptionLayoutItem struct {
+	ID string `json:"id" binding:"required"`
+}
+
+type UpdateCustomCaptionLayoutRequest struct {
+	Layout [][]CustomCaptionLayoutItem `json:"layout" binding:"required"`
+}
