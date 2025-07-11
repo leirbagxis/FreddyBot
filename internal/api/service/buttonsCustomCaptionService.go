@@ -67,6 +67,8 @@ func (app *AppContainerLocal) CreateCustomCaptionButtonService(ctx context.Conte
 			"buttonId":   newCaption.ButtonID,
 			"nameButton": newCaption.NameButton,
 			"buttonUrl":  newCaption.ButtonURL,
+			"positionX":  newCaption.PositionX,
+			"positionY":  newCaption.PositionY,
 			"createdAt":  newCaption.CreatedAt,
 		},
 	}, nil

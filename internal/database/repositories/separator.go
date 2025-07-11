@@ -65,3 +65,20 @@ func (r *SeparatorRepository) DeleteSeparatorByOwnerChannelId(ctx context.Contex
 
 	return nil
 }
+
+func (r *SeparatorRepository) GetSeparatorByTwoID(ctx context.Context, channelID int64, separatorID string) (*models.Separator, error) {
+	var separator models.Separator
+
+	err := r.db.WithContext(ctx).
+		Where("owner_channel_id = ? and separator_id = ?", channelID, separatorID).
+		First(&separator).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &separator, nil
+}

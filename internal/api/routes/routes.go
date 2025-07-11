@@ -18,6 +18,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	ButtonsController := controllers.NewButtonsController(c)
 	permissionsController := controllers.NewPermissionController(c)
 	customCaptionController := controllers.NewCustomCaptionController(c)
+	separatorController := controllers.NewSeparatorController(c)
 
 	api.Use(auth.AuthMiddlewareJWT())
 	{
@@ -40,6 +41,8 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.PUT("/channel/:channelId/custom-captions/:captionId/buttons/:buttonId", customCaptionController.UpdateCustomCaptionButtonController)
 		api.DELETE("/channel/:channelId/custom-captions/:captionId", customCaptionController.DeleteCustomCaptionController)
 		api.DELETE("/channel/:channelId/custom-captions/:captionId/buttons/:buttonId", customCaptionController.DeleteCustomCaptionButtonController)
+
+		api.GET("/channel/:channelId/separator/:separatorId", separatorController.GetSeparator)
 
 	}
 }
