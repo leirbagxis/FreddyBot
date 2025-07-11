@@ -18,7 +18,7 @@
       - text: "🏠 Início"
         callback_data: "start"
     - - text: "🔒 Assumir Controle"
-        switch_inline_query: "Claim "
+        switch_inline_query_current_chat: "Claim "
 
 - name: help
   text: "<b>🆘 Guia Rápido para Configuração</b>\n\n💡 Ativar as <b>Legendas Automáticas</b> no seu canal é simples:\n\n1️⃣ <b>Adicione o bot</b> {botUsername} ao seu canal.\n2️⃣ Conceda as seguintes permissões:\n   ✔️ Editar mensagens\n   ✔️ Fixar mensagens\n   ✔️ Publicar postagens\n   ✔️ Convidar usuários via link\n\n<blockquote><b>📌 Após isso, o bot enviará uma confirmação para você, é só confimar e o bot será ativado e pré configurado automaticamente.</b></blockquote>\n\n<b>Caso não funcione, encaminhe qualquer mensagem do seu canal mencionando o nome do canal para ativá-lo manualmente.</b>"
@@ -180,7 +180,7 @@
   text: "<b>✅ Sucesso!</b>\n\n<blockquote>Agora você é o novo administrador do canal <i>{channelName}</i> (ID: <code>{channelId}</code>)! Todos os controles e configurações do bot estão sob sua responsabilidade.</blockquote>\n\n<b>🔹 Lembre-se de ajustar as configurações de legenda conforme necessário!</b>"
   buttons:
     - - text: "⚙️ Configure Agora"
-        url: "{miniAppUrl}"
+        web_app: "{miniAppUrl}"
     - - text: "📢 Meu Canal"
         callback_data: "config:{channelId}"
       - text: "🏠 Início"
@@ -192,6 +192,15 @@
   buttons:
     - - text: "✔️ Confirmar"
         callback_data: "gc.yes:{channelId}"
+      - text: "❌ Cancelar"
+        callback_data: "config:{channelId}"
+
+
+- name: claim-ownership-require-message
+  text: "<b>🔑 Assumir Controle do Canal</b>\n<blockquote>📌 Canal: <i>{channelName}</i>\n🔗 ID do Canal: <code>{channelId}</code>\n👤 Cadastrado por: <i>{ownerName}\n             - ID: {ownerId})</i></blockquote>\n<b>🔹 Se você for o administrador principal deste canal e deseja assumir o controle, clique em 'Assumir Controle'. Após a confirmação, você será o único responsável pelas configurações do bot neste canal.</b>"
+  buttons:
+    - - text: "✅ Aceitar"
+        callback_data: "accept.claim:{sessionKey}"
       - text: "❌ Cancelar"
         callback_data: "config:{channelId}"
 

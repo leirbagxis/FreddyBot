@@ -12,11 +12,12 @@ import (
 )
 
 type Button struct {
-	Text              string `yaml:"text"`
-	CallbackData      string `yaml:"callback_data,omitempty"`
-	SwitchInlineQuery string `yaml:"switch_inline_query,omitempty"`
-	URL               string `yaml:"url,omitempty"`
-	WebApp            string `yaml:"web_app,omitempty"`
+	Text                         string `yaml:"text"`
+	CallbackData                 string `yaml:"callback_data,omitempty"`
+	SwitchInlineQuery            string `yaml:"switch_inline_query,omitempty"`
+	URL                          string `yaml:"url,omitempty"`
+	WebApp                       string `yaml:"web_app,omitempty"`
+	SwitchInlineQueryCurrentChat string `yaml:"switch_inline_query_current_chat,omitempty"`
 }
 
 type Message struct {
@@ -101,11 +102,12 @@ func parseButtons(buttons [][]Button, vars map[string]string) [][]Button {
 		newRow := make([]Button, len(row))
 		for j, btn := range row {
 			newRow[j] = Button{
-				Text:              ParseText(btn.Text, vars, detectPlaceholders(btn.Text)),
-				CallbackData:      ParseText(btn.CallbackData, vars, detectPlaceholders(btn.CallbackData)),
-				SwitchInlineQuery: ParseText(btn.SwitchInlineQuery, vars, detectPlaceholders(btn.SwitchInlineQuery)),
-				URL:               ParseText(btn.URL, vars, detectPlaceholders(btn.URL)),
-				WebApp:            ParseText(btn.WebApp, vars, detectPlaceholders(btn.WebApp)),
+				Text:                         ParseText(btn.Text, vars, detectPlaceholders(btn.Text)),
+				CallbackData:                 ParseText(btn.CallbackData, vars, detectPlaceholders(btn.CallbackData)),
+				URL:                          ParseText(btn.URL, vars, detectPlaceholders(btn.URL)),
+				WebApp:                       ParseText(btn.WebApp, vars, detectPlaceholders(btn.WebApp)),
+				SwitchInlineQuery:            ParseText(btn.SwitchInlineQuery, vars, detectPlaceholders(btn.SwitchInlineQuery)),
+				SwitchInlineQueryCurrentChat: ParseText(btn.SwitchInlineQueryCurrentChat, vars, detectPlaceholders(btn.SwitchInlineQueryCurrentChat)),
 			}
 		}
 		parsed[i] = newRow
@@ -123,10 +125,11 @@ func BuildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
 		btnRow := make([]models.InlineKeyboardButton, len(row))
 		for j, btn := range row {
 			btnRow[j] = models.InlineKeyboardButton{
-				Text:              btn.Text,
-				CallbackData:      btn.CallbackData,
-				SwitchInlineQuery: btn.SwitchInlineQuery,
-				URL:               btn.URL,
+				Text:                         btn.Text,
+				CallbackData:                 btn.CallbackData,
+				URL:                          btn.URL,
+				SwitchInlineQuery:            btn.SwitchInlineQuery,
+				SwitchInlineQueryCurrentChat: btn.SwitchInlineQueryCurrentChat,
 				WebApp: &models.WebAppInfo{
 					URL: btn.WebApp,
 				},

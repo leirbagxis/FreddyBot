@@ -8,6 +8,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/about"
+	claimchannel "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/claimChannel"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/help"
 	mychannel "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/my_channel"
 	profileinfo "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/profile_info"
@@ -36,6 +37,9 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer) {
 
 	b.RegisterHandlerMatchFunc(matchAwaitingSticker, mychannel.SetStickerSeparatorHandler(c))
 	b.RegisterHandlerMatchFunc(matchAwaitingNewOwner, mychannel.SetTransferAccessHandler(c))
+
+	b.RegisterHandlerMatchFunc(matchAwaitClaimOwner, claimchannel.Handler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "accept.claim:", bot.MatchTypePrefix, claimchannel.AcceptClaimHandler(c))
 }
 
 func matchAwaitingSticker(update *models.Update) bool {
@@ -51,4 +55,8 @@ func matchAwaitingNewOwner(update *models.Update) bool {
 		}
 	}
 	return false
+}
+
+func matchAwaitClaimOwner(update *models.Update) bool {
+	return update.InlineQuery != nil
 }

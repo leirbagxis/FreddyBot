@@ -22,6 +22,16 @@ func (sm *SessionManager) CreateChannelSession(ctx context.Context, channelID, o
 	return sm.cache.CreateSession(ctx, payload)
 }
 
+func (sm *SessionManager) CreateClaimSession(ctx context.Context, channelID, ownerID, newOwnerId int64) (*Session, error) {
+	payload := ChannelPayload{
+		ChannelID:  channelID,
+		OwnerID:    ownerID,
+		NewOwnerID: newOwnerId,
+	}
+
+	return sm.cache.CreateSession(ctx, payload)
+}
+
 func (sm *SessionManager) GetChannelSession(ctx context.Context, key string) (*ChannelPayload, error) {
 	return sm.cache.GetSession(ctx, key)
 }

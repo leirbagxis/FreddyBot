@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -238,12 +239,15 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		channelID := fmt.Sprintf("%d", channelId)
+		newOwnerIDStr := fmt.Sprintf("%d", newOwnerID)
+
 		data := map[string]string{
-			"channelId":    fmt.Sprintf("%d", channelId),
+			"channelId":    channelID,
 			"channelName":  channel.Title,
 			"newOwnerName": newOwner.LastName,
-			"newOwnerId":   fmt.Sprintf("%d", newOwnerID),
-			"miniAppUrl":   "https://caption.chelodev.shop",
+			"newOwnerId":   newOwnerIDStr,
+			"miniAppUrl":   auth.GenerateMiniAppUrl(newOwnerIDStr, channelID),
 		}
 
 		textOld, buttonOld := parser.GetMessage("success-old-paccess-message", data)
