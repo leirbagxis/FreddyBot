@@ -12,10 +12,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/routes"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"gorm.io/gorm"
 )
 
-func StartApi(db *gorm.DB) error {
+func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
@@ -32,6 +33,12 @@ func StartApi(db *gorm.DB) error {
 	}))
 
 	routes.RegisterRoutes(router, app)
+
+	// Rota de Webhook real (usa handler do bot)
+	if config.WebhookUrl != "" && webhookHandler != nil {
+		log.Println("🔗 Registrando endpoint do webhook")
+		router.POST("/webhook", gin.WrapH(webhookHandler))
+	}
 
 	router.Static("/assets", "./webapp/assets")
 	router.GET("/dashboard", func(c *gin.Context) {

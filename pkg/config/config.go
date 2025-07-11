@@ -15,6 +15,7 @@ var (
 	OwnerID          int64
 	SecreteKey       string
 	WebAppURL        string
+	WebhookUrl       string
 )
 
 func init() {
@@ -48,4 +49,6 @@ func init() {
 	if WebAppURL == "" {
 		log.Fatalf(`You need to set the "WEPAPP_URL" in the .env file!`)
 	}
+
+	WebhookUrl = os.Getenv("WEBHOOK_URL")
 }
