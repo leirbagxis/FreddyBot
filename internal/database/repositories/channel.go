@@ -278,7 +278,19 @@ func (r *ChannelRepository) GetAllChannelsByUserID(ctx context.Context, userID i
 	var channel []models.Channel
 	err := r.db.WithContext(ctx).
 		Where("owner_id = ?", userID).
-		First(&channel).Error
+		Find(&channel).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return channel, nil
+}
+
+func (r *ChannelRepository) GetAllChannels(ctx context.Context) ([]models.Channel, error) {
+	var channel []models.Channel
+	err := r.db.WithContext(ctx).
+		Find(&channel).Error
 
 	if err != nil {
 		return nil, err

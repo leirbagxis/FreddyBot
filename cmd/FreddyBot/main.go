@@ -24,10 +24,8 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	// Iniciar Bot
 	webhookHandler := telegram.StartBot(db)
 
-	// Iniciar API
 	go func() {
 		if err := api.StartApi(db, webhookHandler); err != nil {
 			log.Printf("Erro ao iniciar API: %v", err)

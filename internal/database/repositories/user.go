@@ -47,3 +47,12 @@ func (r *UserRepository) GetUserById(ctx context.Context, userID int64) (*models
 
 	return &user, nil
 }
+
+func (r *UserRepository) GetAllUSers(ctx context.Context) ([]models.User, error) {
+	var users []models.User
+	if err := r.db.WithContext(ctx).Find(&users).Error; err != nil {
+		return nil, err
+	}
+
+	return users, nil
+}

@@ -46,7 +46,6 @@ func StartBot(db *gorm.DB) http.Handler {
 	botInfo, _ := b.GetMe(ctx)
 	log.Println("🤖 Bot iniciado:", botInfo.Username)
 
-	// Criar wrapper do handler com logs detalhados
 	originalHandler := b.WebhookHandler()
 	debugHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
@@ -62,7 +61,6 @@ func StartBot(db *gorm.DB) http.Handler {
 		log.Println("✅ Webhook processado com sucesso")
 	})
 
-	// Configurar shutdown graceful
 	go func() {
 		<-ctx.Done()
 		log.Println("🔻 Shutting down gracefully...")
@@ -76,11 +74,10 @@ func StartBot(db *gorm.DB) http.Handler {
 	if webhookUrl != "" {
 		log.Printf("🔗 Bot configurado para modo webhook: %s", webhookUrl)
 
-		commands.LoadCommandHandlers(b)
+		commands.LoadCommandHandlers(b, app)
 		events.LoadEvents(b, app)
 		callbacks.LoadCallbacksHandlers(b, app)
 
-		// 4. QUARTO: Configurar webhook
 		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL:            webhookUrl,
 			AllowedUpdates: []string{"message", "callback_query", "inline_query"},
@@ -91,22 +88,19 @@ func StartBot(db *gorm.DB) http.Handler {
 
 		log.Println("✅ Webhook configurado com sucesso")
 
-		// 5. QUINTO: Verificar status do webhook
 		webhookInfo, err := b.GetWebhookInfo(ctx)
 		if err == nil {
 			log.Printf("📊 Webhook Info - URL: %s, Pending: %d",
 				webhookInfo.URL, webhookInfo.PendingUpdateCount)
 		}
 
-		// 6. POR ÚLTIMO: Iniciar webhook
 		log.Println("🚀 Iniciando webhook...")
 		go b.StartWebhook(ctx)
 
 	} else {
 		log.Println("🔄 Bot iniciado em modo polling")
 
-		// Carregar handlers para modo polling
-		commands.LoadCommandHandlers(b)
+		commands.LoadCommandHandlers(b, app)
 		events.LoadEvents(b, app)
 		callbacks.LoadCallbacksHandlers(b, app)
 
