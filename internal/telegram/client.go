@@ -74,13 +74,13 @@ func StartBot(db *gorm.DB) http.Handler {
 	if webhookUrl != "" {
 		log.Printf("🔗 Bot configurado para modo webhook: %s", webhookUrl)
 
-		commands.LoadCommandHandlers(b, app)
 		events.LoadEvents(b, app)
+		commands.LoadCommandHandlers(b, app)
 		callbacks.LoadCallbacksHandlers(b, app)
 
 		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL:            webhookUrl,
-			AllowedUpdates: []string{"message", "callback_query", "inline_query"},
+			AllowedUpdates: []string{"message", "callback_query", "inline_query", "my_chat_member"},
 		})
 		if err != nil {
 			log.Fatalf("❌ Erro ao setar webhook: %v", err)
@@ -100,8 +100,8 @@ func StartBot(db *gorm.DB) http.Handler {
 	} else {
 		log.Println("🔄 Bot iniciado em modo polling")
 
-		commands.LoadCommandHandlers(b, app)
 		events.LoadEvents(b, app)
+		commands.LoadCommandHandlers(b, app)
 		callbacks.LoadCallbacksHandlers(b, app)
 
 		b.DeleteWebhook(ctx, &bot.DeleteWebhookParams{})

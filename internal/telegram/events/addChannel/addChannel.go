@@ -46,9 +46,6 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 				Text:        text,
 				ReplyMarkup: button,
 				ParseMode:   "HTML",
-				ReplyParameters: &models.ReplyParameters{
-					MessageID: update.Message.ID,
-				},
 			})
 			return
 		}
@@ -66,9 +63,6 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			Text:        text,
 			ReplyMarkup: button,
 			ParseMode:   "HTML",
-			ReplyParameters: &models.ReplyParameters{
-				MessageID: update.Message.ID,
-			},
 		})
 	}
 }

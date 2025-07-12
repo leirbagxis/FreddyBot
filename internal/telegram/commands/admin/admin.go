@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"html"
+	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -298,6 +299,9 @@ func GetInfoUserHandler(app *container.AppContainer) bot.HandlerFunc {
 				ChatID:    update.Message.Chat.ID,
 				Text:      msg,
 				ParseMode: models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
 			})
 		}
 	}
@@ -336,6 +340,129 @@ func RemoveChannelHandler(app *container.AppContainer) bot.HandlerFunc {
 			ChatID:    update.Message.Chat.ID,
 			Text:      "✅ Canal excluído com sucesso!",
 			ParseMode: models.ParseModeHTML,
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
+		})
+	}
+}
+
+func NoticeCommandHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.Message == nil {
+			return
+		}
+
+		text := update.Message.Text
+		if text == "" {
+			return
+		}
+
+		lines := strings.Split(text, "\n")
+		if len(lines) <= 1 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ A mensagem de aviso está vazia.",
+			})
+			return
+		}
+
+		noticeText := strings.TrimSpace(strings.Join(lines[1:], "\n"))
+
+		users, err := app.UserRepo.GetAllUSers(ctx)
+		if err != nil || len(users) == 0 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Nenhum usuário encontrado.",
+			})
+			return
+		}
+
+		var failedUsers []string
+		sentCount := 0
+
+		for _, user := range users {
+			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    user.UserId,
+				Text:      noticeText,
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				log.Printf("Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
+				failedUsers = append(failedUsers, fmt.Sprintf("<code>%d</code> - %s", user.UserId, html.EscapeString(user.FirstName)))
+			} else {
+				sentCount++
+			}
+		}
+
+		var finalMsg strings.Builder
+		finalMsg.WriteString(fmt.Sprintf("📨 Aviso enviado para <b>%d</b> usuários.\n", sentCount))
+
+		if len(failedUsers) > 0 {
+			finalMsg.WriteString(fmt.Sprintf("\n❌ Falhou para %d usuários:\n", len(failedUsers)))
+			finalMsg.WriteString(strings.Join(failedUsers, "\n"))
+		}
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      finalMsg.String(),
+			ParseMode: models.ParseModeHTML,
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
+		})
+	}
+}
+
+func NoticeChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		const noticeText = `📢 <b>Atualização Importante</b>
+
+Estamos realizando melhorias no painel de gerenciamento de legendas. Caso encontre algum erro ou comportamento inesperado, entre em contato com o suporte.
+
+Obrigado por usar o FreddyBot!`
+
+		channels, err := app.ChannelRepo.GetAllChannels(ctx)
+		if err != nil || len(channels) == 0 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Nenhum canal encontrado.",
+			})
+			return
+		}
+
+		var failedChannels []string
+		sentCount := 0
+
+		for _, ch := range channels {
+			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    ch.ID,
+				Text:      noticeText,
+				ParseMode: models.ParseModeHTML,
+			})
+			if err != nil {
+				log.Printf("Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
+				failedChannels = append(failedChannels, fmt.Sprintf("<code>%d</code> - %s", ch.ID, html.EscapeString(ch.Title)))
+			} else {
+				sentCount++
+			}
+		}
+
+		var resultMsg strings.Builder
+		resultMsg.WriteString(fmt.Sprintf("📨 Aviso enviado para <b>%d</b> canais.\n", sentCount))
+
+		if len(failedChannels) > 0 {
+			resultMsg.WriteString(fmt.Sprintf("\n❌ Falhou para %d canais:\n", len(failedChannels)))
+			resultMsg.WriteString(strings.Join(failedChannels, "\n"))
+		}
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      resultMsg.String(),
+			ParseMode: models.ParseModeHTML,
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
 		})
 	}
 }

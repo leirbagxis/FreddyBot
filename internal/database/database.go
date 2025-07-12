@@ -5,6 +5,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func InitDB() *gorm.DB {
@@ -12,6 +13,7 @@ func InitDB() *gorm.DB {
 	if err != nil {
 		panic(err)
 	}
+	db.Config.Logger = logger.Default.LogMode(logger.Silent)
 
 	err = db.AutoMigrate(
 		&models.User{},
