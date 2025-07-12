@@ -3,7 +3,6 @@ package channelpost
 import (
 	"fmt"
 	"html"
-	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -393,18 +392,14 @@ func detectParseMode(text string) string {
 	// Detectar se é Markdown
 	if isMarkdown(text) {
 		converted := convertMarkdownToHTML(text)
-		log.Printf("📝 Convertido Markdown -> HTML: %q -> %q", text, converted)
 		return converted
 	}
 
-	// Detectar se já é HTML
 	if isHTML(text) {
-		log.Printf("📝 Texto já é HTML: %q", text)
+
 		return text
 	}
 
-	// Texto plano
-	log.Printf("📝 Texto plano: %q", text)
 	return text
 }
 

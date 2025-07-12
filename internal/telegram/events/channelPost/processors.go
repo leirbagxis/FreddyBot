@@ -452,12 +452,8 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 
 	// ✅ APLICAR FORMATAÇÃO HTML
 	formattedText := processTextWithFormatting(text, post.Entities)
-	log.Printf("📝 Texto original: %q", text)
-	log.Printf("📝 Texto formatado: %q", formattedText)
 
 	message, customCaption := mp.processMessageWithHashtag(formattedText, channel)
-	st := detectParseMode(message)
-	fmt.Println(st)
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
@@ -543,8 +539,6 @@ func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *db
 
 	// ✅ APLICAR FORMATAÇÃO HTML ANTES DE QUALQUER PROCESSAMENTO
 	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
-	log.Printf("📝 Caption original: %q", caption)
-	log.Printf("📝 Caption formatada: %q", formattedCaption)
 
 	// Para grupos de mídia: REENVIAR + DELETAR
 	if mediaGroupID != "" {
@@ -709,8 +703,6 @@ func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmo
 
 	// ✅ APLICAR FORMATAÇÃO HTML NA CAPTION
 	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
-	log.Printf("📝 Caption original: %q", caption)
-	log.Printf("📝 Caption formatada: %q", formattedCaption)
 
 	message, customCaption := mp.processMessageWithHashtag(formattedCaption, channel)
 
@@ -749,8 +741,6 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 		log.Printf("❌ Edição de grupo de mídia bloqueada para canal %d: %s", channel.ID, permissions.Reason)
 		return fmt.Errorf("permissão de edição de grupo de mídia desabilitada")
 	}
-
-	log.Printf("📸 Processando mídia do grupo: %s, ID: %d, Caption: %q", mediaGroupID, messageID, caption)
 
 	// ✅ USAR LoadOrStore ATÔMICO
 	value, loaded := mediaGroups.LoadOrStore(mediaGroupID, &MediaGroup{
@@ -889,22 +879,16 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 		// ✅ APLICAR FORMATAÇÃO HTML ANTES DE PROCESSAR
 		entities := convertInterfaceToMessageEntities(targetMessage.CaptionEntities)
 		formattedCaption := processTextWithFormatting(targetMessage.Caption, entities)
-
-		log.Printf("📸 Caption original: %q", targetMessage.Caption)
-		log.Printf("📸 Caption formatada: %q", formattedCaption)
-
 		// ✅ PROCESSAR HASHTAG E OBTER CUSTOM CAPTION COM CAPTION FORMATADA
 		finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
 		if customCaption != nil {
 			log.Printf("📸 Custom caption encontrado: %s", customCaption.Code)
 		}
-		log.Printf("📸 Mensagem final: %q", finalMessage)
 	} else {
 		// ✅ USAR CAPTION PADRÃO FORMATADO se não houver caption na mensagem
 		if channel.DefaultCaption != nil {
 			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
 		}
-		log.Printf("📸 Usando caption padrão formatado: %s", finalMessage)
 	}
 
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
