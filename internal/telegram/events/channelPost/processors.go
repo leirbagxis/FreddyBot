@@ -738,7 +738,6 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 
 	permissions := mp.CheckPermissions(channel, messageType)
 	if !permissions.CanEdit {
-		log.Printf("❌ Edição de grupo de mídia bloqueada para canal %d: %s", channel.ID, permissions.Reason)
 		return fmt.Errorf("permissão de edição de grupo de mídia desabilitada")
 	}
 
@@ -762,7 +761,6 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 
 	// ✅ VERIFICAR SE JÁ FOI PROCESSADO
 	if group.Processed {
-		log.Printf("📸 Grupo já processado: %s", mediaGroupID)
 		return nil
 	}
 
@@ -785,8 +783,6 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 		timeout = 2 * time.Second
 	}
 
-	log.Printf("📸 Grupo %s: %d mensagens, timeout: %v", mediaGroupID, len(group.Messages), timeout)
-
 	// ✅ CRIAR TIMER
 	group.Timer = time.AfterFunc(timeout, func() {
 		mp.finishGroupProcessing(ctx, mediaGroupID, channel, buttons, messageType)
@@ -801,7 +797,6 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 
 	value, ok := mediaGroups.Load(groupID)
 	if !ok {
-		log.Printf("❌ Grupo não encontrado: %s", groupID)
 		return
 	}
 
@@ -810,7 +805,6 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	defer group.mu.Unlock()
 
 	if group.Processed {
-		log.Printf("📸 Grupo já processado: %s", groupID)
 		return
 	}
 
@@ -818,14 +812,12 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	log.Printf("📸 Marcando grupo como processado: %s com %d mensagens", groupID, len(group.Messages))
 
 	if len(group.Messages) == 0 {
-		log.Printf("❌ Nenhuma mensagem no grupo: %s", groupID)
 		return
 	}
 
 	// ✅ VERIFICAR PERMISSÕES
 	permissions := mp.CheckPermissions(channel, messageType)
 	if !permissions.CanEdit {
-		log.Printf("❌ Edição de grupo bloqueada para canal %d: %s", channel.ID, permissions.Reason)
 		mp.cleanupGroup(groupID)
 		return
 	}
@@ -836,7 +828,6 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	for i := range group.Messages {
 		if group.Messages[i].HasCaption {
 			targetMessage = &group.Messages[i]
-			log.Printf("📸 Usando mensagem com caption: %d (caption: %q)", targetMessage.MessageID, targetMessage.Caption)
 			break
 		}
 	}
@@ -844,7 +835,6 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	// Prioridade 2: Primeira mensagem se não houver caption
 	if targetMessage == nil {
 		targetMessage = &group.Messages[0]
-		log.Printf("📸 Usando primeira mensagem (sem caption): %d", targetMessage.MessageID)
 	}
 
 	// ✅ SE NÃO PODE EDITAR MENSAGEM, APENAS ADICIONAR BOTÕES (se permitido)
@@ -894,7 +884,6 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
 	if !canEdit {
-		log.Printf("❌ Permissões insuficientes para editar grupo %s", groupID)
 		mp.cleanupGroup(groupID)
 		return
 	}
@@ -935,7 +924,6 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 func (mp *MessageProcessor) cleanupGroup(groupID string) {
 	time.AfterFunc(10*time.Second, func() {
 		mediaGroups.Delete(groupID)
-		log.Printf("🧹 Grupo removido da memória: %s", groupID)
 	})
 }
 
@@ -969,7 +957,6 @@ func extractHashtag(text string) string {
 	matches := hashtagRegex.FindStringSubmatch(text)
 	if len(matches) > 1 {
 		hashtag := strings.ToLower(matches[1])
-		log.Printf("📝 Hashtag extraída: #%s", hashtag)
 		return hashtag
 	}
 	return ""
@@ -996,19 +983,14 @@ func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.Cust
 
 	if value, ok := customCaptionCache.Load(cacheKey); ok {
 		if caption, ok := value.(*dbmodels.CustomCaption); ok {
-			log.Printf("📝 Custom caption encontrado no cache: #%s -> %s", hashtag, caption.Code)
 			return caption
 		}
-		log.Printf("📝 Custom caption não existe (cache): #%s", hashtag)
 		return nil
 	}
-
-	log.Printf("📝 Buscando custom caption no banco para hashtag: #%s", hashtag)
 
 	for i := range channel.CustomCaptions {
 		ccCode := strings.TrimPrefix(channel.CustomCaptions[i].Code, "#")
 		if strings.EqualFold(ccCode, hashtag) {
-			log.Printf("📝 ✅ Custom caption encontrado: #%s -> %s", hashtag, channel.CustomCaptions[i].Code)
 			customCaptionCache.Store(cacheKey, &channel.CustomCaptions[i])
 			return &channel.CustomCaptions[i]
 		}

@@ -466,3 +466,62 @@ Obrigado por usar o FreddyBot!`
 		})
 	}
 }
+
+func SendMessageToIdHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.Message == nil || update.Message.Text == "" {
+			return
+		}
+
+		lines := strings.Split(update.Message.Text, "\n")
+		if len(lines) < 2 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Uso inválido. Envie no formato:\n/send <id>\n<mensagem>",
+			})
+			return
+		}
+
+		idStr := strings.TrimSpace(strings.TrimPrefix(lines[0], "/send"))
+		targetID, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   fmt.Sprintf("❌ ID inválido: %v", err),
+			})
+			return
+		}
+
+		message := strings.Join(lines[1:], "\n")
+		message = strings.TrimSpace(message)
+
+		if message == "" {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Mensagem vazia.",
+			})
+			return
+		}
+
+		_, err = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    targetID,
+			Text:      message,
+			ParseMode: models.ParseModeHTML,
+		})
+		if err != nil {
+			log.Printf("Erro ao enviar mensagem para %d: %v", targetID, err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      fmt.Sprintf("❌ Falha ao enviar para <code>%d</code>: %v", targetID, err),
+				ParseMode: models.ParseModeHTML,
+			})
+			return
+		}
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      fmt.Sprintf("✅ Mensagem enviada para <code>%d</code> com sucesso.", targetID),
+			ParseMode: models.ParseModeHTML,
+		})
+	}
+}

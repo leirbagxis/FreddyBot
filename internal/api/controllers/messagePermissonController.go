@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -32,7 +31,6 @@ func (ctrl *PermissionController) UpdateMessagePermissionController(c *gin.Conte
 	}
 
 	bodyRaw, _ := io.ReadAll(c.Request.Body)
-	fmt.Println("Raw body:", string(bodyRaw))
 
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyRaw))
 	var body types.UpdateMessagePermissionRequest
@@ -72,7 +70,6 @@ func (ctrl *PermissionController) UpdateButtonsPermissionController(c *gin.Conte
 	}
 
 	bodyRaw, _ := io.ReadAll(c.Request.Body)
-	fmt.Println("Raw body:", string(bodyRaw))
 
 	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyRaw))
 	var body types.UpdateButtonsPermissionRequest
