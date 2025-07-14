@@ -3,36 +3,31 @@ version: "3.9"
 services:
   app:
     build: .
-    container_name: go_app
+    container_name: app
     depends_on:
       - redis
-    environment:
-      - REDIS_ADDR=redis:6379
+    env_file:
+      - .env
     ports:
       - "7000:7000"
     networks:
-      - backend
+      - app-network
 
   redis:
-    image: redis:7
+    image: redis:alpine
     container_name: redis
+    restart: always
     ports:
       - "6379:6379"
-    networks:
-      - backend
-
-  nginx:
-    image: nginx:latest
-    container_name: nginx
-    ports:
-      - "80:80"
     volumes:
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - app
+      - redis-data:/data
     networks:
-      - backend
+      - app-network
+
 
 networks:
-  backend:
+  app-network:
     driver: bridge
+
+volumes:
+  redis-data:
