@@ -14,15 +14,13 @@ import (
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
-// ✅ REGEX E CACHES GLOBAIS
 var (
 	hashtagRegex         = regexp.MustCompile(`#(\w+)`)
-	removeHashRegexCache = sync.Map{} // string -> *regexp.Regexp
-	customCaptionCache   = sync.Map{} // string -> *dbmodels.CustomCaption
-	mediaGroups          = sync.Map{} // string -> *MediaGroup
+	removeHashRegexCache = sync.Map{}
+	customCaptionCache   = sync.Map{}
+	mediaGroups          = sync.Map{}
 )
 
-// ✅ ESTRUTURA ÚNICA PARA GRUPOS DE MÍDIA
 type MediaGroup struct {
 	Messages           []MediaMessage
 	Processed          bool
@@ -32,7 +30,6 @@ type MediaGroup struct {
 	mu                 sync.Mutex
 }
 
-// ✅ ESTRUTURA PARA VERIFICAÇÃO DE PERMISSÕES
 type PermissionCheckResult struct {
 	CanEdit           bool
 	CanAddButtons     bool
@@ -55,7 +52,149 @@ func NewMessageProcessor(b *bot.Bot) *MessageProcessor {
 	}
 }
 
-// ✅ CORRIGIDO: Verificar permissões usando a estrutura correta dos models
+// ✅ FUNÇÃO SIMPLIFICADA PARA ÁUDIOS
+func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
+	messageID := post.ID
+	caption := post.Caption
+	mediaGroupID := post.MediaGroupID
+	messageType := MessageTypeAudio
+
+	permissions := mp.CheckPermissions(channel, messageType)
+	if !permissions.CanEdit {
+		log.Printf("❌ Edição de áudio bloqueada para canal %d: %s", channel.ID, permissions.Reason)
+		return fmt.Errorf("permissão de edição de áudio desabilitada")
+	}
+
+	if !messageEditAllowed {
+		if len(buttons) == 0 || !permissions.CanAddButtons {
+			return nil
+		}
+
+		keyboard := mp.CreateInlineKeyboard(buttons, nil, channel, messageType)
+		if keyboard == nil {
+			return nil
+		}
+
+		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+			ChatID:      post.Chat.ID,
+			MessageID:   messageID,
+			ReplyMarkup: keyboard,
+		})
+		return err
+	}
+
+	time.Sleep(1500 * time.Millisecond)
+
+	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
+
+	// ✅ PARA GRUPOS: REENVIAR + DELETAR + SEPARATOR AUTOMÁTICO
+	if mediaGroupID != "" {
+		err := mp.processAudioInGroup(ctx, channel, post, buttons, formattedCaption, messageType)
+		// ✅ SIMPLES: Processamento terminou, separator será enviado automaticamente
+		return err
+	}
+
+	// ✅ PARA INDIVIDUAIS: EDITAR + SEPARATOR AUTOMÁTICO
+	err := mp.processSingleAudio(ctx, channel, post, buttons, formattedCaption, messageType)
+	// ✅ SIMPLES: Processamento terminou, separator será enviado automaticamente
+	return err
+}
+
+// ✅ PROCESSAR ÁUDIO EM GRUPO - SIMPLIFICADO
+func (mp *MessageProcessor) processAudioInGroup(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, formattedCaption string, messageType MessageType) error {
+	var finalMessage string
+	var customCaption *dbmodels.CustomCaption
+
+	hashtag := extractHashtag(formattedCaption)
+	if hashtag != "" {
+		customCaption = findCustomCaption(channel, hashtag)
+		if customCaption != nil {
+			finalMessage = detectParseMode(customCaption.Caption)
+		} else if channel.DefaultCaption != nil {
+			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
+		}
+	} else if channel.DefaultCaption != nil {
+		finalMessage = detectParseMode(channel.DefaultCaption.Caption)
+	}
+
+	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
+	if !canEdit {
+		return fmt.Errorf("permissões insuficientes para editar mensagem")
+	}
+
+	keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
+
+	// ✅ REENVIAR ÁUDIO
+	sendParams := &bot.SendAudioParams{
+		ChatID:    post.Chat.ID,
+		Audio:     &models.InputFileString{Data: post.Audio.FileID},
+		Caption:   finalMessage,
+		ParseMode: "HTML",
+	}
+
+	if keyboard != nil {
+		sendParams.ReplyMarkup = keyboard
+	}
+
+	_, err := mp.bot.SendAudio(ctx, sendParams)
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(500 * time.Millisecond)
+
+	// ✅ DELETAR ORIGINAL
+	_, err = mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+		ChatID:    post.Chat.ID,
+		MessageID: post.ID,
+	})
+
+	// ✅ SIMPLES: Processamento terminou, separator será enviado automaticamente pelo handler
+	return err
+}
+
+// ✅ PROCESSAR ÁUDIO INDIVIDUAL - SIMPLIFICADO
+func (mp *MessageProcessor) processSingleAudio(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, formattedCaption string, messageType MessageType) error {
+	var finalMessage string
+	var customCaption *dbmodels.CustomCaption
+
+	hashtag := extractHashtag(formattedCaption)
+	if hashtag != "" {
+		customCaption = findCustomCaption(channel, hashtag)
+		if customCaption != nil {
+			finalMessage = detectParseMode(customCaption.Caption)
+		} else if channel.DefaultCaption != nil {
+			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
+		}
+	} else if channel.DefaultCaption != nil {
+		finalMessage = detectParseMode(channel.DefaultCaption.Caption)
+	}
+
+	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
+	if !canEdit {
+		return fmt.Errorf("permissões insuficientes para editar mensagem")
+	}
+
+	keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
+
+	editParams := &bot.EditMessageCaptionParams{
+		ChatID:    post.Chat.ID,
+		MessageID: post.ID,
+		Caption:   finalMessage,
+		ParseMode: "HTML",
+	}
+
+	if keyboard != nil {
+		editParams.ReplyMarkup = keyboard
+	}
+
+	_, err := mp.bot.EditMessageCaption(ctx, editParams)
+
+	// ✅ SIMPLES: Processamento terminou, separator será enviado automaticamente pelo handler
+	return err
+}
+
+// ✅ MANTER FUNÇÕES EXISTENTES
 func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageType MessageType) *PermissionCheckResult {
 	result := &PermissionCheckResult{
 		CanEdit:           true,
@@ -70,23 +209,19 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 		return result
 	}
 
-	// ✅ VERIFICAR SE EXISTE DefaultCaption E SUAS PERMISSÕES
 	if channel.DefaultCaption == nil {
 		log.Printf("⚠️ Canal %d não tem DefaultCaption configurado - permitindo todas as operações", channel.ID)
 		return result
 	}
 
-	// ✅ VERIFICAR MessagePermission
 	if channel.DefaultCaption.MessagePermission != nil {
 		messagePermission := channel.DefaultCaption.MessagePermission
 
-		// ✅ VERIFICAR LinkPreview APENAS PARA TEXTO
 		if messageType == MessageTypeText && !messagePermission.LinkPreview {
 			result.CanUseLinkPreview = false
 			log.Printf("🔗 Link preview desabilitado para canal %d (MessagePermission.LinkPreview = false)", channel.ID)
 		}
 
-		// Verificar permissão específica por tipo de mensagem
 		switch messageType {
 		case MessageTypeText:
 			if !messagePermission.Message {
@@ -121,7 +256,6 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 		}
 	}
 
-	// ✅ VERIFICAR ButtonsPermission
 	if channel.DefaultCaption.ButtonsPermission != nil {
 		buttonsPermission := channel.DefaultCaption.ButtonsPermission
 
@@ -170,7 +304,6 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 	return result
 }
 
-// ✅ CORRIGIDO: CheckCustomCaptionPermissions com messageType
 func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Channel, customCaption *dbmodels.CustomCaption, messageType MessageType) *PermissionCheckResult {
 	result := &PermissionCheckResult{
 		CanEdit:           true,
@@ -185,23 +318,19 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 		return result
 	}
 
-	// ✅ USAR APENAS OS CAMPOS QUE EXISTEM NOS MODELS
 	if channel.DefaultCaption == nil {
 		log.Printf("⚠️ Canal %d não tem DefaultCaption configurado", channel.ID)
 		return result
 	}
 
-	// ✅ VERIFICAR MessagePermission
 	if channel.DefaultCaption.MessagePermission != nil {
 		messagePermission := channel.DefaultCaption.MessagePermission
 
-		// ✅ LinkPreview APENAS para texto
 		if messageType == MessageTypeText && !messagePermission.LinkPreview {
 			result.CanUseLinkPreview = false
 			log.Printf("🔗 Link preview desabilitado por MessagePermission para canal %d", channel.ID)
 		}
 
-		// Verificar permissão por tipo
 		switch messageType {
 		case MessageTypeText:
 			if !messagePermission.Message {
@@ -236,7 +365,6 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 		}
 	}
 
-	// ✅ VERIFICAR ButtonsPermission APENAS para botões padrão
 	if channel.DefaultCaption.ButtonsPermission != nil {
 		buttonsPermission := channel.DefaultCaption.ButtonsPermission
 
@@ -274,7 +402,6 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 		}
 	}
 
-	// ✅ VERIFICAR CustomCaption.LinkPreview APENAS para texto
 	if customCaption != nil && messageType == MessageTypeText {
 		if !customCaption.LinkPreview {
 			result.CanUseLinkPreview = false
@@ -282,7 +409,6 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 		}
 	}
 
-	// ✅ LOGS ESPECÍFICOS PARA CUSTOM CAPTION
 	if customCaption != nil {
 		log.Printf("✅ Custom caption %s: %d botões (sempre permitidos)", customCaption.Code, len(customCaption.Buttons))
 		log.Printf("✅ Permissões verificadas - Edit=%v, BotõesPadrão=%v, LinkPreview=%v",
@@ -292,7 +418,6 @@ func (mp *MessageProcessor) CheckCustomCaptionPermissions(channel *dbmodels.Chan
 	return result
 }
 
-// ✅ CORRIGIDO: ApplyPermissions sem afetar botões de custom captions
 func (mp *MessageProcessor) ApplyPermissions(channel *dbmodels.Channel, messageType MessageType, customCaption *dbmodels.CustomCaption, buttons []dbmodels.Button) (bool, []dbmodels.Button, *dbmodels.CustomCaption) {
 	permissions := mp.CheckCustomCaptionPermissions(channel, customCaption, messageType)
 
@@ -301,11 +426,9 @@ func (mp *MessageProcessor) ApplyPermissions(channel *dbmodels.Channel, messageT
 		return false, nil, nil
 	}
 
-	// ✅ VERIFICAR ButtonsPermissions APENAS para botões padrão do canal
 	if !permissions.CanAddButtons {
 		log.Printf("⚠️ Botões padrão do canal removidos devido a ButtonsPermissions")
 		buttons = nil
-		// ✅ NÃO REMOVER botões da custom caption - eles são independentes
 		log.Printf("✅ Botões de custom caption mantidos (independentes de ButtonsPermissions)")
 	}
 
@@ -334,11 +457,9 @@ func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
 	return ""
 }
 
-// ✅ CORRIGIDO: Priorizar botões do custom caption SEM verificação de ButtonsPermissions
 func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption, channel *dbmodels.Channel, messageType MessageType) *models.InlineKeyboardMarkup {
 	var finalButtons []dbmodels.Button
 
-	// ✅ PRIORIDADE: Se tem custom caption, usar APENAS seus botões (SEM verificar ButtonsPermissions)
 	if customCaption != nil && len(customCaption.Buttons) > 0 {
 		log.Printf("🔘 Usando botões do custom caption: %s (%d botões) - IGNORANDO ButtonsPermissions", customCaption.Code, len(customCaption.Buttons))
 		finalButtons = make([]dbmodels.Button, 0, len(customCaption.Buttons))
@@ -351,7 +472,6 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			})
 		}
 	} else {
-		// ✅ FALLBACK: Usar botões padrão do canal (COM verificação de ButtonsPermissions)
 		permissions := mp.CheckPermissions(channel, messageType)
 		if !permissions.CanAddButtons {
 			log.Printf("🔘 Botões padrão bloqueados: ButtonsPermissions para canal %d", channel.ID)
@@ -366,7 +486,6 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 		return nil
 	}
 
-	// Criar grid de botões
 	buttonGrid := make(map[int]map[int]models.InlineKeyboardButton)
 	for i, button := range finalButtons {
 		if button.NameButton == "" || button.ButtonURL == "" {
@@ -390,7 +509,6 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 		}
 	}
 
-	// Construir keyboard final
 	var keyboard [][]models.InlineKeyboardButton
 	for row := 0; row < 10; row++ {
 		if rowButtons, exists := buttonGrid[row]; exists {
@@ -499,149 +617,6 @@ func (mp *MessageProcessor) ProcessTextMessage(ctx context.Context, channel *dbm
 	}
 
 	_, err := mp.bot.EditMessageText(ctx, editParams)
-	return err
-}
-
-// ✅ CORRIGIDO: ProcessAudioMessage - SUBSTITUIR caption por legenda do banco
-func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
-	messageID := post.ID
-	caption := post.Caption
-	mediaGroupID := post.MediaGroupID
-	messageType := MessageTypeAudio
-
-	// ✅ VERIFICAR PERMISSÕES
-	permissions := mp.CheckPermissions(channel, messageType)
-	if !permissions.CanEdit {
-		log.Printf("❌ Edição de áudio bloqueada para canal %d: %s", channel.ID, permissions.Reason)
-		return fmt.Errorf("permissão de edição de áudio desabilitada")
-	}
-
-	if !messageEditAllowed {
-		if len(buttons) == 0 || !permissions.CanAddButtons {
-			return nil
-		}
-
-		keyboard := mp.CreateInlineKeyboard(buttons, nil, channel, messageType)
-		if keyboard == nil {
-			return nil
-		}
-
-		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-			ChatID:      post.Chat.ID,
-			MessageID:   messageID,
-			ReplyMarkup: keyboard,
-		})
-		return err
-	}
-
-	// Aguardar 1 segundo
-	time.Sleep(1 * time.Second)
-
-	// ✅ APLICAR FORMATAÇÃO HTML ANTES DE QUALQUER PROCESSAMENTO
-	formattedCaption := processTextWithFormatting(caption, post.CaptionEntities)
-
-	// Para grupos de mídia: REENVIAR + DELETAR
-	if mediaGroupID != "" {
-		var finalMessage string
-		var customCaption *dbmodels.CustomCaption
-
-		// ✅ VERIFICAR SE TEM HASHTAG NA CAPTION ORIGINAL
-		hashtag := extractHashtag(formattedCaption)
-		if hashtag != "" {
-			customCaption = findCustomCaption(channel, hashtag)
-			if customCaption != nil {
-				// ✅ SUBSTITUIR COMPLETAMENTE pela custom caption
-				finalMessage = detectParseMode(customCaption.Caption)
-			} else {
-				// ✅ SUBSTITUIR COMPLETAMENTE pela default caption
-				if channel.DefaultCaption != nil {
-					finalMessage = detectParseMode(channel.DefaultCaption.Caption)
-				}
-			}
-		} else {
-			// ✅ SEM HASHTAG: SUBSTITUIR pela default caption
-			if channel.DefaultCaption != nil {
-				finalMessage = detectParseMode(channel.DefaultCaption.Caption)
-			}
-		}
-
-		// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
-		canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
-		if !canEdit {
-			return fmt.Errorf("permissões insuficientes para editar mensagem")
-		}
-
-		keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
-
-		// Reenviar áudio
-		sendParams := &bot.SendAudioParams{
-			ChatID:    post.Chat.ID,
-			Audio:     &models.InputFileString{Data: post.Audio.FileID},
-			Caption:   finalMessage,
-			ParseMode: "HTML",
-		}
-
-		if keyboard != nil {
-			sendParams.ReplyMarkup = keyboard
-		}
-
-		_, err := mp.bot.SendAudio(ctx, sendParams)
-		if err != nil {
-			return err
-		}
-
-		// Deletar original
-		_, err = mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
-			ChatID:    post.Chat.ID,
-			MessageID: messageID,
-		})
-		return err
-	}
-
-	// Para áudios individuais: SUBSTITUIÇÃO TOTAL
-	var finalMessage string
-	var customCaption *dbmodels.CustomCaption
-
-	// ✅ VERIFICAR SE TEM HASHTAG NA CAPTION ORIGINAL
-	hashtag := extractHashtag(formattedCaption)
-	if hashtag != "" {
-		customCaption = findCustomCaption(channel, hashtag)
-		if customCaption != nil {
-			// ✅ SUBSTITUIR COMPLETAMENTE pela custom caption
-			finalMessage = detectParseMode(customCaption.Caption)
-		} else {
-			// ✅ SUBSTITUIR COMPLETAMENTE pela default caption
-			if channel.DefaultCaption != nil {
-				finalMessage = detectParseMode(channel.DefaultCaption.Caption)
-			}
-		}
-	} else {
-		// ✅ SEM HASHTAG: SUBSTITUIR pela default caption
-		if channel.DefaultCaption != nil {
-			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
-		}
-	}
-
-	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
-	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
-	if !canEdit {
-		return fmt.Errorf("permissões insuficientes para editar mensagem")
-	}
-
-	keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
-
-	editParams := &bot.EditMessageCaptionParams{
-		ChatID:    post.Chat.ID,
-		MessageID: messageID,
-		Caption:   finalMessage,
-		ParseMode: "HTML",
-	}
-
-	if keyboard != nil {
-		editParams.ReplyMarkup = keyboard
-	}
-
-	_, err := mp.bot.EditMessageCaption(ctx, editParams)
 	return err
 }
 
@@ -884,7 +859,9 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 
 	// ✅ ENVIAR SEPARATOR APÓS EDITAR A MENSAGEM
 	if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
-		log.Printf("🔄 Tentando enviar separator para grupo %s", groupID)
+		time.Sleep(1 * time.Second) // Delay antes de enviar separator
+
+		log.Printf("🔄 Tentando enviar separator para grupo %s (tipo: %s)", groupID, messageType)
 
 		separatorCtx, separatorCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer separatorCancel()
@@ -936,6 +913,56 @@ func (mp *MessageProcessor) ProcessStickerMessage(ctx context.Context, channel *
 	return err
 }
 
+// ✅ FUNÇÃO ProcessSeparator COM RETRY
+func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmodels.Channel, post *models.Message) error {
+	if channel.Separator == nil || channel.Separator.SeparatorID == "" {
+		log.Printf("⚠️ Separator não configurado para canal %d", channel.ID)
+		return nil
+	}
+
+	var chatID int64
+	if post != nil {
+		chatID = post.Chat.ID
+	} else {
+		chatID = channel.ID // Fallback para grupos
+	}
+
+	log.Printf("🔄 Enviando separator para chat %d", chatID)
+
+	// ✅ RETRY COM BACKOFF PARA SEPARATORS
+	maxRetries := 2
+	baseDelay := 2 * time.Second
+
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		_, err := mp.bot.SendSticker(ctx, &bot.SendStickerParams{
+			ChatID:  chatID,
+			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
+		})
+
+		if err == nil {
+			log.Printf("✅ Separator enviado com sucesso para chat %d", chatID)
+			return nil
+		}
+
+		// Verificar se é erro 429
+		if strings.Contains(err.Error(), "Too Many Requests") {
+			retryAfter := extractRetryAfter(err.Error())
+			if retryAfter == 0 {
+				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
+			}
+
+			log.Printf("⏳ Rate limit no separator, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
+			time.Sleep(time.Duration(retryAfter) * time.Second)
+			continue
+		}
+
+		log.Printf("❌ Erro ao enviar separator: %v", err)
+		return err
+	}
+
+	return fmt.Errorf("falha após %d tentativas no envio do separator", maxRetries)
+}
+
 // ✅ FUNÇÕES AUXILIARES
 func extractHashtag(text string) string {
 	if text == "" {
@@ -953,7 +980,6 @@ func removeHashtag(text, hashtag string) string {
 	if text == "" || hashtag == "" {
 		return text
 	}
-
 	var re *regexp.Regexp
 	if value, ok := removeHashRegexCache.Load(hashtag); ok {
 		re = value.(*regexp.Regexp)
@@ -961,13 +987,11 @@ func removeHashtag(text, hashtag string) string {
 		re = regexp.MustCompile(`#` + regexp.QuoteMeta(hashtag) + `\s*`)
 		removeHashRegexCache.Store(hashtag, re)
 	}
-
 	return strings.TrimSpace(re.ReplaceAllString(text, ""))
 }
 
 func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.CustomCaption {
 	cacheKey := fmt.Sprintf("%d_%s", channel.ID, hashtag)
-
 	if value, ok := customCaptionCache.Load(cacheKey); ok {
 		if caption, ok := value.(*dbmodels.CustomCaption); ok {
 			return caption
@@ -988,14 +1012,11 @@ func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.Cust
 	return nil
 }
 
-// ✅ CORRIGIDO: processMessageWithHashtag com formatação das legendas do banco
-func (mp *MessageProcessor) processMessageWithHashtaga(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
+func (mp *MessageProcessor) processMessageWithHashtagx(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
 	hashtag := extractHashtag(text)
-
 	if hashtag == "" {
 		defaultCaption := ""
 		if channel.DefaultCaption != nil {
-			// ✅ FORMATAR CAPTION PADRÃO DO BANCO
 			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
 		}
 		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
@@ -1011,14 +1032,10 @@ func (mp *MessageProcessor) processMessageWithHashtaga(text string, channel *dbm
 	}
 
 	cleanText := removeHashtag(text, hashtag)
-
-	// ✅ FORMATAR CUSTOM CAPTION DO BANCO
 	formattedCustomCaption := detectParseMode(customCaption.Caption)
-
 	return fmt.Sprintf("%s\n\n%s", cleanText, formattedCustomCaption), customCaption
 }
 
-// ✅ FUNÇÕES DE CONVERSÃO
 func convertMessageEntitiesToInterface(entities []models.MessageEntity) []interface{} {
 	result := make([]interface{}, len(entities))
 	for i, entity := range entities {
@@ -1037,7 +1054,6 @@ func convertInterfaceToMessageEntities(entities []interface{}) []models.MessageE
 	return result
 }
 
-// ✅ MÉTODOS BÁSICOS
 func (mp *MessageProcessor) IsNewPackActive(channelID int64) bool {
 	return mp.mediaGroupManager.IsNewPackActive(channelID)
 }
