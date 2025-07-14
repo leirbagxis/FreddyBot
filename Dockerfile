@@ -1,24 +1,16 @@
-# Dockerfile
-FROM golang:1.24.4 as builder
+FROM golang:1.24.4-alpine
 
 WORKDIR /app
+
+RUN apk add --no-cache gcc g++ musl-dev
 
 COPY go.mod ./
 COPY go.sum ./
-COPY .env .env
 RUN go mod download
 
 COPY . .
+COPY .env .env
 
-RUN go build -o server ./cmd/FreddyBot
+RUN go build -o app ./cmd/FreddyBot
 
-# Final image
-FROM debian:bookworm-slim
-
-WORKDIR /app
-
-COPY --from=builder /app/server .
-
-EXPOSE 7000
-
-CMD ["./server"]
+CMD ["./app"]
