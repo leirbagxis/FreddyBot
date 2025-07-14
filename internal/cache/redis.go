@@ -17,15 +17,22 @@ var (
 
 func GetRedisClient() *redis.Client {
 	once.Do(func() {
-		redisClient = redis.NewClient(&redis.Options{
-			Addr:         config.RedisAddr,
-			PoolSize:     10,
-			MinIdleConns: 5,
-			MaxRetries:   5,
-			DialTimeout:  5 * time.Second,
-			ReadTimeout:  5 * time.Second,
-			WriteTimeout: 3 * time.Second,
-		})
+		var err error
+
+		opt, err := redis.ParseURL(config.RedisAddr)
+		if err != nil {
+			panic(fmt.Sprintf("Invalid Redis URL: %v", err))
+		}
+
+		// ⚙️ sobrescreve configurações adicionais
+		opt.PoolSize = 10
+		opt.MinIdleConns = 5
+		opt.MaxRetries = 5
+		opt.DialTimeout = 5 * time.Second
+		opt.ReadTimeout = 5 * time.Second
+		opt.WriteTimeout = 3 * time.Second
+
+		redisClient = redis.NewClient(opt)
 
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
