@@ -1,10 +1,11 @@
 # Dockerfile
-FROM golang:1.22 as builder
+FROM golang:1.24.4 as builder
 
 WORKDIR /app
 
 COPY go.mod ./
 COPY go.sum ./
+COPY .env .env
 RUN go mod download
 
 COPY . .
