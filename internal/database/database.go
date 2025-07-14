@@ -1,12 +1,11 @@
 package database
 
 import (
+	"github.com/glebarez/sqlite"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	_ "modernc.org/sqlite"
 )
 
 func InitDB() *gorm.DB {
