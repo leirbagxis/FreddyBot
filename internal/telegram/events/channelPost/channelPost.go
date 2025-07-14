@@ -57,7 +57,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 				log.Printf("Erro ao processar mensagem: %v", err)
 			}
 
-			if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
+			if post.MediaGroupID == "" && channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
 				err := processor.ProcessSeparator(telegramCtx, channel, post)
 				if err != nil {
 					log.Printf("Erro ao processar separator: %v", err)
@@ -88,12 +88,29 @@ func (mp *MessageProcessor) ProcessMessage(ctx context.Context, messageType Mess
 
 func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmodels.Channel, post *models.Message) error {
 	if channel.Separator == nil || channel.Separator.SeparatorID == "" {
+		log.Printf("⚠️ Separator não configurado ou ID vazio para canal %d", channel.ID)
 		return nil
 	}
 
+	var chatID int64
+	if post != nil {
+		chatID = post.Chat.ID
+	} else {
+		chatID = channel.ID // Fallback para grupos
+	}
+
+	log.Printf("🔄 Enviando separator para chat %d", chatID)
+
 	_, err := mp.bot.SendSticker(ctx, &bot.SendStickerParams{
-		ChatID:  post.Chat.ID,
+		ChatID:  chatID,
 		Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 	})
+
+	if err != nil {
+		log.Printf("❌ Erro ao enviar separator: %v", err)
+	} else {
+		log.Printf("✅ Separator enviado com sucesso")
+	}
+
 	return err
 }

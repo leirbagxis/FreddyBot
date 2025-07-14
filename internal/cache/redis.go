@@ -23,8 +23,6 @@ func GetRedisClient() *redis.Client {
 		if err != nil {
 			panic(fmt.Sprintf("Invalid Redis URL: %v", err))
 		}
-
-		// ⚙️ sobrescreve configurações adicionais
 		opt.PoolSize = 10
 		opt.MinIdleConns = 5
 		opt.MaxRetries = 5

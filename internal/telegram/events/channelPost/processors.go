@@ -791,12 +791,12 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 	return nil
 }
 
-// ✅ CORRIGIDO: finishGroupProcessing com formatação HTML
 func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button, messageType MessageType) {
 	log.Printf("📸 Iniciando processamento final do grupo: %s", groupID)
 
 	value, ok := mediaGroups.Load(groupID)
 	if !ok {
+		log.Printf("❌ Grupo %s não encontrado", groupID)
 		return
 	}
 
@@ -805,6 +805,7 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	defer group.mu.Unlock()
 
 	if group.Processed {
+		log.Printf("⚠️ Grupo %s já foi processado", groupID)
 		return
 	}
 
@@ -812,83 +813,51 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	log.Printf("📸 Marcando grupo como processado: %s com %d mensagens", groupID, len(group.Messages))
 
 	if len(group.Messages) == 0 {
+		log.Printf("❌ Grupo %s não tem mensagens", groupID)
 		return
 	}
 
 	// ✅ VERIFICAR PERMISSÕES
 	permissions := mp.CheckPermissions(channel, messageType)
 	if !permissions.CanEdit {
+		log.Printf("❌ Sem permissões para editar mensagens no grupo %s", groupID)
 		mp.cleanupGroup(groupID)
 		return
 	}
 
 	// ✅ ENCONTRAR A MENSAGEM IDEAL PARA EDITAR
 	var targetMessage *MediaMessage
-	// Prioridade 1: Mensagem com caption
 	for i := range group.Messages {
 		if group.Messages[i].HasCaption {
 			targetMessage = &group.Messages[i]
 			break
 		}
 	}
-
-	// Prioridade 2: Primeira mensagem se não houver caption
 	if targetMessage == nil {
 		targetMessage = &group.Messages[0]
 	}
 
-	// ✅ SE NÃO PODE EDITAR MENSAGEM, APENAS ADICIONAR BOTÕES (se permitido)
-	if !group.MessageEditAllowed {
-		if len(buttons) > 0 && permissions.CanAddButtons {
-			keyboard := mp.CreateInlineKeyboard(buttons, nil, channel, messageType)
-			if keyboard != nil {
-				editCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-				defer cancel()
-
-				_, err := mp.bot.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
-					ChatID:      group.ChatID,
-					MessageID:   targetMessage.MessageID,
-					ReplyMarkup: keyboard,
-				})
-				if err != nil {
-					log.Printf("❌ Erro ao editar markup do grupo %s: %v", groupID, err)
-				} else {
-					log.Printf("✅ Markup editado para grupo: %s, mensagem: %d", groupID, targetMessage.MessageID)
-				}
-			}
-		}
-		mp.cleanupGroup(groupID)
-		return
-	}
-
-	// ✅ PROCESSAR CAPTION COM FORMATAÇÃO HTML
+	// ✅ PROCESSAR CAPTION E EDITAR MENSAGEM
 	var finalMessage string
 	var customCaption *dbmodels.CustomCaption
 
 	if targetMessage.HasCaption {
-		// ✅ APLICAR FORMATAÇÃO HTML ANTES DE PROCESSAR
 		entities := convertInterfaceToMessageEntities(targetMessage.CaptionEntities)
 		formattedCaption := processTextWithFormatting(targetMessage.Caption, entities)
-		// ✅ PROCESSAR HASHTAG E OBTER CUSTOM CAPTION COM CAPTION FORMATADA
 		finalMessage, customCaption = mp.processMessageWithHashtag(formattedCaption, channel)
-		if customCaption != nil {
-			log.Printf("📸 Custom caption encontrado: %s", customCaption.Code)
-		}
 	} else {
-		// ✅ USAR CAPTION PADRÃO FORMATADO se não houver caption na mensagem
 		if channel.DefaultCaption != nil {
 			finalMessage = detectParseMode(channel.DefaultCaption.Caption)
 		}
 	}
 
-	// ✅ APLICAR VERIFICAÇÕES DE PERMISSÃO
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
 	if !canEdit {
+		log.Printf("❌ Permissões insuficientes para editar grupo %s", groupID)
 		mp.cleanupGroup(groupID)
 		return
 	}
 
-	// ✅ CRIAR KEYBOARD COM CUSTOM CAPTION BUTTONS
 	keyboard := mp.CreateInlineKeyboard(allowedButtons, allowedCustomCaption, channel, messageType)
 
 	// ✅ EDITAR APENAS A MENSAGEM ALVO
@@ -910,9 +879,27 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	if err != nil {
 		log.Printf("❌ Erro ao editar caption do grupo %s, mensagem %d: %v", groupID, targetMessage.MessageID, err)
 	} else {
-		log.Printf("✅ SUCESSO: Grupo %s processado - APENAS mensagem %d editada com caption: %q", groupID, targetMessage.MessageID, finalMessage)
-		if customCaption != nil {
-			log.Printf("✅ Custom caption aplicado: %s com %d botões", customCaption.Code, len(customCaption.Buttons))
+		log.Printf("✅ Grupo %s processado - mensagem %d editada", groupID, targetMessage.MessageID)
+	}
+
+	// ✅ ENVIAR SEPARATOR APÓS EDITAR A MENSAGEM
+	if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
+		log.Printf("🔄 Tentando enviar separator para grupo %s", groupID)
+
+		separatorCtx, separatorCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer separatorCancel()
+
+		err := mp.ProcessSeparator(separatorCtx, channel, nil)
+		if err != nil {
+			log.Printf("❌ Erro ao processar separator para grupo %s: %v", groupID, err)
+		} else {
+			log.Printf("✅ Separator enviado com sucesso para grupo %s", groupID)
+		}
+	} else {
+		if channel.Separator == nil {
+			log.Printf("⚠️ Separator não configurado para canal %d", channel.ID)
+		} else {
+			log.Printf("⚠️ Sem permissões para enviar separator no grupo %s", groupID)
 		}
 	}
 
