@@ -14,7 +14,7 @@ func Handler() bot.HandlerFunc {
 		user, _ := b.GetMe(ctx)
 		text, button := parser.GetMessage("about", map[string]string{
 			"ownerUser":  "@SuporteLegendas",
-			"botVersion": "beta 1.0.0",
+			"botVersion": "beta 1.0.8",
 			"botId":      fmt.Sprintf("%d", user.ID),
 		})
 

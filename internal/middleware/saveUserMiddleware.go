@@ -8,6 +8,7 @@ import (
 	tgbotModels "github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -33,7 +34,7 @@ func SaveUserMiddleware(db *gorm.DB) bot.Middleware {
 			if userId != 0 {
 				user := &models.User{
 					UserId:    userId,
-					FirstName: firstName,
+					FirstName: utils.RemoveHTMLTags(firstName),
 				}
 
 				err := userRepo.UpsertUser(ctx, user)

@@ -14,6 +14,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 )
 
 // ✅ SISTEMA DE FILA SIMPLIFICADO
@@ -145,6 +146,22 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		go func() {
+			updateCtx, updateCancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer updateCancel()
+
+			updatedChannel, hasChanges := processor.UpdateChannelBasicInfo(updateCtx, chat.ID, channel)
+			if !hasChanges {
+				return
+			}
+
+			if err := c.ChannelRepo.UpdateChannelBasicInfoAndFirstButton(updateCtx, updatedChannel); err != nil {
+				log.Printf("❌ Erro ao salvar informações do canal %d: %v", chat.ID, err)
+			} else {
+				log.Printf("✅ Canal %d: informações básicas e primeiro botão atualizados automaticamente", chat.ID)
+			}
+		}()
+
 		messageType := processor.GetMessageType(post)
 		if messageType == "" {
 			return
@@ -161,15 +178,13 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			finalButtons = channel.Buttons
 		}
 
-		// ✅ ADICIONAR À FILA
 		go func() {
 			messageQueue.AddToQueue(messageType, channel, post, finalButtons, permissions.CanEdit, processor)
 		}()
 
-		// ✅ PROCESSAR SEPARATOR - SIMPLES
 		if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
 			go func() {
-				time.Sleep(2 * time.Second) // Aguardar processamento
+				time.Sleep(2 * time.Second)
 				processor.HandleSeparator(channel, post, messageType)
 			}()
 		}
@@ -260,4 +275,86 @@ func (mp *MessageProcessor) handleGroupSeparator(channel *dbmodels.Channel, medi
 	time.AfterFunc(10*time.Second, func() {
 		groupSeparators.Delete(mediaGroupID)
 	})
+}
+
+// Função integrada para atualizar informações básicas do canal E o primeiro botão
+func (mp *MessageProcessor) UpdateChannelBasicInfo(ctx context.Context, chatID int64, channel *dbmodels.Channel) (*dbmodels.Channel, bool) {
+
+	chat, err := mp.bot.GetChat(ctx, &bot.GetChatParams{
+		ChatID: chatID,
+	})
+	if err != nil {
+		return channel, false
+	}
+
+	updated := false
+
+	if chat.Title != "" && chat.Title != channel.Title {
+		channel.Title = utils.RemoveHTMLTags(chat.Title)
+		updated = true
+	}
+
+	if chat.Username != "" {
+
+		newUsername := "@" + chat.Username
+
+		if newUsername != channel.InviteURL {
+			channel.InviteURL = newUsername
+			updated = true
+		}
+	} else if chat.InviteLink != "" {
+
+		if chat.InviteLink != channel.InviteURL {
+			channel.InviteURL = chat.InviteLink
+			updated = true
+		}
+	}
+
+	if len(channel.Buttons) > 0 {
+		buttonUpdated := mp.updateFirstButtonFromChannel(ctx, channel)
+		if buttonUpdated {
+			updated = true
+		}
+	}
+
+	return channel, updated
+}
+
+// ✅ NOVA FUNÇÃO: Atualizar primeiro botão baseado nas informações do canal
+func (mp *MessageProcessor) updateFirstButtonFromChannel(ctx context.Context, channel *dbmodels.Channel) bool {
+	if len(channel.Buttons) == 0 {
+		return false
+	}
+
+	chat, err := mp.bot.GetChat(ctx, &bot.GetChatParams{
+		ChatID: channel.ID,
+	})
+	if err != nil {
+		return false
+	}
+
+	novoNome := fmt.Sprintf("📢 %s", chat.Title)
+	var novaURL string
+
+	if chat.Username != "" {
+		novaURL = "https://t.me/" + chat.Username
+	} else if chat.InviteLink != "" {
+		novaURL = chat.InviteLink
+	} else {
+		return false
+
+	}
+
+	firstButton := &channel.Buttons[0]
+	if firstButton.NameButton == novoNome && firstButton.ButtonURL == novaURL {
+		return false
+	}
+
+	log.Printf("🔘 Primeiro botão atualizado: '%s' → '%s' | URL: '%s' → '%s'",
+		firstButton.NameButton, novoNome, firstButton.ButtonURL, novaURL)
+
+	firstButton.NameButton = utils.RemoveHTMLTags(novoNome)
+	firstButton.ButtonURL = novaURL
+
+	return true
 }

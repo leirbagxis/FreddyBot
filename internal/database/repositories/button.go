@@ -2,6 +2,7 @@ package repositories
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
@@ -52,4 +53,33 @@ func (r *ButtonRepository) CreateButton(ctx context.Context, button *models.Butt
 	}
 
 	return nil
+}
+
+// func (r *ButtonRepository) GetFirstButton(ctx context.Context, channelID int64) (*models.Button, error) {
+// 	var button models.Button
+// 	err := r.db.WithContext(ctx).Where("owner_channel_id = ?", channelID).FirstOrCreate(&button).Error
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &button, nil
+// }
+
+// Função para buscar o primeiro botão (mais antigo) de um canal
+func (r *ButtonRepository) GetFirstButton(ctx context.Context, channelID int64) (*models.Button, error) {
+	var button models.Button
+
+	err := r.db.WithContext(ctx).
+		Where("owner_channel_id = ?", channelID).
+		Order("created_at ASC"). // Ordenar por data de criação (mais antigo primeiro)
+		First(&button).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("nenhum botão encontrado para o canal %d", channelID)
+		}
+		return nil, fmt.Errorf("erro ao buscar primeiro botão: %w", err)
+	}
+
+	return &button, nil
 }

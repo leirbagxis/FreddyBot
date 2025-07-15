@@ -10,6 +10,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -33,10 +34,10 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		getChannel, _ := c.ChannelRepo.GetChannelByID(ctx, chat.ID)
 
 		data := map[string]string{
-			"channelName": chat.Title,
+			"channelName": utils.RemoveHTMLTags(chat.Title),
 			"channelId":   fmt.Sprintf("%d", chat.ID),
 			"botId":       fmt.Sprintf("%d", botInfo.ID),
-			"firstName":   from.FirstName,
+			"firstName":   utils.RemoveHTMLTags(from.FirstName),
 		}
 
 		if getChannel != nil {
@@ -84,10 +85,10 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		getChannel, _ := c.ChannelRepo.GetChannelByID(ctx, forwardedChannelID)
 
 		data := map[string]string{
-			"channelName": forwardedChannelTitle,
+			"channelName": utils.RemoveHTMLTags(forwardedChannelTitle),
 			"channelId":   fmt.Sprintf("%d", forwardedChannelID),
 			"botId":       fmt.Sprintf("%d", botInfo.ID),
-			"firstName":   from.FirstName,
+			"firstName":   utils.RemoveHTMLTags(from.FirstName),
 		}
 
 		if getChannel != nil {
@@ -207,9 +208,9 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 		c.SessionManager.DeleteChannelSession(ctx, parts[1])
 
 		data := map[string]string{
-			"firstName":   from.FirstName,
+			"firstName":   utils.RemoveHTMLTags(from.FirstName),
 			"botId":       fmt.Sprintf("%d", botInfo.ID),
-			"channelName": channel.Title,
+			"channelName": utils.RemoveHTMLTags(channel.Title),
 			"channelId":   fmt.Sprintf("%d", channel.ID),
 			"miniAppUrl":  auth.GenerateMiniAppUrl(userID, channelID),
 		}

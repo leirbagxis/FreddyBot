@@ -4,9 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -312,4 +315,88 @@ func (r *ChannelRepository) GetChannelButtons(ctx context.Context, channelId int
 	}
 
 	return buttons, nil
+}
+
+func (r *ChannelRepository) UpdateChannelBasicInfo(ctx context.Context, channelID int64, title, inviteURL string) error {
+	var channel models.Channel
+	err := r.db.WithContext(ctx).
+		Where("id = ?", channelID).
+		First(&channel).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return errors.New("canal não encontrado ou você não tem permissão para modificá-lo")
+		}
+		return fmt.Errorf("Ërro ao buscar canal %w", err)
+	}
+
+	now := time.Now()
+	err = r.db.WithContext(ctx).Model(&channel).Updates(map[string]interface{}{
+		"title":      utils.RemoveHTMLTags(title),
+		"invite_url": inviteURL,
+		"updated_at": now,
+	}).Error
+
+	if err != nil {
+		return fmt.Errorf("Erro ao atualizar basic info do canal: %w", err)
+	}
+
+	return nil
+}
+
+// Função integrada para atualizar informações básicas do canal E o primeiro botão
+func (r *ChannelRepository) UpdateChannelBasicInfoAndFirstButton(ctx context.Context, channel *models.Channel) error {
+	// Usar transação para garantir atomicidade
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 1. Atualizar informações básicas do canal
+	result := tx.Model(&models.Channel{}).
+		Where("id = ?", channel.ID).
+		Updates(map[string]interface{}{
+			"title":      channel.Title,
+			"invite_url": channel.InviteURL,
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		tx.Rollback()
+		return fmt.Errorf("erro ao atualizar informações básicas do canal: %w", result.Error)
+	}
+
+	// 2. Atualizar o primeiro botão se existir
+	if len(channel.Buttons) > 0 {
+		firstButton := channel.Buttons[0]
+
+		result = tx.Model(&models.Button{}).
+			Where("button_id = ?", firstButton.ButtonID).
+			Updates(map[string]interface{}{
+				"name_button": firstButton.NameButton,
+				"button_url":  firstButton.ButtonURL,
+				"updated_at":  time.Now(),
+			})
+
+		if result.Error != nil {
+			tx.Rollback()
+			return fmt.Errorf("erro ao atualizar primeiro botão: %w", result.Error)
+		}
+
+		if result.RowsAffected > 0 {
+			log.Printf("🔘 Primeiro botão do canal %d atualizado no banco", channel.ID)
+		}
+	}
+
+	// Commit da transação
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("erro ao fazer commit da transação: %w", err)
+	}
+
+	log.Printf("✅ Canal %d: informações básicas e primeiro botão atualizados no banco", channel.ID)
+	return nil
 }
