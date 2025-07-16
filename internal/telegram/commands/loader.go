@@ -14,6 +14,7 @@ import (
 func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, start.Handler())
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, help.Handler())
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, start.Handler())
 
 	// ## ADMIM COMMANDS ### \\
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/users", bot.MatchTypeExact, admin.GetAllUsersHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))

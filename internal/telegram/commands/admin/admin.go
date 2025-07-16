@@ -18,6 +18,7 @@ import (
 	userModes "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
 func GetAllUsersHandler(app *container.AppContainer) bot.HandlerFunc {
@@ -418,11 +419,13 @@ func NoticeCommandHandler(app *container.AppContainer) bot.HandlerFunc {
 
 func NoticeChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		const noticeText = `📢 <b>Atualização Importante</b>
+		user, _ := b.GetMe(ctx)
 
-Estamos realizando melhorias no painel de gerenciamento de legendas. Caso encontre algum erro ou comportamento inesperado, entre em contato com o suporte.
+		data := map[string]string{
+			"botUsername": user.Username,
+		}
 
-Obrigado por usar o FreddyBot!`
+		text, button := parser.GetMessage("publi", data)
 
 		channels, err := app.ChannelRepo.GetAllChannels(ctx)
 		if err != nil || len(channels) == 0 {
@@ -438,9 +441,10 @@ Obrigado por usar o FreddyBot!`
 
 		for _, ch := range channels {
 			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    ch.ID,
-				Text:      noticeText,
-				ParseMode: models.ParseModeHTML,
+				ChatID:      ch.ID,
+				Text:        text,
+				ParseMode:   models.ParseModeHTML,
+				ReplyMarkup: button,
 			})
 			if err != nil {
 				log.Printf("Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)

@@ -11,8 +11,10 @@ import (
 
 func Handler() bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		firstName := utils.RemoveHTMLTags(update.Message.From.FirstName)
+
 		text, button := parser.GetMessage("start", map[string]string{
-			"firstName": utils.RemoveHTMLTags(update.Message.From.FirstName),
+			"firstName": firstName,
 		})
 
 		b.SendMessage(ctx, &bot.SendMessageParams{
@@ -24,6 +26,5 @@ func Handler() bot.HandlerFunc {
 				MessageID: update.Message.ID,
 			},
 		})
-
 	}
 }
