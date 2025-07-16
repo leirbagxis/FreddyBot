@@ -15,6 +15,8 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	userModes "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
@@ -521,6 +523,101 @@ func SendMessageToIdHandler(app *container.AppContainer) bot.HandlerFunc {
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:    update.Message.Chat.ID,
 			Text:      fmt.Sprintf("✅ Mensagem enviada para <code>%d</code> com sucesso.", targetID),
+			ParseMode: models.ParseModeHTML,
+		})
+	}
+}
+
+func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		botInfo, _ := b.GetMe(ctx)
+
+		msgText := strings.TrimSpace(update.Message.Text)
+		args := strings.SplitN(msgText, " ", 3)
+		if len(args) < 3 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Uso correto: /add <channel_id> <owner_id>",
+			})
+			return
+		}
+
+		channelIDStr := args[1]
+		ownerIDStr := args[2]
+		channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
+		ownerID, err2 := strconv.ParseInt(ownerIDStr, 10, 64)
+		if err != nil || err2 != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ IDs inválidos. Certifique-se de que ambos são numéricos.",
+			})
+			return
+		}
+
+		// Verifica se canal já existe
+		existingChannel, _ := c.ChannelRepo.GetChannelByID(ctx, channelID)
+		fmt.Println(existingChannel)
+		if existingChannel != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Canal já existe no banco de dados.",
+			})
+			return
+		}
+
+		// Pega informações do canal e do dono
+		channelInfo, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: channelID})
+		if err != nil {
+			log.Printf("Erro ao buscar canal: %v", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao buscar informações do canal."})
+			return
+		}
+
+		ownerInfo, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: ownerID})
+		if err != nil {
+			log.Printf("Erro ao buscar usuário: %v", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao buscar informações do usuário."})
+			return
+		}
+
+		// Cria usuário caso não exista
+		_ = c.UserRepo.UpsertUser(ctx, &userModes.User{
+			UserId:    ownerID,
+			FirstName: utils.RemoveHTMLTags(ownerInfo.FirstName),
+		})
+
+		// Gera caption
+		newPackCaption := fmt.Sprintf(`╔═━──━═༻✧༺═━──━═╗
+
+        𖦹⁠⁠⁠ ࣪ ⭑ ᥫ᭡
+        (｡•́︿•̀｡)っ✧.*ೃ༄
+        ˗ˏˋ [$name]($link) ⁠⋆｡˚ ☁︎
+             彡♡ ₊˚
+
+⋆｡˚ ❀ @%s ☽⁺₊
+
+╚═━──━═༻✧༺═━──━═╝`, botInfo.Username)
+
+		defaultCaption := fmt.Sprintf("➽ 𝐛𝐲 @%s", botInfo.Username)
+		inviteURL := channelInfo.InviteLink
+		if channelInfo.Username != "" {
+			inviteURL = fmt.Sprintf("t.me/%s", channelInfo.Username)
+		}
+
+		// Cria canal
+		channel, err := c.ChannelRepo.CreateChannelWithDefaults(ctx, channelID, channelInfo.Title, inviteURL, newPackCaption, defaultCaption, ownerID)
+		if err != nil {
+			log.Printf("Erro ao criar canal: %v", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao salvar canal."})
+			return
+		}
+
+		miniApp := auth.GenerateMiniAppUrl(fmt.Sprintf("%d", ownerID), fmt.Sprintf("%d", channelID))
+		msg := fmt.Sprintf("✅ Canal salvo com sucesso - (%s - %d)\n\n%s", channel.Title, channel.ID, miniApp)
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      msg,
 			ParseMode: models.ParseModeHTML,
 		})
 	}

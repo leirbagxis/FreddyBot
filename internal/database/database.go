@@ -1,15 +1,16 @@
 package database
 
 import (
-	"github.com/glebarez/sqlite"
+	//"github.com/glebarez/sqlite"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 func InitDB() *gorm.DB {
-	db, err := gorm.Open(sqlite.Open(config.DatabaseFile), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(config.DatabaseFile), &gorm.Config{})
 	if err != nil {
 		panic(err)
 	}

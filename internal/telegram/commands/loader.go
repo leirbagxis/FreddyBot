@@ -26,6 +26,7 @@ func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/remove", bot.MatchTypePrefix, admin.RemoveChannelHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/notice", bot.MatchTypePrefix, admin.NoticeCommandHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/send", bot.MatchTypePrefix, admin.SendMessageToIdHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/add", bot.MatchTypePrefix, admin.AddChannelCommandHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
 
 }
 
