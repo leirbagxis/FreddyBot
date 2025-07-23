@@ -333,7 +333,7 @@ func (mp *MessageProcessor) updateFirstButtonFromChannel(ctx context.Context, ch
 		return false
 	}
 
-	novoNome := fmt.Sprintf("📢 %s", chat.Title)
+	novoNome := fmt.Sprintf("%s", chat.Title)
 	var novaURL string
 
 	if chat.Username != "" {
