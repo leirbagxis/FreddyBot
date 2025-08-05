@@ -25,6 +25,7 @@ var PermissionMap = map[MessageType]string{
 	MessageTypeAnimation: "gif",
 }
 
+// Constants for timeouts, retries, cache TTLs
 const (
 	MediaGroupTimeout = 1000 * time.Millisecond
 	CleanupTimeout    = 60000 * time.Millisecond
@@ -33,12 +34,12 @@ const (
 	CacheTTL          = 5 * time.Minute
 )
 
-// ✅ CORRIGIDO: Estruturas thread-safe
+// Thread-safe struct for media group data
 type MediaGroupInfo struct {
 	Messages           []MediaMessage
 	Processed          bool
 	MessageEditAllowed bool
-	FirstMessageID     int // ✅ NOVO CAMPO
+	FirstMessageID     int
 	Timer              *time.Timer
 	mu                 sync.Mutex
 }
@@ -54,30 +55,24 @@ type ProcessedGroup struct {
 	Timestamp time.Time
 }
 
-// ✅ CORRIGIDO: Manager thread-safe para media groups
+// MediaGroupManager controls media groups with concurrency support
 type MediaGroupManager struct {
-	groups          sync.Map // string -> *MediaGroupInfo
-	processedGroups sync.Map // string -> ProcessedGroup
-	newPackChannels sync.Map // int64 -> bool
+	groups          sync.Map // map[string]*MediaGroupInfo
+	processedGroups sync.Map // map[string]ProcessedGroup
+	newPackChannels sync.Map // map[int64]bool
 }
 
 func NewMediaGroupManager() *MediaGroupManager {
 	mgm := &MediaGroupManager{}
-
-	// Cleanup automático
 	go mgm.cleanupRoutine()
-
 	return mgm
 }
 
 func (mgm *MediaGroupManager) cleanupRoutine() {
 	ticker := time.NewTicker(CleanupTimeout)
 	defer ticker.Stop()
-
 	for range ticker.C {
 		now := time.Now()
-
-		// Limpar grupos processados antigos
 		mgm.processedGroups.Range(func(key, value interface{}) bool {
 			if group, ok := value.(ProcessedGroup); ok {
 				if now.Sub(group.Timestamp) > CleanupTimeout {
@@ -90,8 +85,8 @@ func (mgm *MediaGroupManager) cleanupRoutine() {
 }
 
 func (mgm *MediaGroupManager) GetMediaGroup(groupID string) (*MediaGroupInfo, bool) {
-	if value, ok := mgm.groups.Load(groupID); ok {
-		return value.(*MediaGroupInfo), true
+	if val, ok := mgm.groups.Load(groupID); ok {
+		return val.(*MediaGroupInfo), true
 	}
 	return nil, false
 }
@@ -114,8 +109,8 @@ func (mgm *MediaGroupManager) MarkProcessed(groupID string) {
 }
 
 func (mgm *MediaGroupManager) IsNewPackActive(channelID int64) bool {
-	value, exists := mgm.newPackChannels.Load(channelID)
-	return exists && value.(bool)
+	val, exists := mgm.newPackChannels.Load(channelID)
+	return exists && val.(bool)
 }
 
 func (mgm *MediaGroupManager) SetNewPackActive(channelID int64, active bool) {
