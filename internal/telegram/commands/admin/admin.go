@@ -45,7 +45,7 @@ func GetAllUsersHandler(app *container.AppContainer) bot.HandlerFunc {
 				total, (i/chunkSize)+1)
 
 			for _, u := range chunk {
-				msg += fmt.Sprintf("<i>%d - %s</i>\n", u.UserId, u.FirstName)
+				msg += fmt.Sprintf("<a href='tg://user?id=%d'>%s</a> - %d\n", u.UserId, u.FirstName, u.UserId)
 			}
 
 			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
@@ -87,10 +87,7 @@ func GetAllChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 				total, (i/chunkSize)+1)
 
 			for _, c := range chunk {
-				userID := fmt.Sprintf("%d", c.OwnerID)
-				channelID := fmt.Sprintf("%d", c.ID)
-				link := auth.GenerateMiniAppUrl(userID, channelID)
-				msg += fmt.Sprintf(`<i>%d -</i> <a href="%s">%s</a>`+"\n", c.ID, link, c.Title)
+				msg += fmt.Sprintf(`<a href='%s'>%s</a> - <code>%d</code>`+"\n", c.InviteURL, c.Title, c.ID)
 			}
 
 			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
@@ -175,10 +172,11 @@ func GetInfoChannelHandler(app *container.AppContainer) bot.HandlerFunc {
 
 		ownerID := fmt.Sprintf("%d", config.OwnerID)
 		msg := fmt.Sprintf(
-			"ID: <code>%d</code>\nCanal: %s\nLink: %s\nDono: %s (%d)\nPainel: %s",
+			"ID: <code>%d</code>\nCanal: %s\nLink: %s\nDono: <a href='tg://user?id=%d'>%s</a> (<code>%d</code>)\nPainel: %s",
 			channel.ID,
 			html.EscapeString(channel.Title),
 			channel.InviteURL,
+			owner.UserId,
 			html.EscapeString(owner.FirstName),
 			owner.UserId,
 			auth.GenerateMiniAppUrl(ownerID, channelIDStr),
@@ -274,7 +272,8 @@ func GetInfoUserHandler(app *container.AppContainer) bot.HandlerFunc {
 		}
 
 		channels, _ := app.ChannelRepo.GetAllChannelsByUserID(ctx, user.UserId)
-		header := fmt.Sprintf("👤 <b>%s</b> (<code>%d</code>)\n📦 Canais: <b>%d</b>\n\n",
+		header := fmt.Sprintf("👤 <b><a href='tg://user?id=%d'>%s</a></b> (<code>%d</code>)\n📦 Canais: <b>%d</b>\n\n",
+			user.UserId,
 			html.EscapeString(user.FirstName),
 			user.UserId,
 			len(channels),
@@ -294,7 +293,11 @@ func GetInfoUserHandler(app *container.AppContainer) bot.HandlerFunc {
 			chunk := channels[i:min(i+chunkSize, len(channels))]
 			var lines []string
 			for _, c := range chunk {
-				lines = append(lines, fmt.Sprintf("<b>%d</b> - %s", c.ID, html.EscapeString(c.Title)))
+				lines = append(lines, fmt.Sprintf("<a href='%s'>%s</a> - <code>%d</code>",
+					c.InviteURL,
+					html.EscapeString(c.Title),
+					c.ID,
+				))
 			}
 
 			msg := header + strings.Join(lines, "\n")
