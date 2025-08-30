@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -18,18 +16,16 @@ import (
 
 func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
@@ -37,7 +33,7 @@ func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"channelName": channel.Title,
-			"channelId":   fmt.Sprintf("%d", channelId),
+			"channelId":   fmt.Sprintf("%d", session),
 		}
 
 		text, button := parser.GetMessage("ask-separator-message", data)
@@ -53,18 +49,16 @@ func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
@@ -72,9 +66,9 @@ func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"channelName": channel.Title,
-			"channelId":   fmt.Sprintf("%d", channelId),
+			"channelId":   fmt.Sprintf("%d", session),
 		}
-		c.CacheService.SetAwaitingStickerSeparator(ctx, userId, channelId)
+		c.CacheService.SetAwaitingStickerSeparator(ctx, userId, session)
 
 		text, button := parser.GetMessage("require-separator-message", data)
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
@@ -156,18 +150,16 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
@@ -185,7 +177,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 		fmt.Println(separator, err)
 
-		err = c.SeparatorRepo.DeleteSeparatorByOwnerChannelId(ctx, channelId)
+		err = c.SeparatorRepo.DeleteSeparatorByOwnerChannelId(ctx, session)
 		if err != nil {
 			log.Printf("Erro ao excluir separator: %v", err)
 			return
@@ -193,7 +185,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"channelName": channel.Title,
-			"channelId":   parts[1],
+			"channelId":   fmt.Sprintf("%d", session),
 		}
 
 		text, button := parser.GetMessage("success-delete-separator", data)

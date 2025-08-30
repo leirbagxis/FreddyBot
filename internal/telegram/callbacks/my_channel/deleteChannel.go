@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"strconv"
-	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -15,18 +13,16 @@ import (
 
 func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
@@ -34,7 +30,7 @@ func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"title":     channel.Title,
-			"channelId": fmt.Sprintf("%d", channelId),
+			"channelId": fmt.Sprintf("%d", session),
 		}
 
 		text, button := parser.GetMessage("del", data)
@@ -50,24 +46,22 @@ func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao criar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
 		}
 
-		err = c.ChannelRepo.DeleteChannelWithRelations(ctx, userId, channelId)
+		err = c.ChannelRepo.DeleteChannelWithRelations(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao excluir canal: %v", err)
 			return
@@ -75,7 +69,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"title":     channel.Title,
-			"channelId": parts[1],
+			"channelId": fmt.Sprintf("%d", session),
 		}
 
 		text, button := parser.GetMessage("confirm-del", data)

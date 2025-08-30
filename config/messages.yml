@@ -46,13 +46,13 @@
     - - text: "⚙ Configure Agora"
         web_app: "{webAppUrl}"
     - - text: "✨ Sticker Separador"
-        callback_data: "sptc:{channelId}"
+        callback_data: "sptc"
     - - text: "🔑 Transferir Acesso"
         callback_data: "paccess-info:{channelId}"
     #- - text: "🔗 Agrupar Canais"
         #callback_data: "gc-info:{channelId}"
     - - text: "🗑️ Remover Canal"
-        callback_data: "del:{channelId}"
+        callback_data: "del"
     - - text: "🔙 Voltar"
         callback_data: "profile-user-channels"
       - text: "🏠 Início"
@@ -123,9 +123,9 @@
   text: "✨ <b>Sticker Separador</b>\n\n<blockquote>Vamos deixar o canal <b>{channelName}</b> mais organizado?</blockquote>\n\nAdicione um sticker separador entre as postagens e dê um charme especial ao seu conteúdo!"
   buttons:
     - - text: "🧩 Adicionar"
-        callback_data: "sptc-config:{channelId}"
+        callback_data: "sptc-config"
       - text: "🗑️ Excluir"
-        callback_data: "spex:{channelId}"
+        callback_data: "spex"
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
 
@@ -133,7 +133,7 @@
   text: "✨ <b>Sticker Separador</b>\n\n<blockquote>📌 Você está configurando um separador para o canal:</blockquote>\n\n🏷️ <b>Nome:</b> {channelName}\n🆔 <b>ID:</b> {channelId}\n\n<blockquote>📎 Envie um sticker que será usado como separador entre as postagens deste canal.</blockquote>\n\n<b>⚠️ Apenas stickers estáticos são recomendados para melhor visualização.</b>\n\n<b>✨ Deixe suas postagens com um toque especial e bem organizadas!</b>"
   buttons:
     - - text: "🔙 Voltar"
-        callback_data: "config:{channelId}"
+        callback_data: "sptc"
 
 - name: failed-save-separator
   text: "✨ <b>Sticker Separador</b>\n\n<blockquote>❌ Não foi possível configurar o separador.</blockquote>\n\n📎 Verifique se você enviou um sticker válido.  \n⚠️ Apenas stickers estáticos são recomendados para melhor visualização.\n\n<b>🔁 Tente novamente e deixe suas postagens ainda mais organizadas!</b>"

@@ -46,6 +46,12 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 		text, button := parser.GetMessage("config-channel", data)
 
+		err = c.CacheService.SetSelectedChannel(ctx, userID, channelId)
+		if err != nil {
+			log.Printf("Erro ao criar sessão: %v", err)
+			return
+		}
+
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
 			Text:        text,

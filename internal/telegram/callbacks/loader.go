@@ -20,21 +20,27 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "start", bot.MatchTypeExact, start.Handler())
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "about", bot.MatchTypeExact, about.Handler())
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-info", bot.MatchTypeExact, profileinfo.Handler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-user-channels", bot.MatchTypeExact, mychannel.Handler(c))
 
 	// ## MY CHANNEL HANDLERS ## \\
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-user-channels", bot.MatchTypeExact, mychannel.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "config:", bot.MatchTypePrefix, mychannel.ConfigHandler(c))
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "del:", bot.MatchTypePrefix, mychannel.AskDeleteChannelHandler(c))
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "confirm-del:", bot.MatchTypePrefix, mychannel.ConfirmDeleteChannelHandler(c))
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sptc:", bot.MatchTypePrefix, mychannel.AskStickerSeparatorHandler(c))
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sptc-config:", bot.MatchTypePrefix, mychannel.RequireStickerSeparatorHandler(c))
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "spex:", bot.MatchTypePrefix, mychannel.DeleteSeparatorHandler(c))
 
+	// DELETE CHANNEL
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "del", bot.MatchTypeExact, mychannel.AskDeleteChannelHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "confirm-del:", bot.MatchTypePrefix, mychannel.ConfirmDeleteChannelHandler(c))
+
+	// STICKER SEPARADOR
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sptc", bot.MatchTypeExact, mychannel.AskStickerSeparatorHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "sptc-config", bot.MatchTypeExact, mychannel.RequireStickerSeparatorHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "spex", bot.MatchTypeExact, mychannel.DeleteSeparatorHandler(c))
+
+	// TRANSFER ACCES
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "paccess-info:", bot.MatchTypePrefix, mychannel.AskTransferAccessHandler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "transfer:", bot.MatchTypePrefix, mychannel.TransferAcessHandler(c))
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "gc-info:", bot.MatchTypePrefix, mychannel.GroupChannelHandler(c))
 
+	// CHECK MATCH
 	b.RegisterHandlerMatchFunc(matchAwaitingSticker, mychannel.SetStickerSeparatorHandler(c))
 	b.RegisterHandlerMatchFunc(matchAwaitingNewOwner, mychannel.SetTransferAccessHandler(c))
 

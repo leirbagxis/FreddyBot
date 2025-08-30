@@ -101,6 +101,43 @@ func (s *Service) DeleteAwaitingStickerSeparator(ctx context.Context, userID int
 	return client.Del(ctx, key).Err()
 }
 
+// ### SELECTED CHANNEL ## \\
+
+func (s *Service) SetSelectedChannel(ctx context.Context, userID, channelID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("selected_channel:%d", userID)
+	return client.Set(ctx, key, channelID, 43200*time.Minute).Err()
+}
+
+func (s *Service) GetSelectedChannel(ctx context.Context, userID int64) (int64, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("selected_channel:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return 0, fmt.Errorf("session not found or expired")
+		}
+		return 0, fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	channelID, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return channelID, nil
+}
+
+func (s *Service) DeleteSelectedChannel(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("selected_channel:%d", userID)
+
+	return client.Del(ctx, key).Err()
+}
+
 func generateSessionKey() (string, error) {
 	bytes := make([]byte, 16)
 	_, err := rand.Read(bytes)
