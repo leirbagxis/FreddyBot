@@ -32,6 +32,7 @@ func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			"title":     channel.Title,
 			"channelId": fmt.Sprintf("%d", session),
 		}
+		c.CacheService.SetDeleteChannel(ctx, userId, session)
 
 		text, button := parser.GetMessage("del", data)
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
@@ -49,7 +50,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		cbks := update.CallbackQuery
 
 		userId := cbks.From.ID
-		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		session, err := c.CacheService.GetDeleteChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao criar sessão: %v", err)
 			return
@@ -85,5 +86,11 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			CallbackQueryID: update.CallbackQuery.ID,
 			Text:            "✅ Canal excluido com sucesso!",
 		})
+
+		_, err = c.CacheService.DeleteAllUserSessionsBySuffix(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao excluir all sessions: %v", err)
+			return
+		}
 	}
 }

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strconv"
-	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -16,18 +15,16 @@ import (
 
 func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
@@ -35,7 +32,12 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"channelName": channel.Title,
-			"channelId":   fmt.Sprintf("%d", channelId),
+			"channelId":   fmt.Sprintf("%d", session),
+		}
+		err = c.CacheService.SetTransferChannel(ctx, userId, session)
+		if err != nil {
+			log.Printf("Erro ao criar sessão de transferencia: %v", err)
+			return
 		}
 
 		text, button := parser.GetMessage("ask-paccess-message", data)
@@ -51,18 +53,16 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		callbackData := update.CallbackQuery.Data
+		cbks := update.CallbackQuery
 
-		parts := strings.Split(callbackData, ":")
-		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetTransferChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
 			return
 		}
 
-		userId := update.CallbackQuery.From.ID
-		channelId, _ := strconv.ParseInt(parts[1], 10, 64)
-
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
@@ -76,11 +76,10 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		data := map[string]string{
 			"channelName": channel.Title,
-			"channelId":   fmt.Sprintf("%d", channelId),
+			"channelId":   fmt.Sprintf("%d", session),
 			"ownerId":     fmt.Sprintf("%d", user.UserId),
 			"ownerName":   user.FirstName,
 		}
-		c.CacheService.SetAwaitingStickerSeparator(ctx, userId, channelId)
 
 		text, button := parser.GetMessage("require-paccess-message", data)
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
@@ -98,7 +97,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		botInfo, _ := b.GetMe(ctx)
 		userId := update.Message.From.ID
 
-		channelId, err := c.CacheService.GetAwaitingStickerSeparator(ctx, userId)
+		channelId, err := c.CacheService.GetTransferChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao buscar cache sticker: %v", err)
 			return
@@ -268,5 +267,12 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 			ReplyMarkup: buttonNew,
 			ParseMode:   "HTML",
 		})
+
+		_, err = c.CacheService.DeleteAllUserSessionsBySuffix(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao excluir all sessions: %v", err)
+			return
+		}
+
 	}
 }

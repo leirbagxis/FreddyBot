@@ -35,8 +35,8 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "spex", bot.MatchTypeExact, mychannel.DeleteSeparatorHandler(c))
 
 	// TRANSFER ACCES
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "paccess-info:", bot.MatchTypePrefix, mychannel.AskTransferAccessHandler(c))
-	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "transfer:", bot.MatchTypePrefix, mychannel.TransferAcessHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "paccess-info", bot.MatchTypeExact, mychannel.AskTransferAccessHandler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "transfer", bot.MatchTypeExact, mychannel.TransferAcessHandler(c))
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "gc-info:", bot.MatchTypePrefix, mychannel.GroupChannelHandler(c))
 

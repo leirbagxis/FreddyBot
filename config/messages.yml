@@ -48,7 +48,7 @@
     - - text: "✨ Sticker Separador"
         callback_data: "sptc"
     - - text: "🔑 Transferir Acesso"
-        callback_data: "paccess-info:{channelId}"
+        callback_data: "paccess-info"
     #- - text: "🔗 Agrupar Canais"
         #callback_data: "gc-info:{channelId}"
     - - text: "🗑️ Remover Canal"
@@ -158,7 +158,7 @@
   text: "<b>🔄 Transferência de Acesso</b>\n\n<blockquote>📌 Você pode transferir a posse deste canal para outro usuário. O novo proprietário poderá gerenciar todas as configurações normalmente.</blockquote>\n\n<b>⚠️ Atenção:</b>\n<i>- Apenas o usuário que cadastrou o canal pode transferi-lo.</i>\n<i>- O novo dono deve ter interagido com o bot anteriormente.</i>\n<i>- Após a transferência, você perderá o controle sobre as configurações do canal.</i>\n\n<b>✅ Para continuar, inicie o processo de transferência abaixo.</b>"
   buttons:
     - - text: "🔑 Transferir Acesso"
-        callback_data: "transfer:{channelId}"
+        callback_data: "transfer"
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
 
@@ -191,7 +191,7 @@
   text: "<b>📌 Agrupamento de Canais</b>\n\n<blockquote>🔗 Este comando permite que você agrupe seus canais, exibindo os botões dos outros canais no canal selecionado.</blockquote>\n\n🛠️ <b>Como funciona?</b>\n➜ Se você tiver dois ou mais canais, pode vinculá-los para que os botões/plaquinhas de um canal apareçam no canal selecionado.\n➜ Isso facilita a navegação entre seus canais e melhora a experiência dos seus seguidores.\n\n⚙️ <b>Deseja prosseguir com o agrupamento?</b>\n✔️ Toque em 'Confirmar' para continuar.\n❌ Toque em 'Cancelar' para desistir"
   buttons:
     - - text: "✔️ Confirmar"
-        callback_data: "gc.yes:{channelId}"
+        callback_data: "gc.yes"
       - text: "❌ Cancelar"
         callback_data: "config:{channelId}"
 
