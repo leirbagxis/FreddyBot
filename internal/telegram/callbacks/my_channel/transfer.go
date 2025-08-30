@@ -21,6 +21,11 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
@@ -59,6 +64,11 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 		session, err := c.CacheService.GetTransferChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
@@ -100,6 +110,11 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		channelId, err := c.CacheService.GetTransferChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao buscar cache sticker: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 

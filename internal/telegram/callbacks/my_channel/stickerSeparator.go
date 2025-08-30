@@ -22,6 +22,11 @@ func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
@@ -55,6 +60,11 @@ func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
@@ -88,6 +98,11 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		channelId, err := c.CacheService.GetAwaitingStickerSeparator(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao buscar cache sticker: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
@@ -156,6 +171,11 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
 			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
