@@ -3,6 +3,7 @@ package telegram
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -44,6 +45,7 @@ func StartBot(db *gorm.DB) http.Handler {
 	}
 
 	botInfo, _ := b.GetMe(ctx)
+	botUsername := fmt.Sprintf("@%s", botInfo.Username)
 	log.Println("🤖 Bot iniciado:", botInfo.Username)
 
 	originalHandler := b.WebhookHandler()
@@ -76,7 +78,7 @@ func StartBot(db *gorm.DB) http.Handler {
 
 		events.LoadEvents(b, app)
 		commands.LoadCommandHandlers(b, app)
-		callbacks.LoadCallbacksHandlers(b, app)
+		callbacks.LoadCallbacksHandlers(b, app, botUsername)
 
 		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL: webhookUrl,
@@ -102,7 +104,7 @@ func StartBot(db *gorm.DB) http.Handler {
 
 		events.LoadEvents(b, app)
 		commands.LoadCommandHandlers(b, app)
-		callbacks.LoadCallbacksHandlers(b, app)
+		callbacks.LoadCallbacksHandlers(b, app, botUsername)
 
 		b.DeleteWebhook(ctx, &bot.DeleteWebhookParams{})
 		go b.Start(ctx)

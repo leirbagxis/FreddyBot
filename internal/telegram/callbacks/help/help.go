@@ -8,13 +8,15 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
-func Handler() bot.HandlerFunc {
-	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		user, _ := b.GetMe(ctx)
-		text, button := parser.GetMessage("help", map[string]string{
-			"botUsername": "@" + user.Username,
-		})
+type Deps struct {
+	BotUsername string
+}
 
+func Handler(deps Deps) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		text, button := parser.GetMessage("help", map[string]string{
+			"botUsername": deps.BotUsername,
+		})
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
 			Text:        text,
