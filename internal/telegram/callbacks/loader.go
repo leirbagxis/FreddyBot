@@ -40,6 +40,9 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername st
 
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "gc-info:", bot.MatchTypePrefix, mychannel.GroupChannelHandler(c))
 
+	// Plans
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "my_plan", bot.MatchTypeExact, mychannel.MyPlanHandler(c))
+
 	// CHECK MATCH
 	b.RegisterHandlerMatchFunc(matchAwaitingSticker, mychannel.SetStickerSeparatorHandler(c))
 	b.RegisterHandlerMatchFunc(matchAwaitingNewOwner, mychannel.SetTransferAccessHandler(c))

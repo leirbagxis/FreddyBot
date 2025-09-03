@@ -45,6 +45,8 @@
   buttons:
     - - text: "⚙ Configure Agora"
         web_app: "{webAppUrl}"
+    - - text: "📦 Meu Plano"
+        callback_data: "my_plan"
     - - text: "✨ Sticker Separador"
         callback_data: "sptc"
     - - text: "🔑 Transferir Acesso"
@@ -203,6 +205,16 @@
         callback_data: "accept.claim:{sessionKey}"
       - text: "❌ Cancelar"
         callback_data: "config:{channelId}"
+
+
+
+- name: my_plan
+  text: "🎀 <b>💎 Seus Detalhes de Assinatura</b>\n\n<blockquote>✨ <b>Canal:</b> {title}\n🆔 <b>ID do Canal:</b> {channelId}\n\n✨ <b>Plano Atual:</b> {planName}\n⏳ <b>Validade:</b> {planValidity}\n📅 <b>Assinado em:</b> {planStartDate}\n🆔 <b>ID do Plano:</b> {planId}</blockquote>\n\n💡 Quer aproveitar ainda mais recursos e benefícios?\n<b>🌟 Assine um novo plano e eleve o nível do seu canal!</b>"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+
 
 
 - name: publi
