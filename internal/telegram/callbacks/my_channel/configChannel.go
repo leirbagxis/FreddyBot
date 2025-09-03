@@ -37,19 +37,11 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 		userIDStr := fmt.Sprintf("%d", userID)
-		subs, err := c.SubscriptionRepo.GetChannelSubscription(ctx, channel.ID)
-		if err != nil {
-			log.Printf("Erro ao buscar assinatura: %v", err)
-			return
-		}
 
 		data := map[string]string{
-			"title":         channel.Title,
-			"channelId":     channelIdString,
-			"planName":      subs.Plan.Name,
-			"planValidity":  subs.EndDate.Format("2006-01-02 15:04:05"),
-			"planStartDate": subs.StartDate.Format("2006-01-02 15:04:05"),
-			"webAppUrl":     auth.GenerateMiniAppUrl(userIDStr, channelIdString),
+			"title":     channel.Title,
+			"channelId": channelIdString,
+			"webAppUrl": auth.GenerateMiniAppUrl(userIDStr, channelIdString),
 		}
 		text, button := parser.GetMessage("config-channel", data)
 

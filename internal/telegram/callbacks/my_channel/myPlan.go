@@ -11,6 +11,8 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
+const layoutBR = "02/01/2006 as 15:04:05"
+
 func MyPlanHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 
@@ -38,12 +40,19 @@ func MyPlanHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		var validity string
+		if subs.EndDate.IsZero() {
+			validity = "Vitalício"
+		} else {
+			validity = subs.EndDate.Format(layoutBR)
+		}
+
 		data := map[string]string{
 			"title":         channel.Title,
 			"channelId":     fmt.Sprintf("%d", session),
 			"planName":      subs.Plan.Name,
-			"planValidity":  subs.EndDate.Format("2006-01-02 15:04:05"),
-			"planStartDate": subs.StartDate.Format("2006-01-02 15:04:05"),
+			"planValidity":  validity,
+			"planStartDate": subs.StartDate.Format(layoutBR),
 			"planId":        subs.ID,
 		}
 		text, button := parser.GetMessage("my_plan", data)

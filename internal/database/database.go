@@ -47,6 +47,7 @@ func InitDB() *gorm.DB {
 func SeedPlans(db *gorm.DB) {
 	plans := []models.SubscriptionPlan{
 		{
+			ID:         0001,
 			Name:       "Gratuito",
 			PricePix:   0,
 			PriceStars: 0,
@@ -55,6 +56,7 @@ func SeedPlans(db *gorm.DB) {
 			UpdatedAt:  time.Now(),
 		},
 		{
+			ID:         0002,
 			Name:       "Gold",
 			PricePix:   10.99, // R$15,00
 			PriceStars: 100,   // 150 Stars

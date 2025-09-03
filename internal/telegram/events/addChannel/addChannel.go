@@ -215,6 +215,18 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			"miniAppUrl":  auth.GenerateMiniAppUrl(userID, channelID),
 		}
 
+		plan, err := c.SubscriptionRepo.GetPlanByID(ctx, "0001")
+		if err != nil {
+			log.Printf("Erro ao buscar plano na associacao: %v", err)
+			return
+		}
+
+		_, err = c.SubscriptionRepo.AssignSubscriptionToChannel(ctx, channel.ID, *plan, "stars", nil, nil)
+		if err != nil {
+			log.Printf("Erro ao associar plano ao novo canal: %v", err)
+			return
+		}
+
 		text, button := parser.GetMessage("toadd-success-message", data)
 
 		editMsg, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
