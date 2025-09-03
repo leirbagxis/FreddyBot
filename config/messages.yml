@@ -41,7 +41,8 @@
         callback_data: "profile-info"
 
 - name: config-channel
-  text: "<b>📢 Canal Selecionado</b>\n\n<blockquote>🔹 <b>Nome:</b> {title}\n🔹 <b>ID:</b> <code>{channelId}</code></blockquote>\n\n<b>⚙️ Aqui você pode gerenciar as configurações de legendas deste canal. Edite conforme necessário e salve as alterações.</b>"
+  #text: "<b>📢 Canal Selecionado</b>\n\n<blockquote>🔹 <b>Nome:</b> {title}\n🔹 <b>ID:</b> <code>{channelId}</code></blockquote>\n\n<b>⚙️ Aqui você pode gerenciar as configurações de legendas deste canal. Edite conforme necessário e salve as alterações.</b>"
+  text: "🎀 <b>💎 Canal & Plano</b>\n\n<blockquote>🔹 <b>Canal Selecionado:</b> {title}\n🔹 <b>ID do Canal:</b> {channelId}\n\n✨ <b>Plano Atual:</b> {planName}\n⏳ <b>Validade:</b> {planValidity}\n📅 <b>Assinado em:</b> {planStartDate}</blockquote>\n\n⚙️ Aqui você pode gerenciar as configurações de legendas deste canal. Edite conforme necessário e salve as alterações.\n\n💡 Quer aproveitar ainda mais recursos e benefícios?\n<b>🌟 Assine um novo plano e eleve o nível do seu canal!</b>"
   buttons:
     - - text: "⚙ Configure Agora"
         web_app: "{webAppUrl}"
@@ -209,7 +210,7 @@
 
 
 - name: my_plan
-  text: "🎀 <b>💎 Seus Detalhes de Assinatura</b>\n\n<blockquote>✨ <b>Canal:</b> {title}\n🆔 <b>ID do Canal:</b> {channelId}\n\n✨ <b>Plano Atual:</b> {planName}\n⏳ <b>Validade:</b> {planValidity}\n📅 <b>Assinado em:</b> {planStartDate}\n🆔 <b>ID do Plano:</b> {planId}</blockquote>\n\n💡 Quer aproveitar ainda mais recursos e benefícios?\n<b>🌟 Assine um novo plano e eleve o nível do seu canal!</b>"
+  text: "🎀 <b>💎 Seus Detalhes de Assinatura</b>\n\n<blockquote>✨ <b>Canal:</b> {title}\n🆔 <b>ID do Canal:</b> {channelId}\n\n✨ <b>Plano Atual:</b> {planName}\n⏳ <b>Validade:</b> {planValidity}\n📅 <b>Assinado em:</b> {planStartDate}</blockquote>\n\n💡 Quer aproveitar ainda mais recursos e benefícios?\n<b>🌟 Assine um novo plano e eleve o nível do seu canal!</b>"
   buttons:
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"

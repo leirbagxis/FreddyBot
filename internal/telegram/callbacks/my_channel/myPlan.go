@@ -32,14 +32,19 @@ func MyPlanHandler(c *container.AppContainer) bot.HandlerFunc {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
 		}
+		subs, err := c.SubscriptionRepo.GetChannelSubscription(ctx, channel.ID)
+		if err != nil {
+			log.Printf("Erro ao buscar assinatura: %v", err)
+			return
+		}
 
 		data := map[string]string{
 			"title":         channel.Title,
 			"channelId":     fmt.Sprintf("%d", session),
-			"planName":      "",
-			"planValidity":  "",
-			"planStartDate": "",
-			"planId":        "",
+			"planName":      subs.Plan.Name,
+			"planValidity":  subs.EndDate.Format("2006-01-02 15:04:05"),
+			"planStartDate": subs.StartDate.Format("2006-01-02 15:04:05"),
+			"planId":        subs.ID,
 		}
 		text, button := parser.GetMessage("my_plan", data)
 
