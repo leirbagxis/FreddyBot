@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type User struct {
 	UserId       int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
@@ -26,13 +29,14 @@ type Channel struct {
 }
 
 type DefaultCaption struct {
-	CaptionID         string             `gorm:"type:text;primaryKey" json:"captionId"`
-	Caption           string             `json:"caption"`
-	MessagePermission *MessagePermission `gorm:"foreignKey:OwnerCaptionID" json:"messagePermission,omitempty"`
-	ButtonsPermission *ButtonsPermission `gorm:"foreignKey:OwnerCaptionID" json:"buttonsPermission,omitempty"`
-	OwnerChannelID    int64              `gorm:"unique" json:"ownerChannelId"`
-	CreatedAt         time.Time          `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt         time.Time          `gorm:"autoUpdateTime" json:"updated_at"`
+	CaptionID           string             `gorm:"type:text;primaryKey" json:"captionId"`
+	Caption             string             `json:"caption"`
+	CaptionEntitiesJSON json.RawMessage    `gorm:"type:jsonb" json:"captionEntitiesJson,omitempty"`
+	MessagePermission   *MessagePermission `gorm:"foreignKey:OwnerCaptionID" json:"messagePermission,omitempty"`
+	ButtonsPermission   *ButtonsPermission `gorm:"foreignKey:OwnerCaptionID" json:"buttonsPermission,omitempty"`
+	OwnerChannelID      int64              `gorm:"unique" json:"ownerChannelId"`
+	CreatedAt           time.Time          `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt           time.Time          `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type MessagePermission struct {
@@ -83,14 +87,15 @@ type Separator struct {
 }
 
 type CustomCaption struct {
-	CaptionID      string                `gorm:"type:text;primaryKey" json:"captionId"`
-	Code           string                `json:"code"`
-	Caption        string                `json:"caption"`
-	LinkPreview    bool                  `json:"linkPreview"`
-	Buttons        []CustomCaptionButton `gorm:"foreignKey:OwnerCaptionID" json:"buttons"`
-	OwnerChannelID int64                 `json:"ownerChannelId"`
-	CreatedAt      time.Time             `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time             `gorm:"autoUpdateTime" json:"updated_at"`
+	CaptionID           string                `gorm:"type:text;primaryKey" json:"captionId"`
+	Code                string                `json:"code"`
+	Caption             string                `json:"caption"`
+	CaptionEntitiesJSON json.RawMessage       `gorm:"type:jsonb" json:"captionEntitiesJson,omitempty"`
+	LinkPreview         bool                  `json:"linkPreview"`
+	Buttons             []CustomCaptionButton `gorm:"foreignKey:OwnerCaptionID" json:"buttons"`
+	OwnerChannelID      int64                 `json:"ownerChannelId"`
+	CreatedAt           time.Time             `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt           time.Time             `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type CustomCaptionButton struct {
@@ -102,6 +107,13 @@ type CustomCaptionButton struct {
 	OwnerCaptionID string    `json:"ownerCaptionId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type TGMessageEntity struct {
+	Type          string `json:"type"`   // ex.: "custom_emoji", "mention", ...
+	Offset        int    `json:"offset"` // em unidades UTF-16 segundo o Bot API
+	Length        int    `json:"length"`
+	CustomEmojiID string `json:"custom_emoji_id,omitempty"`
 }
 
 func (User) TableName() string {

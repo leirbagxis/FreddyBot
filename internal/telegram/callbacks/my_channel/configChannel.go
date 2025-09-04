@@ -36,6 +36,12 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 			log.Printf("Erro ao buscar canal: %v", err)
 			return
 		}
+		subs, err := c.SubscriptionRepo.GetChannelSubscription(ctx, channelId)
+		if err != nil {
+			log.Printf("Erro ao buscar canal: %v", err)
+			return
+		}
+
 		userIDStr := fmt.Sprintf("%d", userID)
 
 		data := map[string]string{
@@ -44,6 +50,20 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 			"webAppUrl": auth.GenerateMiniAppUrl(userIDStr, channelIdString),
 		}
 		text, button := parser.GetMessage("config-channel", data)
+
+		if subs.Plan.ID != 0001 && subs.Status == "active" {
+			newBtn := models.InlineKeyboardButton{
+				Text:         "⭐ Recursos Exclusivos",
+				CallbackData: "premium_resources",
+			}
+			newRow := []models.InlineKeyboardButton{newBtn}
+			idx := 2
+			rows := button.InlineKeyboard
+			rows = append(rows, nil)
+			copy(rows[idx+1:], rows[idx:])
+			rows[idx] = newRow
+			button.InlineKeyboard = rows
+		}
 
 		err = c.CacheService.SetSelectedChannel(ctx, userID, channelId)
 		if err != nil {
@@ -54,7 +74,7 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
 			Text:        text,
-			ReplyMarkup: button,
+			ReplyMarkup: &button,
 			ParseMode:   "HTML",
 			MessageID:   update.CallbackQuery.Message.Message.ID,
 		})

@@ -208,13 +208,32 @@
         callback_data: "config:{channelId}"
 
 
-
+# /// PLANOS E CONTEUDO PREMIUM \\ #
 - name: my_plan
   text: "🎀 <b>💎 Seus Detalhes de Assinatura</b>\n\n<blockquote>✨ <b>Canal:</b> {title}\n🆔 <b>ID do Canal:</b> {channelId}\n\n✨ <b>Plano Atual:</b> {planName}\n⏳ <b>Validade:</b> {planValidity}\n📅 <b>Assinado em:</b> {planStartDate}</blockquote>\n\n💡 Quer aproveitar ainda mais recursos e benefícios?\n<b>🌟 Assine um novo plano e eleve o nível do seu canal!</b>"
   buttons:
+    - - text: "➕ Assinar Novo Plano"
+        callback_data: "{subscriptionWebApp}"
+    - - text: "✨ Recursos"
+        callback_data: "subsResources"
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
 
+- name: premium_resources
+  text: "✨ <b>Recursos Exclusivos para Assinantes</b>\n\n<blockquote>💎 <b>Emojis Premium:</b> Adicione um toque especial às suas legendas com emojis exclusivos.\n\n🎞️ <b>Separadores Animados:</b> Organize suas postagens com stickers animados e emojis premium, deixando o canal ainda mais elegante.</blockquote>\n\n🌟 Ao assinar um plano, seu canal ganha mais estilo, organização e personalidade!"
+  buttons:
+    - - text: "✨ Legendas com Emojis Premium"
+        callback_data: "ask_plan_caption"
+    - - text: "🎨 Separadores com Emojis Premium"
+        callback_data: "ask_plan_separator"
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: ask_plan_caption
+  text: "💫 <b>Configure sua Legenda Premium</b>\n\n<blockquote>✨ Envie agora a <b>legenda</b> que deseja utilizar, incluindo seus <i>Emojis Premium</i> favoritos.</blockquote>\n\n⚠️ <b>Aviso:</b> Para visualizar como ficará no canal, basta enviar uma mídia no canal <b>onde o plano está ativo</b>. O bot aplicará automaticamente a legenda configurada!"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "premium_resources"
 
 
 

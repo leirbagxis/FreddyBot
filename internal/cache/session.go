@@ -1,6 +1,11 @@
 package cache
 
-import "context"
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"time"
+)
 
 type SessionManager struct {
 	cache *Service
@@ -38,4 +43,33 @@ func (sm *SessionManager) GetChannelSession(ctx context.Context, key string) (*C
 
 func (sm *SessionManager) DeleteChannelSession(ctx context.Context, key string) error {
 	return sm.cache.DeleteSession(ctx, key)
+}
+
+// ### DELETE CHANNEL ## \\
+
+func (sm *SessionManager) SetPlainCaptionSession(ctx context.Context, userID, channelID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("ask_plain_caption:%d", userID)
+	return client.Set(ctx, key, channelID, 5*time.Minute).Err()
+}
+
+func (sm *SessionManager) GetPlainCaptionSession(ctx context.Context, userID int64) (int64, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("ask_plain_caption:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return 0, fmt.Errorf("session not found or expired")
+		}
+		return 0, fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	channelID, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return channelID, nil
 }

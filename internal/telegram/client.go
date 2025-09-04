@@ -78,7 +78,7 @@ func StartBot(db *gorm.DB) http.Handler {
 
 		events.LoadEvents(b, app)
 		commands.LoadCommandHandlers(b, app)
-		callbacks.LoadCallbacksHandlers(b, app, botUsername)
+		callbacks.LoadCallbacksHandlers(b, app, ctx, botUsername)
 
 		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL: webhookUrl,
@@ -104,7 +104,7 @@ func StartBot(db *gorm.DB) http.Handler {
 
 		events.LoadEvents(b, app)
 		commands.LoadCommandHandlers(b, app)
-		callbacks.LoadCallbacksHandlers(b, app, botUsername)
+		callbacks.LoadCallbacksHandlers(b, app, ctx, botUsername)
 
 		b.DeleteWebhook(ctx, &bot.DeleteWebhookParams{})
 		go b.Start(ctx)
