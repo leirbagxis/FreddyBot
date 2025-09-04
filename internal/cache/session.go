@@ -45,7 +45,7 @@ func (sm *SessionManager) DeleteChannelSession(ctx context.Context, key string) 
 	return sm.cache.DeleteSession(ctx, key)
 }
 
-// ### DELETE CHANNEL ## \\
+// ### PLAN CAPTION SESSION ## \\
 
 func (sm *SessionManager) SetPlainCaptionSession(ctx context.Context, userID, channelID int64) error {
 	client := GetRedisClient()
@@ -72,4 +72,12 @@ func (sm *SessionManager) GetPlainCaptionSession(ctx context.Context, userID int
 	}
 
 	return channelID, nil
+}
+
+func (sm *SessionManager) DeletePlainCaptionSession(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("ask_plain_caption:%d", userID)
+
+	return client.Del(ctx, key).Err()
 }

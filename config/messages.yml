@@ -235,6 +235,19 @@
     - - text: "🔙 Voltar"
         callback_data: "premium_resources"
 
+- name: plan-caption-sucess
+  text: "✅ <b>Legenda Premium salva com sucesso!</b>\n\n<blockquote>✨ Sua nova legenda com <i>Emojis Premium</i> já está pronta para uso.</blockquote>\n\n⚠️ <b>Aviso:</b> Para conferir o resultado, basta enviar uma mídia no canal <b>onde o plano está ativo</b>. O bot aplicará automaticamente a legenda configurada!"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: failed-plan-caption
+  text: "💎 <b>Legenda Premium</b>\n\n<blockquote>❌ Não foi possível salvar a legenda premium.</blockquote>\n\n📎 Verifique se você enviou um texto válido com <i>Emojis Premium</i>.  \n⚠️ Apenas canais com um plano ativo podem utilizar essa função.\n\n<b>🔁 Tente novamente e deixe suas postagens ainda mais exclusivas e estilosas!</b>"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+
 
 
 - name: publi
