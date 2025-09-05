@@ -99,9 +99,9 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		if err != nil {
 			log.Printf("Erro ao buscar cache sticker: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
-				ShowAlert:       true,
+				//CallbackQueryID: update.CallbackQuery.ID,
+				Text:      "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert: true,
 			})
 			return
 		}

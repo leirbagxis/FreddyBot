@@ -81,3 +81,40 @@ func (sm *SessionManager) DeletePlainCaptionSession(ctx context.Context, userID 
 
 	return client.Del(ctx, key).Err()
 }
+
+// ### PLAN SEPARATOR SESSION ## \\
+
+func (sm *SessionManager) SetPlainSeparatorSession(ctx context.Context, userID, channelID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("ask_plain_separator:%d", userID)
+	return client.Set(ctx, key, channelID, 5*time.Minute).Err()
+}
+
+func (sm *SessionManager) GetPlainSeparatorSession(ctx context.Context, userID int64) (int64, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("ask_plain_separator:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return 0, fmt.Errorf("session not found or expired")
+		}
+		return 0, fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	channelID, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return channelID, nil
+}
+
+func (sm *SessionManager) DeletePlainSeparatorSession(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("ask_plain_separator:%d", userID)
+
+	return client.Del(ctx, key).Err()
+}

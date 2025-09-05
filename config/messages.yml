@@ -229,6 +229,7 @@
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
 
+# caption
 - name: ask_plan_caption
   text: "💫 <b>Configure sua Legenda Premium</b>\n\n<blockquote>✨ Envie agora a <b>legenda</b> que deseja utilizar, incluindo seus <i>Emojis Premium</i> favoritos.</blockquote>\n\n⚠️ <b>Aviso:</b> Para visualizar como ficará no canal, basta enviar uma mídia no canal <b>onde o plano está ativo</b>. O bot aplicará automaticamente a legenda configurada!"
   buttons:
@@ -247,6 +248,24 @@
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
 
+# separator
+- name: ask_plan_separator
+  text: "💎 <b>Separador Premium</b>\n\n<blockquote>📌 Para deixar o canal ainda mais estiloso, envie um <b>Sticker com Emoji Premium</b> que será usado como separador entre as postagens.</blockquote>\n\n⚠️ Lembre-se: o recurso está disponível apenas para canais com um plano ativo."
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "premium_resources"
+
+- name: plan-separator-sucess
+  text: "✅ <b>Separador Premium Configurado!</b>\n\n<blockquote>🎉 O sticker premium foi salvo com sucesso e já pode ser usado para organizar o canal.</blockquote>\n\n📎 Para visualizar o resultado, envie uma nova postagem no canal e veja o separador em ação."
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: failed-plan-separator
+  text: "❌ <b>Falha ao configurar o Separador Premium</b>\n\n<blockquote>⚠️ Não foi possível salvar o separador enviado.</blockquote>\n\n📎 Verifique se você enviou um <b>Sticker válido com Emoji Premium</b> e tente novamente."
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
 
 
 

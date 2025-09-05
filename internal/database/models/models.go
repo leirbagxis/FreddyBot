@@ -78,12 +78,14 @@ type Button struct {
 }
 
 type Separator struct {
-	ID             string    `gorm:"type:text;primaryKey" json:"id"`
-	SeparatorID    string    `json:"separatorId"`
-	SeparatorURL   string    `json:"separatorUrl"`
-	OwnerChannelID int64     `gorm:"unique" json:"ownerChannelId"`
-	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                    string          `gorm:"type:text;primaryKey" json:"id"`
+	SeparatorID           string          `json:"separatorId"`
+	SeparatorURL          string          `json:"separatorUrl"`
+	SeparatorText         string          `json:"separatorText"`
+	SeparatorEntitiesJSON json.RawMessage `gorm:"type:jsonb" json:"separatorEntitiesJson,omitempty"`
+	OwnerChannelID        int64           `gorm:"unique" json:"ownerChannelId"`
+	CreatedAt             time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt             time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type CustomCaption struct {

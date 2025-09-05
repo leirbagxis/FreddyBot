@@ -111,12 +111,6 @@ func MyPlanResouces(c *container.AppContainer) bot.HandlerFunc {
 		}
 		text, button := parser.GetMessage("premium_resources", data)
 
-		err = c.SessionManager.SetPlainCaptionSession(ctx, userId, session)
-		if err != nil {
-			log.Printf("Erro ao criar sessão - SetPlainCaptionSession: %v", err)
-			return
-		}
-
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
 			Text:        text,
@@ -127,6 +121,8 @@ func MyPlanResouces(c *container.AppContainer) bot.HandlerFunc {
 
 	}
 }
+
+// ## Caption ## \\
 
 func MyPlanAskCaption(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -158,6 +154,7 @@ func MyPlanAskCaption(c *container.AppContainer) bot.HandlerFunc {
 		data := map[string]string{}
 		text, button := parser.GetMessage("ask_plan_caption", data)
 
+		c.SessionManager.DeletePlainSeparatorSession(ctx, userId)
 		err = c.SessionManager.SetPlainCaptionSession(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao criar sessão - SetPlainCaptionSession: %v", err)
@@ -233,6 +230,130 @@ func MyPlanFoundCaption(c *container.AppContainer) bot.HandlerFunc {
 			"channelId": fmt.Sprintf("%d", channel.ID),
 		}
 		text, button := parser.GetMessage("plan-caption-sucess", data)
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      update.Message.Chat.ID,
+			Text:        text,
+			ReplyMarkup: button,
+			ParseMode:   "HTML",
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
+		})
+
+	}
+}
+
+// ## Separator ## \\
+
+func MyPlanAskSeparator(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+
+		cbks := update.CallbackQuery
+
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
+			return
+		}
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		if err != nil {
+			log.Printf("Erro ao buscar canal: %v", err)
+			return
+		}
+		_, err = c.SubscriptionRepo.GetChannelSubscription(ctx, channel.ID)
+		if err != nil {
+			log.Printf("Erro ao buscar assinatura: %v", err)
+			return
+		}
+
+		data := map[string]string{}
+		text, button := parser.GetMessage("ask_plan_separator", data)
+
+		c.SessionManager.DeletePlainCaptionSession(ctx, userId)
+		err = c.SessionManager.SetPlainSeparatorSession(ctx, userId, session)
+		if err != nil {
+			log.Printf("Erro ao criar sessão - SetPlainSeparatorSession: %v", err)
+			return
+		}
+
+		b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
+			Text:        text,
+			ReplyMarkup: button,
+			ParseMode:   "HTML",
+			MessageID:   update.CallbackQuery.Message.Message.ID,
+		})
+
+	}
+}
+
+func MyPlanFoundSeparator(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		// res, _ := json.Marshal(update)
+		// fmt.Println(string(res))
+		cbks := update.Message
+
+		userId := cbks.From.ID
+		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
+		if err != nil {
+			log.Printf("Erro ao pegar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
+				ShowAlert:       true,
+			})
+			return
+		}
+
+		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		if err != nil {
+			log.Printf("Erro ao buscar canal: %v", err)
+			return
+		}
+
+		newSeparator := cbks.Text
+		ents := make([]myModels.TGMessageEntity, 0, len(cbks.Entities))
+		for _, e := range cbks.Entities {
+			ents = append(ents, myModels.TGMessageEntity{
+				Type:          string(e.Type),
+				Offset:        e.Offset,
+				Length:        e.Length,
+				CustomEmojiID: e.CustomEmojiID,
+			})
+		}
+
+		_, err = c.SeparatorRepo.SavePremiumSeparator(ctx, channel.ID, newSeparator, ents)
+		if err != nil {
+			fmt.Println(err)
+			text, button := parser.GetMessage("failed-plan-separator", map[string]string{
+				"channelId": fmt.Sprintf("%d", session),
+			})
+
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:      update.Message.Chat.ID,
+				Text:        text,
+				ReplyMarkup: button,
+				ParseMode:   "HTML",
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
+			})
+			return
+		}
+
+		c.SessionManager.DeletePlainSeparatorSession(ctx, userId)
+
+		data := map[string]string{
+			"channelId": fmt.Sprintf("%d", channel.ID),
+		}
+		text, button := parser.GetMessage("plan-separator-sucess", data)
 
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      update.Message.Chat.ID,

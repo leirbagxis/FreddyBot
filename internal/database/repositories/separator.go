@@ -2,7 +2,9 @@ package repositories
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
@@ -81,4 +83,45 @@ func (r *SeparatorRepository) GetSeparatorByTwoID(ctx context.Context, channelID
 	}
 
 	return &separator, nil
+}
+
+func (r *SeparatorRepository) SavePremiumSeparator(ctx context.Context, channelId int64, separator string, entities []models.TGMessageEntity) (*models.Separator, error) {
+	var entsJSON []byte
+	if len(entities) > 0 {
+		b, err := json.Marshal(entities)
+		if err != nil {
+			return nil, fmt.Errorf("marshal entities: %w", err)
+		}
+		entsJSON = b
+	}
+
+	var sep models.Separator
+	tx := r.db.WithContext(ctx).Where("owner_channel_id = ?", channelId).First(&sep)
+	if tx.Error != nil {
+		if errors.Is(tx.Error, gorm.ErrRecordNotFound) {
+			sep = models.Separator{
+				OwnerChannelID:        channelId,
+				SeparatorText:         separator,
+				SeparatorEntitiesJSON: entsJSON,
+				// limpa modo arquivo
+				// SeparatorID:  "",
+				// SeparatorURL: "",
+			}
+			if err := r.db.WithContext(ctx).Create(&sep).Error; err != nil {
+				return nil, err
+			}
+			return &sep, nil
+		}
+		return nil, tx.Error
+	}
+
+	// atualizar para modo texto
+	sep.SeparatorText = separator
+	sep.SeparatorEntitiesJSON = entsJSON
+	sep.SeparatorID = ""
+	sep.SeparatorURL = ""
+	if err := r.db.WithContext(ctx).Save(&sep).Error; err != nil {
+		return nil, err
+	}
+	return &sep, nil
 }
