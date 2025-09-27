@@ -45,9 +45,9 @@ func init() {
 		log.Fatalf(`You need to set the "SECRET_KEY" in the .env file!`)
 	}
 
-	WebAppURL = os.Getenv("WEPAPP_URL")
+	WebAppURL = os.Getenv("WEBAPP_URL")
 	if WebAppURL == "" {
-		log.Fatalf(`You need to set the "WEPAPP_URL" in the .env file!`)
+		log.Fatalf(`You need to set the "WEBAPP_URL" in the .env file!`)
 	}
 
 	WebhookUrl = os.Getenv("WEBHOOK_URL")
