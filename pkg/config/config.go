@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -19,9 +20,12 @@ var (
 )
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  .env não encontrado — usando variáveis de ambiente do container")
+	if os.Getenv("GO_ENV") != "production" {
+		if err := godotenv.Load(); err != nil {
+			log.Println("⚠️  .env não encontrado — usando variáveis de ambiente do container")
+		}
 	}
+	fmt.Println(os.Getenv("DATABASE_FILE"))
 
 	TelegramBotToken = mustGetEnv("TELEGRAM_BOT_TOKEN")
 	RedisAddr = mustGetEnv("REDIS_HOST")
