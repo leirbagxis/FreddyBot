@@ -35,7 +35,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 	routes.RegisterRoutes(router, app)
 
 	// Rota de Webhook real (usa handler do bot)
-	if config.WebhookUrl != "" && webhookHandler != nil {
+	if config.WebhookURL != "" && webhookHandler != nil {
 		log.Println("🔗 Registrando endpoint do webhook")
 		router.POST("/webhook", gin.WrapH(webhookHandler))
 	}

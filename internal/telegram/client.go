@@ -72,7 +72,7 @@ func StartBot(db *gorm.DB) http.Handler {
 		cancel()
 	}()
 
-	webhookUrl := config.WebhookUrl
+	webhookUrl := config.WebhookURL
 	if webhookUrl != "" {
 		log.Printf("🔗 Bot configurado para modo webhook: %s", webhookUrl)
 

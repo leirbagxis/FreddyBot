@@ -15,13 +15,12 @@ var (
 	OwnerID          int64
 	SecreteKey       string
 	WebAppURL        string
-	WebhookUrl       string
+	WebhookURL       string
 )
 
 func init() {
-	// Tenta carregar .env, mas não interrompe se não existir
 	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  .env não encontrado, usando variáveis do ambiente")
+		log.Println("⚠️  .env não encontrado — usando variáveis de ambiente do container")
 	}
 
 	TelegramBotToken = mustGetEnv("TELEGRAM_BOT_TOKEN")
@@ -30,7 +29,7 @@ func init() {
 	OwnerID = mustGetEnvInt64("OWNER_ID")
 	SecreteKey = mustGetEnv("SECRET_KEY")
 	WebAppURL = mustGetEnv("WEBAPP_URL")
-	WebhookUrl = os.Getenv("WEBHOOK_URL") // opcional
+	WebhookURL = os.Getenv("WEBHOOK_URL") // opcional
 }
 
 func mustGetEnv(key string) string {
