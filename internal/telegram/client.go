@@ -11,7 +11,6 @@ import (
 	"os/signal"
 
 	"github.com/go-telegram/bot"
-	"github.com/joho/godotenv"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/middleware"
@@ -23,10 +22,6 @@ import (
 )
 
 func StartBot(db *gorm.DB) http.Handler {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
