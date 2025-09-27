@@ -19,36 +19,31 @@ var (
 )
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+	// Carrega .env apenas se existir, para desenvolvimento local.
+	_ = godotenv.Load()
+
+	TelegramBotToken = mustGetEnv("TELEGRAM_BOT_TOKEN")
+	RedisAddr        = mustGetEnv("REDIS_HOST")
+	DatabaseFile     = os.Getenv("DATABASE_FILE") // pode ser opcional
+	OwnerID          = mustGetEnvInt64("OWNER_ID")
+	SecreteKey       = mustGetEnv("SECRET_KEY")
+	WebAppURL        = mustGetEnv("WEBAPP_URL")   // Corrigido o nome da var
+	WebhookUrl       = os.Getenv("WEBHOOK_URL")   // opcional
+}
+
+func mustGetEnv(key string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		log.Fatalf("Environment variable %s is required", key)
 	}
+	return v
+}
 
-	TelegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
-	if TelegramBotToken == "" {
-		log.Fatalf(`You need to set the "TELEGRAM_BOT_TOKEN" in the .env file!`)
+func mustGetEnvInt64(key string) int64 {
+	v := mustGetEnv(key)
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		log.Fatalf("Environment variable %s must be an integer: %v", key, err)
 	}
-
-	RedisAddr = os.Getenv("REDIS_HOST")
-	if RedisAddr == "" {
-		log.Fatalf(`You need to set the "REDIS_HOST" in the .env file!`)
-	}
-
-	DatabaseFile = os.Getenv("DATABASE_FILE")
-
-	OwnerID, _ = strconv.ParseInt(os.Getenv("OWNER_ID"), 10, 64)
-	if OwnerID == 0 {
-		log.Fatalf(`You need to set the "OWNER_ID" in the .env file!`)
-	}
-
-	SecreteKey = os.Getenv("SECRET_KEY")
-	if SecreteKey == "" {
-		log.Fatalf(`You need to set the "SECRET_KEY" in the .env file!`)
-	}
-
-	WebAppURL = os.Getenv("WEPAPP_URL")
-	if WebAppURL == "" {
-		log.Fatalf(`You need to set the "WEPAPP_URL" in the .env file!`)
-	}
-
-	WebhookUrl = os.Getenv("WEBHOOK_URL")
+	return n
 }
