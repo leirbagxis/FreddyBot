@@ -45,6 +45,7 @@ type MediaGroupInfo struct {
 
 type MediaMessage struct {
 	MessageID       int
+	FileID          string
 	HasCaption      bool
 	Caption         string
 	CaptionEntities []interface{}
