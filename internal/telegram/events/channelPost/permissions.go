@@ -8,7 +8,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
-// ✅ CORRIGIDO: Cache thread-safe com sync.Map
+// ✅ Cache thread-safe com sync.Map
 type PermissionManager struct {
 	cache    sync.Map // string -> CacheEntry
 	cacheTTL time.Duration
@@ -23,17 +23,14 @@ func NewPermissionManager() *PermissionManager {
 	pm := &PermissionManager{
 		cacheTTL: CacheTTL,
 	}
-
 	// Cleanup automático do cache
 	go pm.cleanupRoutine()
-
 	return pm
 }
 
 func (pm *PermissionManager) cleanupRoutine() {
 	ticker := time.NewTicker(pm.cacheTTL)
 	defer ticker.Stop()
-
 	for range ticker.C {
 		now := time.Now()
 		pm.cache.Range(func(key, value interface{}) bool {
@@ -49,7 +46,6 @@ func (pm *PermissionManager) cleanupRoutine() {
 
 func (pm *PermissionManager) IsMessageEditAllowed(channel *models.Channel, messageType MessageType) bool {
 	key := fmt.Sprintf("%d_%s_message", channel.ID, messageType)
-
 	if cached := pm.getCached(key); cached != nil {
 		return *cached
 	}
@@ -60,7 +56,6 @@ func (pm *PermissionManager) IsMessageEditAllowed(channel *models.Channel, messa
 
 	messagePermission := channel.DefaultCaption.MessagePermission
 	permissionKey := PermissionMap[messageType]
-
 	if permissionKey == "" {
 		return pm.setCached(key, true)
 	}
@@ -82,13 +77,11 @@ func (pm *PermissionManager) IsMessageEditAllowed(channel *models.Channel, messa
 	default:
 		isAllowed = true
 	}
-
 	return pm.setCached(key, isAllowed)
 }
 
 func (pm *PermissionManager) IsButtonsAllowed(channel *models.Channel, messageType MessageType) bool {
 	key := fmt.Sprintf("%d_%s_buttons", channel.ID, messageType)
-
 	if cached := pm.getCached(key); cached != nil {
 		return *cached
 	}
@@ -99,7 +92,6 @@ func (pm *PermissionManager) IsButtonsAllowed(channel *models.Channel, messageTy
 
 	buttonsPermission := channel.DefaultCaption.ButtonsPermission
 	permissionKey := PermissionMap[messageType]
-
 	if permissionKey == "" {
 		return pm.setCached(key, true)
 	}
@@ -121,7 +113,6 @@ func (pm *PermissionManager) IsButtonsAllowed(channel *models.Channel, messageTy
 	default:
 		isAllowed = true
 	}
-
 	return pm.setCached(key, isAllowed)
 }
 
@@ -157,7 +148,6 @@ func (pm *PermissionManager) GetCacheStats() map[string]interface{} {
 		count++
 		return true
 	})
-
 	return map[string]interface{}{
 		"size": count,
 		"ttl":  pm.cacheTTL,
