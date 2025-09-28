@@ -889,18 +889,6 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 	return fmt.Errorf("falha após %d tentativas no envio do separator", maxRetries)
 }
 
-func (mp *MessageProcessor) processMessageWithHashtag(input string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
-	if h := extractHashtag(input); h != "" {
-		if cc := findCustomCaption(channel, h); cc != nil {
-			return detectParseMode(cc.Caption), cc
-		}
-	}
-	if channel.DefaultCaption != nil && channel.DefaultCaption.Caption != "" {
-		return detectParseMode(channel.DefaultCaption.Caption), nil
-	}
-	return input, nil
-}
-
 func extractHashtag(text string) string {
 	m := hashtagRegex.FindStringSubmatch(text)
 	if len(m) > 1 {
