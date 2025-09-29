@@ -499,7 +499,13 @@ func (mp *MessageProcessor) handleGroupedAudio(ctx context.Context, channel *dbm
 	return nil
 }
 
-// ✅ Finaliza álbum de áudio: se permitido, apaga originais e reenvia um a um com legenda/botões; ao final envia separator
+// Finaliza álbum de áudio:
+// - Se ButtonsPermissions.Audio == false e MessagePermissions.Audio == false: não faz nada.
+// - Caso contrário (mesmo com MessagePermissions.Audio == false):
+//   - Apaga cada mensagem original do grupo
+//   - Reenvia cada áudio com a LEGENDA ORIGINAL do item
+//   - Se ButtonsPermissions.Audio == true, inclui os botões
+//   - Ao final, envia o separator (único envio)
 func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Channel, groupID string, buttons []dbmodels.Button) {
 	value, ok := mediaGroups.Load(groupID)
 	if !ok {
@@ -513,156 +519,241 @@ func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Chann
 		return
 	}
 	group.Processed = true
-	// Snapshot para trabalhar fora do lock
+
+	// Snapshot e solta lock
 	messages := append([]MediaMessage(nil), group.Messages...)
 	chatID := group.ChatID
 	group.mu.Unlock()
 
+	// Verificar permissões específicas
 	perms := mp.CheckPermissions(channel, MessageTypeAudio)
 
-	// Contexto próprio com timeout amplo para todo o álbum
-	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+	// Regra pedida:
+	// 1) Se NENHUMA permissão (nem editar nem botões), não faz nada
+	if !perms.CanEdit && !perms.CanAddButtons {
+		mediaGroups.Delete(groupID)
+		return
+	}
+
+	// 2) Preparar teclado se ButtonsPermissions.Audio permitir
+	var kb *models.InlineKeyboardMarkup
+	if perms.CanAddButtons {
+		// Apenas botões do canal (sem filtrar caption aqui, pois usamos sempre legenda original)
+		// ApplyPermissions ainda filtra botões padrão conforme ButtonsPermission,
+		// mas não depende de CanEdit para botões.
+		_, filteredButtons, _ := mp.ApplyPermissions(channel, MessageTypeAudio, nil, buttons)
+		kb = mp.CreateInlineKeyboard(filteredButtons, nil, channel, MessageTypeAudio)
+		if kb != nil && len(kb.InlineKeyboard) == 0 {
+			kb = nil
+		}
+	}
+
+	// 3) Contexto próprio e reenvio item-a-item, SEMPRE usando a legenda original do item
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	if perms.CanEdit {
-		// Reenvio: para cada item, montar legenda do banco e botões, enviar e apagar original
-		for i, m := range messages {
-			// Montar legenda do banco (Custom > Default), com substituição
-			origFormatted := processTextWithFormatting(m.Caption, convertInterfaceToEntities(m.CaptionEntities))
-			var dbCaption string
-			var customCaption *dbmodels.CustomCaption
-			if h := extractHashtag(origFormatted); h != "" {
-				if cc := findCustomCaption(channel, h); cc != nil {
-					customCaption = cc
-					dbCaption = detectParseMode(cc.Caption)
-				}
-			}
-			if customCaption == nil && channel.DefaultCaption != nil {
-				dbCaption = detectParseMode(channel.DefaultCaption.Caption)
-			}
-			finalCaption := origFormatted
-			if dbCaption != "" {
-				finalCaption = dbCaption
-			}
+	for i, m := range messages {
+		// Formatar legenda original do item
+		origFormatted := processTextWithFormatting(m.Caption, convertInterfaceToEntities(m.CaptionEntities))
 
-			// Botões conforme permissões
-			_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeAudio, customCaption, buttons)
-			kb := mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeAudio)
+		// Reenvio do áudio com legenda original e, se permitido, os botões
+		send := &bot.SendAudioParams{
+			ChatID:    chatID,
+			Audio:     &models.InputFileString{Data: m.FileID}, // Necessário garantir que FileID foi salvo ao agrupar
+			Caption:   origFormatted,
+			ParseMode: "HTML",
+		}
+		if kb != nil {
+			send.ReplyMarkup = kb
+		}
 
-			// Backoff por item para evitar race/429
-			time.Sleep(time.Duration(220+i*160) * time.Millisecond)
+		// Backoff escalonado simples
+		time.Sleep(time.Duration(200+i*150) * time.Millisecond)
 
-			send := &bot.SendAudioParams{
-				ChatID:    chatID,
-				Audio:     &models.InputFileString{Data: m.FileID},
-				Caption:   finalCaption,
-				ParseMode: "HTML",
+		var sendErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			if attempt > 0 {
+				time.Sleep(time.Duration(280+attempt*320) * time.Millisecond)
 			}
-			if kb != nil {
-				send.ReplyMarkup = kb
+			_, sendErr = mp.bot.SendAudio(ctx, send)
+			if sendErr == nil {
+				break
 			}
-
-			var sendErr error
-			for attempt := 0; attempt < 3; attempt++ {
-				if attempt > 0 {
-					time.Sleep(time.Duration(280+attempt*320) * time.Millisecond)
-				}
-				_, sendErr = mp.bot.SendAudio(ctx, send)
-				if sendErr == nil {
-					break
-				}
-				if strings.Contains(strings.ToLower(sendErr.Error()), "too many requests") {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-			}
-			if sendErr != nil {
-				log.Printf("❌ Falha ao reenviar áudio do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
-				// fallback: tenta apenas markup no original se houver kb
-				if kb != nil {
-					_, _ = mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-						ChatID:      chatID,
-						MessageID:   m.MessageID,
-						ReplyMarkup: kb,
-					})
-				}
+			if strings.Contains(strings.ToLower(sendErr.Error()), "too many requests") {
+				time.Sleep(1 * time.Second)
 				continue
 			}
-
-			// Apagar original
-			time.Sleep(200 * time.Millisecond)
-			_, delErr := mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
-				ChatID:    chatID,
-				MessageID: m.MessageID,
-			})
-			if delErr != nil {
-				log.Printf("⚠️ Falha ao apagar áudio original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
-			}
+		}
+		if sendErr != nil {
+			log.Printf("❌ Falha ao reenviar áudio do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
+			// Se falhou o reenvio, não apaga o original; segue para o próximo
+			continue
 		}
 
-		// Enviar separator ao final, se configurado
-		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
-			time.Sleep(350 * time.Millisecond)
-			sepCtx, cancelSep := context.WithTimeout(context.Background(), 6*time.Second)
-			defer cancelSep()
-			_, err := mp.bot.SendSticker(sepCtx, &bot.SendStickerParams{
-				ChatID:  chatID,
-				Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
-			})
-			if err != nil {
-				log.Printf("⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
-			}
+		// Apagar original após enviar o novo
+		time.Sleep(200 * time.Millisecond)
+		_, delErr := mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+			ChatID:    chatID,
+			MessageID: m.MessageID,
+		})
+		if delErr != nil {
+			log.Printf("⚠️ Falha ao apagar áudio original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
 		}
-	} else {
-		// Sem permissão: manter originais e tentar apenas botões
-		_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeAudio, nil, buttons)
-		kb := mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeAudio)
-		if kb != nil {
-			for _, m := range messages {
-				_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-					ChatID:      chatID,
-					MessageID:   m.MessageID,
-					ReplyMarkup: kb,
-				})
-				if err != nil {
-					log.Printf("⚠️ Falha ao editar markup do áudio (grupo %s msg %d): %v", groupID, m.MessageID, err)
-				}
-				time.Sleep(120 * time.Millisecond)
-			}
+	}
+
+	// 4) Enviar separator ao final (único envio após todo o processamento)
+	if channel.Separator != nil && channel.Separator.SeparatorID != "" {
+		time.Sleep(350 * time.Millisecond)
+		sepCtx, cancelSep := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancelSep()
+		_, err := mp.bot.SendSticker(sepCtx, &bot.SendStickerParams{
+			ChatID:  chatID,
+			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
+		})
+		if err != nil {
+			log.Printf("⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
+		} else {
+			log.Printf("✅ Separator enviado após processamento do grupo %s", groupID)
 		}
 	}
 
 	mediaGroups.Delete(groupID)
 }
 
-// func (mp *MessageProcessor) ProcessAudioMessage(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, _ bool) error {
+// // ✅ Finaliza álbum de áudio: se permitido, apaga originais e reenvia um a um com legenda/botões; ao final envia separator
+// func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Channel, groupID string, buttons []dbmodels.Button) {
+// 	value, ok := mediaGroups.Load(groupID)
+// 	if !ok {
+// 		return
+// 	}
+// 	group := value.(*MediaGroup)
+
+// 	group.mu.Lock()
+// 	if group.Processed {
+// 		group.mu.Unlock()
+// 		return
+// 	}
+// 	group.Processed = true
+// 	// Snapshot para trabalhar fora do lock
+// 	messages := append([]MediaMessage(nil), group.Messages...)
+// 	chatID := group.ChatID
+// 	group.mu.Unlock()
+
 // 	perms := mp.CheckPermissions(channel, MessageTypeAudio)
 
-// 	// Degradação: apenas markup
-// 	if !perms.CanEdit {
-// 		if len(buttons) == 0 || !perms.CanAddButtons {
-// 			return nil
+// 	// Contexto próprio com timeout amplo para todo o álbum
+// 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
+// 	defer cancel()
+
+// 	if perms.CanEdit {
+// 		// Reenvio: para cada item, montar legenda do banco e botões, enviar e apagar original
+// 		for i, m := range messages {
+// 			// Montar legenda do banco (Custom > Default), com substituição
+// 			origFormatted := processTextWithFormatting(m.Caption, convertInterfaceToEntities(m.CaptionEntities))
+// 			var dbCaption string
+// 			var customCaption *dbmodels.CustomCaption
+// 			if h := extractHashtag(origFormatted); h != "" {
+// 				if cc := findCustomCaption(channel, h); cc != nil {
+// 					customCaption = cc
+// 					dbCaption = detectParseMode(cc.Caption)
+// 				}
+// 			}
+// 			if customCaption == nil && channel.DefaultCaption != nil {
+// 				dbCaption = detectParseMode(channel.DefaultCaption.Caption)
+// 			}
+// 			finalCaption := origFormatted
+// 			if dbCaption != "" {
+// 				finalCaption = dbCaption
+// 			}
+
+// 			// Botões conforme permissões
+// 			_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeAudio, customCaption, buttons)
+// 			kb := mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeAudio)
+
+// 			// Backoff por item para evitar race/429
+// 			time.Sleep(time.Duration(220+i*160) * time.Millisecond)
+
+// 			send := &bot.SendAudioParams{
+// 				ChatID:    chatID,
+// 				Audio:     &models.InputFileString{Data: m.FileID},
+// 				Caption:   finalCaption,
+// 				ParseMode: "HTML",
+// 			}
+// 			if kb != nil {
+// 				send.ReplyMarkup = kb
+// 			}
+
+// 			var sendErr error
+// 			for attempt := 0; attempt < 3; attempt++ {
+// 				if attempt > 0 {
+// 					time.Sleep(time.Duration(280+attempt*320) * time.Millisecond)
+// 				}
+// 				_, sendErr = mp.bot.SendAudio(ctx, send)
+// 				if sendErr == nil {
+// 					break
+// 				}
+// 				if strings.Contains(strings.ToLower(sendErr.Error()), "too many requests") {
+// 					time.Sleep(1 * time.Second)
+// 					continue
+// 				}
+// 			}
+// 			if sendErr != nil {
+// 				log.Printf("❌ Falha ao reenviar áudio do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
+// 				// fallback: tenta apenas markup no original se houver kb
+// 				if kb != nil {
+// 					_, _ = mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+// 						ChatID:      chatID,
+// 						MessageID:   m.MessageID,
+// 						ReplyMarkup: kb,
+// 					})
+// 				}
+// 				continue
+// 			}
+
+// 			// Apagar original
+// 			time.Sleep(200 * time.Millisecond)
+// 			_, delErr := mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+// 				ChatID:    chatID,
+// 				MessageID: m.MessageID,
+// 			})
+// 			if delErr != nil {
+// 				log.Printf("⚠️ Falha ao apagar áudio original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
+// 			}
 // 		}
-// 		kb := mp.CreateInlineKeyboard(buttons, nil, channel, MessageTypeAudio)
-// 		if kb == nil {
-// 			return nil
+
+// 		// Enviar separator ao final, se configurado
+// 		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
+// 			time.Sleep(350 * time.Millisecond)
+// 			sepCtx, cancelSep := context.WithTimeout(context.Background(), 6*time.Second)
+// 			defer cancelSep()
+// 			_, err := mp.bot.SendSticker(sepCtx, &bot.SendStickerParams{
+// 				ChatID:  chatID,
+// 				Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
+// 			})
+// 			if err != nil {
+// 				log.Printf("⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
+// 			}
 // 		}
-// 		_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-// 			ChatID:      post.Chat.ID,
-// 			MessageID:   post.ID,
-// 			ReplyMarkup: kb,
-// 		})
-// 		return err
+// 	} else {
+// 		// Sem permissão: manter originais e tentar apenas botões
+// 		_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeAudio, nil, buttons)
+// 		kb := mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeAudio)
+// 		if kb != nil {
+// 			for _, m := range messages {
+// 				_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
+// 					ChatID:      chatID,
+// 					MessageID:   m.MessageID,
+// 					ReplyMarkup: kb,
+// 				})
+// 				if err != nil {
+// 					log.Printf("⚠️ Falha ao editar markup do áudio (grupo %s msg %d): %v", groupID, m.MessageID, err)
+// 				}
+// 				time.Sleep(120 * time.Millisecond)
+// 			}
+// 		}
 // 	}
 
-// 	// Pode editar
-// 	time.Sleep(1500 * time.Millisecond)
-// 	formattedCaption := processTextWithFormatting(post.Caption, post.CaptionEntities)
-
-// 	if post.MediaGroupID != "" {
-// 		return mp.processAudioInGroupInPlace(ctx, channel, post, buttons, formattedCaption, MessageTypeAudio)
-// 	}
-// 	return mp.processSingleAudio(ctx, channel, post, buttons, formattedCaption, MessageTypeAudio)
+// 	mediaGroups.Delete(groupID)
 // }
 
 // Edição in-place para grupos de áudio
@@ -1092,10 +1183,17 @@ func (mp *MessageProcessor) ProcessStickerMessagea(ctx context.Context, channel 
 	return err
 }
 
-// ✅ FUNÇÃO ProcessSeparator COM RETRY
+// ✅ FUNÇÃO ProcessSeparator COM RETRY e supressão para áudio em grupo
 func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmodels.Channel, post *models.Message) error {
 	if channel.Separator == nil || channel.Separator.SeparatorID == "" {
 		log.Printf("⚠️ Separator não configurado para canal %d", channel.ID)
+		return nil
+	}
+
+	// SUPRESSÃO: se for áudio em grupo, não enviar separator aqui.
+	// O finalizador do grupo de áudio deve ser o único ponto a enviar o separator.
+	if post != nil && post.MediaGroupID != "" && post.Audio != nil {
+		log.Printf("ℹ️ Separator suprimido no início de álbum de áudio (groupID=%s)", post.MediaGroupID)
 		return nil
 	}
 
@@ -1103,7 +1201,7 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 	if post != nil {
 		chatID = post.Chat.ID
 	} else {
-		chatID = channel.ID // Fallback para grupos
+		chatID = channel.ID // Fallback para casos sem post (garanta que faz sentido no seu fluxo)
 	}
 
 	log.Printf("🔄 Enviando separator para chat %d", chatID)
@@ -1123,13 +1221,12 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 			return nil
 		}
 
-		// Verificar se é erro 429
+		// Verificar rate limit (429)
 		if strings.Contains(err.Error(), "Too Many Requests") {
 			retryAfter := extractRetryAfter(err.Error())
 			if retryAfter == 0 {
 				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
 			}
-
 			log.Printf("⏳ Rate limit no separator, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
 			time.Sleep(time.Duration(retryAfter) * time.Second)
 			continue
