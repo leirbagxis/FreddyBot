@@ -173,13 +173,30 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			messageQueue.AddToQueue(messageType, channel, post, finalButtons, permissions.CanEdit, processor)
 		}()
 
-		// Separator será enviado conforme tipo
-		if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
-			go func() {
-				time.Sleep(2 * time.Second)
-				processor.HandleSeparator(channel, post, messageType)
-			}()
+		// // Separator será enviado conforme tipo
+		// if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
+		// 	go func() {
+		// 		time.Sleep(2 * time.Second)
+		// 		processor.HandleSeparator(channel, post, messageType)
+		// 	}()
+		// }
+
+		// Envio de separador para mensagens individuais (não grupos)
+		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
+			// Não enviar separador no início de álbuns; finalizadores de grupo enviarão ao final
+			if post.MediaGroupID == "" {
+				go func(ch *dbmodels.Channel, p *models.Message) {
+					// Contexto próprio para evitar cancelamentos do handler
+					ctxSep, cancelSep := context.WithTimeout(context.Background(), 10*time.Second)
+					defer cancelSep()
+					// Chama a função central de separador, que já faz retry/backoff
+					if err := processor.ProcessSeparator(ctxSep, ch, p); err != nil {
+						log.Printf("⚠️ Falha ao enviar separador: %v", err)
+					}
+				}(channel, post)
+			}
 		}
+
 	}
 }
 

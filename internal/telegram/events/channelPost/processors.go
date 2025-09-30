@@ -620,142 +620,6 @@ func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Chann
 	mediaGroups.Delete(groupID)
 }
 
-// // ✅ Finaliza álbum de áudio: se permitido, apaga originais e reenvia um a um com legenda/botões; ao final envia separator
-// func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Channel, groupID string, buttons []dbmodels.Button) {
-// 	value, ok := mediaGroups.Load(groupID)
-// 	if !ok {
-// 		return
-// 	}
-// 	group := value.(*MediaGroup)
-
-// 	group.mu.Lock()
-// 	if group.Processed {
-// 		group.mu.Unlock()
-// 		return
-// 	}
-// 	group.Processed = true
-// 	// Snapshot para trabalhar fora do lock
-// 	messages := append([]MediaMessage(nil), group.Messages...)
-// 	chatID := group.ChatID
-// 	group.mu.Unlock()
-
-// 	perms := mp.CheckPermissions(channel, MessageTypeAudio)
-
-// 	// Contexto próprio com timeout amplo para todo o álbum
-// 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
-// 	defer cancel()
-
-// 	if perms.CanEdit {
-// 		// Reenvio: para cada item, montar legenda do banco e botões, enviar e apagar original
-// 		for i, m := range messages {
-// 			// Montar legenda do banco (Custom > Default), com substituição
-// 			origFormatted := processTextWithFormatting(m.Caption, convertInterfaceToEntities(m.CaptionEntities))
-// 			var dbCaption string
-// 			var customCaption *dbmodels.CustomCaption
-// 			if h := extractHashtag(origFormatted); h != "" {
-// 				if cc := findCustomCaption(channel, h); cc != nil {
-// 					customCaption = cc
-// 					dbCaption = detectParseMode(cc.Caption)
-// 				}
-// 			}
-// 			if customCaption == nil && channel.DefaultCaption != nil {
-// 				dbCaption = detectParseMode(channel.DefaultCaption.Caption)
-// 			}
-// 			finalCaption := origFormatted
-// 			if dbCaption != "" {
-// 				finalCaption = dbCaption
-// 			}
-
-// 			// Botões conforme permissões
-// 			_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeAudio, customCaption, buttons)
-// 			kb := mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeAudio)
-
-// 			// Backoff por item para evitar race/429
-// 			time.Sleep(time.Duration(220+i*160) * time.Millisecond)
-
-// 			send := &bot.SendAudioParams{
-// 				ChatID:    chatID,
-// 				Audio:     &models.InputFileString{Data: m.FileID},
-// 				Caption:   finalCaption,
-// 				ParseMode: "HTML",
-// 			}
-// 			if kb != nil {
-// 				send.ReplyMarkup = kb
-// 			}
-
-// 			var sendErr error
-// 			for attempt := 0; attempt < 3; attempt++ {
-// 				if attempt > 0 {
-// 					time.Sleep(time.Duration(280+attempt*320) * time.Millisecond)
-// 				}
-// 				_, sendErr = mp.bot.SendAudio(ctx, send)
-// 				if sendErr == nil {
-// 					break
-// 				}
-// 				if strings.Contains(strings.ToLower(sendErr.Error()), "too many requests") {
-// 					time.Sleep(1 * time.Second)
-// 					continue
-// 				}
-// 			}
-// 			if sendErr != nil {
-// 				log.Printf("❌ Falha ao reenviar áudio do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
-// 				// fallback: tenta apenas markup no original se houver kb
-// 				if kb != nil {
-// 					_, _ = mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-// 						ChatID:      chatID,
-// 						MessageID:   m.MessageID,
-// 						ReplyMarkup: kb,
-// 					})
-// 				}
-// 				continue
-// 			}
-
-// 			// Apagar original
-// 			time.Sleep(200 * time.Millisecond)
-// 			_, delErr := mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
-// 				ChatID:    chatID,
-// 				MessageID: m.MessageID,
-// 			})
-// 			if delErr != nil {
-// 				log.Printf("⚠️ Falha ao apagar áudio original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
-// 			}
-// 		}
-
-// 		// Enviar separator ao final, se configurado
-// 		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
-// 			time.Sleep(350 * time.Millisecond)
-// 			sepCtx, cancelSep := context.WithTimeout(context.Background(), 6*time.Second)
-// 			defer cancelSep()
-// 			_, err := mp.bot.SendSticker(sepCtx, &bot.SendStickerParams{
-// 				ChatID:  chatID,
-// 				Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
-// 			})
-// 			if err != nil {
-// 				log.Printf("⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
-// 			}
-// 		}
-// 	} else {
-// 		// Sem permissão: manter originais e tentar apenas botões
-// 		_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeAudio, nil, buttons)
-// 		kb := mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeAudio)
-// 		if kb != nil {
-// 			for _, m := range messages {
-// 				_, err := mp.bot.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-// 					ChatID:      chatID,
-// 					MessageID:   m.MessageID,
-// 					ReplyMarkup: kb,
-// 				})
-// 				if err != nil {
-// 					log.Printf("⚠️ Falha ao editar markup do áudio (grupo %s msg %d): %v", groupID, m.MessageID, err)
-// 				}
-// 				time.Sleep(120 * time.Millisecond)
-// 			}
-// 		}
-// 	}
-
-// 	mediaGroups.Delete(groupID)
-// }
-
 // Edição in-place para grupos de áudio
 func (mp *MessageProcessor) processAudioInGroupInPlace(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, formattedCaption string, messageType MessageType) error {
 	mediaGroupID := post.MediaGroupID
@@ -935,6 +799,7 @@ func (mp *MessageProcessor) ProcessMediaMessage(ctx context.Context, channel *db
 	if post.MediaGroupID != "" {
 		return mp.handleGroupedMedia(ctx, channel, post, buttons, false, messageType)
 	}
+
 	return mp.handleSingleMedia(ctx, channel, post, buttons, false, messageType)
 }
 
@@ -1184,47 +1049,106 @@ func (mp *MessageProcessor) ProcessStickerMessagea(ctx context.Context, channel 
 }
 
 // ✅ FUNÇÃO ProcessSeparator COM RETRY e supressão para áudio em grupo
+// func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmodels.Channel, post *models.Message) error {
+// 	if channel.Separator == nil || channel.Separator.SeparatorID == "" {
+// 		log.Printf("⚠️ Separator não configurado para canal %d", channel.ID)
+// 		return nil
+// 	}
+
+// 	// SUPRESSÃO: se for áudio em grupo, não enviar separator aqui.
+// 	// O finalizador do grupo de áudio deve ser o único ponto a enviar o separator.
+// 	if post != nil && post.MediaGroupID != "" && post.Audio != nil {
+// 		log.Printf("ℹ️ Separator suprimido no início de álbum de áudio (groupID=%s)", post.MediaGroupID)
+// 		return nil
+// 	}
+
+// 	var chatID int64
+// 	if post != nil {
+// 		chatID = post.Chat.ID
+// 	} else {
+// 		chatID = channel.ID // Fallback para casos sem post (garanta que faz sentido no seu fluxo)
+// 	}
+
+// 	log.Printf("🔄 Enviando separator para chat %d", chatID)
+
+// 	// ✅ RETRY COM BACKOFF PARA SEPARATORS
+// 	maxRetries := 2
+// 	baseDelay := 2 * time.Second
+
+// 	for attempt := 0; attempt < maxRetries; attempt++ {
+// 		_, err := mp.bot.SendSticker(ctx, &bot.SendStickerParams{
+// 			ChatID:  chatID,
+// 			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
+// 		})
+
+// 		if err == nil {
+// 			log.Printf("✅ Separator enviado com sucesso para chat %d", chatID)
+// 			return nil
+// 		}
+
+// 		// Verificar rate limit (429)
+// 		if strings.Contains(err.Error(), "Too Many Requests") {
+// 			retryAfter := extractRetryAfter(err.Error())
+// 			if retryAfter == 0 {
+// 				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
+// 			}
+// 			log.Printf("⏳ Rate limit no separator, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
+// 			time.Sleep(time.Duration(retryAfter) * time.Second)
+// 			continue
+// 		}
+
+// 		log.Printf("❌ Erro ao enviar separator: %v", err)
+// 		return err
+// 	}
+
+// 	return fmt.Errorf("falha após %d tentativas no envio do separator", maxRetries)
+// }
+
+// Envia o separador independentemente de CanEdit/CanAddButtons; suprime apenas no início de álbum de áudio.
+// Use esta função no Handler após enfileirar a mensagem; o finalizador de grupo enviará no fim do álbum.
 func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmodels.Channel, post *models.Message) error {
-	if channel.Separator == nil || channel.Separator.SeparatorID == "" {
-		log.Printf("⚠️ Separator não configurado para canal %d", channel.ID)
+	if channel == nil || channel.Separator == nil || channel.Separator.SeparatorID == "" {
+		log.Printf("⚠️ Separator não configurado para o canal")
 		return nil
 	}
 
-	// SUPRESSÃO: se for áudio em grupo, não enviar separator aqui.
-	// O finalizador do grupo de áudio deve ser o único ponto a enviar o separator.
+	// Suprime no início do álbum de áudio: deixa para o finalizador do grupo
 	if post != nil && post.MediaGroupID != "" && post.Audio != nil {
-		log.Printf("ℹ️ Separator suprimido no início de álbum de áudio (groupID=%s)", post.MediaGroupID)
+		log.Printf("ℹ️ Separator suprimido no início do álbum de áudio (groupID=%s)", post.MediaGroupID)
 		return nil
 	}
 
+	// Determinar chat alvo
 	var chatID int64
 	if post != nil {
 		chatID = post.Chat.ID
 	} else {
-		chatID = channel.ID // Fallback para casos sem post (garanta que faz sentido no seu fluxo)
+		chatID = channel.ID
 	}
+
+	// Contexto próprio com timeout
+	sendCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
 	log.Printf("🔄 Enviando separator para chat %d", chatID)
 
-	// ✅ RETRY COM BACKOFF PARA SEPARATORS
 	maxRetries := 2
 	baseDelay := 2 * time.Second
 
 	for attempt := 0; attempt < maxRetries; attempt++ {
-		_, err := mp.bot.SendSticker(ctx, &bot.SendStickerParams{
+		_, err := mp.bot.SendSticker(sendCtx, &bot.SendStickerParams{
 			ChatID:  chatID,
 			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 		})
-
 		if err == nil {
 			log.Printf("✅ Separator enviado com sucesso para chat %d", chatID)
 			return nil
 		}
 
-		// Verificar rate limit (429)
-		if strings.Contains(err.Error(), "Too Many Requests") {
+		lower := strings.ToLower(err.Error())
+		if strings.Contains(lower, "too many requests") || strings.Contains(lower, "429") {
 			retryAfter := extractRetryAfter(err.Error())
-			if retryAfter == 0 {
+			if retryAfter <= 0 {
 				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
 			}
 			log.Printf("⏳ Rate limit no separator, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
