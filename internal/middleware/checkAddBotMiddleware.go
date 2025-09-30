@@ -7,42 +7,45 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
-func CheckAddBotMiddleware(next bot.HandlerFunc) bot.HandlerFunc {
-	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("Error in permission middleware: %v", r)
-				return
-			}
-		}()
+func CheckAddBotMiddleware(c *container.AppContainer) func(next bot.HandlerFunc) bot.HandlerFunc {
+	return func(next bot.HandlerFunc) bot.HandlerFunc {
+		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("Error in permission middleware: %v", r)
+					return
+				}
+			}()
 
-		if update.MyChatMember != nil {
-			if !handleMyChatMember(ctx, b, update.MyChatMember) {
+			if update.MyChatMember != nil {
+				if !handleMyChatMember(ctx, b, update.MyChatMember, c) {
+					return
+				}
+				next(ctx, b, update)
 				return
 			}
-			next(ctx, b, update)
-			return
+
+			// Verificar mensagem encaminhada com verificações de nil adequadas
+			if update.Message != nil &&
+				update.Message.ForwardOrigin != nil &&
+				update.Message.ForwardOrigin.MessageOriginChannel != nil {
+				if !handleForwardedMessage(ctx, b, update.Message) {
+					return
+				}
+				next(ctx, b, update)
+				return
+			}
+
+			log.Printf("Update not related to my_chat_member or valid forwarded channel. Ignoring.")
 		}
-
-		// Verificar mensagem encaminhada com verificações de nil adequadas
-		if update.Message != nil &&
-			update.Message.ForwardOrigin != nil &&
-			update.Message.ForwardOrigin.MessageOriginChannel != nil {
-			if !handleForwardedMessage(ctx, b, update.Message) {
-				return
-			}
-			next(ctx, b, update)
-			return
-		}
-
-		log.Printf("Update not related to my_chat_member or valid forwarded channel. Ignoring.")
 	}
 }
 
-func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.ChatMemberUpdated) bool {
+func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.ChatMemberUpdated, c *container.AppContainer) bool {
 	if chatMember == nil {
 		log.Printf("ChatMemberUpdated is nil")
 		return false
@@ -76,6 +79,17 @@ func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.Chat
 
 	if newStatus == "left" || newStatus == "kicked" {
 		log.Printf("Bot was removed from channel %d. Skipping.", chatId)
+
+		channel, err := c.ChannelRepo.GetChannelByID(ctx, chatId)
+		if err != nil {
+			log.Printf("Canal nao Encontrado: %v", err)
+		}
+
+		err = c.ChannelRepo.DeleteChannelWithRelations(ctx, channel.OwnerID, chatId)
+		if err != nil {
+			log.Printf("Erro ao remover canal: %v", err)
+		}
+
 		return false
 	}
 
