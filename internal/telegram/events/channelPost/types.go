@@ -33,7 +33,7 @@ const (
 	CacheTTL          = 5 * time.Minute
 )
 
-// ✅ CORRIGIDO: Estruturas thread-safe
+// ✅ Estruturas thread-safe
 type MediaGroupInfo struct {
 	Messages           []MediaMessage
 	Processed          bool
@@ -45,6 +45,7 @@ type MediaGroupInfo struct {
 
 type MediaMessage struct {
 	MessageID       int
+	FileID          string
 	HasCaption      bool
 	Caption         string
 	CaptionEntities []interface{}
@@ -54,7 +55,7 @@ type ProcessedGroup struct {
 	Timestamp time.Time
 }
 
-// ✅ CORRIGIDO: Manager thread-safe para media groups
+// ✅ Manager thread-safe para media groups
 type MediaGroupManager struct {
 	groups          sync.Map // string -> *MediaGroupInfo
 	processedGroups sync.Map // string -> ProcessedGroup
@@ -63,20 +64,16 @@ type MediaGroupManager struct {
 
 func NewMediaGroupManager() *MediaGroupManager {
 	mgm := &MediaGroupManager{}
-
 	// Cleanup automático
 	go mgm.cleanupRoutine()
-
 	return mgm
 }
 
 func (mgm *MediaGroupManager) cleanupRoutine() {
 	ticker := time.NewTicker(CleanupTimeout)
 	defer ticker.Stop()
-
 	for range ticker.C {
 		now := time.Now()
-
 		// Limpar grupos processados antigos
 		mgm.processedGroups.Range(func(key, value interface{}) bool {
 			if group, ok := value.(ProcessedGroup); ok {
