@@ -21,7 +21,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 	defer stop()
 
 	app := container.NewAppContainer(db)
-	router := gin.Default()
+	router := gin.New()
 
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
