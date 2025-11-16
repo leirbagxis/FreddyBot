@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 
-	"github.com/joho/godotenv"
 	"github.com/leirbagxis/FreddyBot/internal/api"
 	"github.com/leirbagxis/FreddyBot/internal/database"
 	"github.com/leirbagxis/FreddyBot/internal/telegram"
@@ -15,9 +14,6 @@ import (
 // Send any text message to the bot after the bot has been started
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("⚠️  .env não encontrado")
-	}
 
 	db := database.InitDB()
 
