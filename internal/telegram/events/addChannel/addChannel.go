@@ -10,6 +10,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -246,18 +247,19 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Tentar adicionar reação (não crítico se falhar)
-		sucess, err := b.SetMessageReaction(ctx, reactionParams)
+		_, err = b.SetMessageReaction(ctx, reactionParams)
 		if err != nil {
 			log.Printf("Aviso: Não foi possível adicionar reação: %v", err)
 			// Não retornar erro, apenas logar
 		}
-		fmt.Println(sucess)
 
 		// Responder ao callback
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: callback.ID,
 			Text:            "✅ Canal adicionado com sucesso!",
 		})
+
+		logs.LogAdmin(ctx, b, channel)
 
 	}
 }
