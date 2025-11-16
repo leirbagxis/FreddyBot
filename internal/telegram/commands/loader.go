@@ -29,6 +29,9 @@ func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/send", bot.MatchTypePrefix, admin.SendMessageToIdHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/add", bot.MatchTypePrefix, admin.AddChannelCommandHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
 
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/allusers", bot.MatchTypeExact, admin.NoticeUsersReplyHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/allchannels", bot.MatchTypeExact, admin.NoticeChannelsReplyHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))
+
 }
 
 func matchAdmin(update *models.Update) bool {
