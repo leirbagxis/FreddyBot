@@ -41,3 +41,32 @@ func (app *AppContainerLocal) UpdateDefaultCaptionService(ctx context.Context, c
 		},
 	}, nil
 }
+
+func (app *AppContainerLocal) UpdateNewPackCaptionService(ctx context.Context, channelID int64, captionData types.CaptionDefaultUpdateRequest) (*types.CaptionUpdateResponse, error) {
+	if len(captionData.Caption) > 4096 {
+		return nil, errors.New("Caption muito longa (máximo 4096 caracteres)")
+	}
+
+	now := time.Now()
+	result := app.DB.Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Updates(map[string]interface{}{
+			"NewPackCaption": captionData.Caption,
+			"updated_at":     now,
+		})
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("erro ao atualizar legenda padrão: %w", result.Error)
+	}
+
+	fmt.Println("✅ NewPackCaption atualizada com sucesso")
+
+	return &types.CaptionUpdateResponse{
+		Success: true,
+		Message: "NewPackCaption atualizada com sucesso",
+		Data: map[string]interface{}{
+			"rows_affected": result.RowsAffected,
+			"updated_at":    now,
+		},
+	}, nil
+}
