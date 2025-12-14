@@ -26,6 +26,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.GET("/channel/:channelId", handlers.GetChannelHandler(c))
 
 		api.PUT("/channel/:channelId/caption", captionController.UpdateDefaultCaptionController)
+		api.PUT("/channel/:channelId/newpackcaption", captionController.UpdateNewPackCaptionController)
 		api.PUT("/channel/:channelId/caption/permissions", permissionsController.UpdateMessagePermissionController)
 		api.PUT("/channel/:channelId/buttons/permissions", permissionsController.UpdateButtonsPermissionController)
 

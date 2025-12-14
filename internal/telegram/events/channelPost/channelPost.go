@@ -137,6 +137,15 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		handled, err := processor.TryHandleNewPack(dbCtx, *channel, *post)
+		if err != nil {
+			log.Printf("Erro no fluxo newpack canal %d: %v", chat.ID, err)
+			return
+		}
+		if handled {
+			return
+		}
+
 		// Atualizar info básica e primeiro botão em background
 		go func() {
 			updateCtx, updateCancel := context.WithTimeout(context.Background(), 20*time.Second)
