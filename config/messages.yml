@@ -13,6 +13,8 @@
   type: callback
   text: "<b>📊 Informações da Conta</b>\n\n👤 <b>Usuário:</b> {firstName}\n🆔 <b>ID:</b> <code>{userId}</code>\n📆 <b>Registrado em:</b> {register}\n\n📡 <b>Canais Vinculados:</b> {countChannel}\n\n⚙️ Gerencie suas configurações e acompanhe os canais vinculados pelo menu abaixo!"
   buttons:
+    - - text: "👑 Assinatura VIP"
+        callback_data: "subscribe-premium"
     - - text: "📝 Meus Canais"
         callback_data: "profile-user-channels"
       - text: "🏠 Início"
@@ -82,6 +84,14 @@
       - text: "🏠 Início"
         callback_data: "start"
 
+- name: toadd-payment-require-message
+  text: "ℹ️ Atenção, {firstName}\n\nVocê atingiu o limite de canais gratuitos cadastrados.\n\nPara continuar e cadastrar este canal, é necessário realizar o pagamento.\n\n👇 Use o botão abaixo para prosseguir."
+  buttons:
+    - - text: "⭐ Ativar este canal"
+        callback_data: "pay-activate-channel:{sessionKey}"
+    - - text: "❌ | Cancelar"
+        callback_data: "add-not:{sessionKey}"
+        
 - name: toadd-require-message
   text: "<b>❔ Confirmação necessária, {firstName}</b>\n\n<b><i>Você realmente deseja vincular o seguinte canal ao bot?</i></b>\n\n<blockquote>📌 <b>Canal:</b> <i>{channelName}</i>\n🔗 <b>ID:</b> <code>{channelId}</code></blockquote>\n\n✅ Se sim, clique em <b>Confirmar</b> para prosseguir.\n❌ Caso contrário, clique em <b>Cancelar</b>.\n\n⚠️ <i>Após a confirmação, o bot começará a gerenciar as legendas automáticas neste canal.</i>"
   buttons:

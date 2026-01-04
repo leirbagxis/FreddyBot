@@ -2,7 +2,6 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/controllers"
 	"github.com/leirbagxis/FreddyBot/internal/api/handlers"
 	"github.com/leirbagxis/FreddyBot/internal/container"
@@ -19,8 +18,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	permissionsController := controllers.NewPermissionController(c)
 	customCaptionController := controllers.NewCustomCaptionController(c)
 	separatorController := controllers.NewSeparatorController(c)
+	//auth.AuthMiddlewareJWT()
 
-	api.Use(auth.AuthMiddlewareJWT())
+	api.Use()
 	{
 		api.GET("/ping", handlers.PingHandler(c))
 		api.GET("/channel/:channelId", handlers.GetChannelHandler(c))

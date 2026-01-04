@@ -9,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/middleware"
 	addchannel "github.com/leirbagxis/FreddyBot/internal/telegram/events/addChannel"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/modules"
 )
 
 func LoadEvents(b *bot.Bot, c *container.AppContainer) {
@@ -16,6 +17,12 @@ func LoadEvents(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandlerMatchFunc(matchForwardedChannel, addchannel.AskForwadedChannelHandler(c), middleware.CheckAddBotMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "add-yes:", bot.MatchTypePrefix, addchannel.AddYesHandler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "add-not:", bot.MatchTypePrefix, addchannel.AddNotHandler(c))
+
+	//b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "pay-activate-channel:", bot.MatchTypePrefix, addchannel.AddNotHandler(c))
+
+	// ### PAYMENT ### \\
+	b.RegisterHandlerMatchFunc(matchPreCheckout, modules.PreCheckoutHandler(c))
+	b.RegisterHandlerMatchFunc(matchSuccessfulPaymentChannel, modules.SuccessfulPaymentChannel(c))
 
 	// ## CHANNEL POST ## \\
 	b.RegisterHandlerMatchFunc(matchChannelPost, channelpost.Handler(c))
@@ -33,4 +40,14 @@ func matchForwardedChannel(update *models.Update) bool {
 
 func matchChannelPost(update *models.Update) bool {
 	return update.ChannelPost != nil
+}
+
+// pre checkout
+func matchPreCheckout(update *models.Update) bool {
+	return update.PreCheckoutQuery != nil
+}
+
+// payment successful
+func matchSuccessfulPaymentChannel(update *models.Update) bool {
+	return update.Message != nil && update.Message.SuccessfulPayment != nil
 }

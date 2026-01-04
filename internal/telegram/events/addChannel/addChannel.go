@@ -11,6 +11,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/modules"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -112,6 +113,15 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 		data["sessionKey"] = session.Key
+
+		countChannel, _ := c.ChannelRepo.CountUserChannels(ctx, from.ID)
+		if countChannel >= 1 {
+			text, _ := parser.GetMessage("toadd-payment-require-message", data)
+
+			modules.SendChannelActivationPayment(ctx, b, from.ID, update.Message.ID, session.Key, text)
+
+			return
+		}
 
 		text, button := parser.GetMessage("toadd-require-message", data)
 		b.SendMessage(ctx, &bot.SendMessageParams{
