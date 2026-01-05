@@ -116,10 +116,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		countChannel, _ := c.ChannelRepo.CountUserChannels(ctx, from.ID)
 		if countChannel >= 1 {
-			text, _ := parser.GetMessage("toadd-payment-require-message", data)
-
-			modules.SendChannelActivationPayment(ctx, b, from.ID, update.Message.ID, session.Key, text)
-
+			modules.SendChannelActivationPayment(ctx, b, update, c, session.Key)
 			return
 		}
 

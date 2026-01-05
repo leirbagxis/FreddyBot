@@ -85,10 +85,12 @@
         callback_data: "start"
 
 - name: toadd-payment-require-message
-  text: "ℹ️ Atenção, {firstName}\n\nVocê atingiu o limite de canais gratuitos cadastrados.\n\nPara continuar e cadastrar este canal, é necessário realizar o pagamento.\n\n👇 Use o botão abaixo para prosseguir."
+  text: "ℹ️ Atenção, {firstName}!!\n\nVocê atingiu o limite de canais gratuitos cadastrados.\n\nPara continuar e cadastrar este canal, é necessário realizar o pagamento.\n\n👇 Use o botão abaixo para prosseguir."
   buttons:
-    - - text: "⭐ Ativar este canal"
-        callback_data: "pay-activate-channel:{sessionKey}"
+    - - text: "⭐ Pagar {value} Stars"
+        pay: true
+    - - text: "🎟️ Usar cupom"
+        callback_data: "coupon-enter:{sessionKey}"
     - - text: "❌ | Cancelar"
         callback_data: "add-not:{sessionKey}"
         

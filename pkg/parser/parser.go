@@ -18,6 +18,7 @@ type Button struct {
 	URL                          string `yaml:"url,omitempty"`
 	WebApp                       string `yaml:"web_app,omitempty"`
 	SwitchInlineQueryCurrentChat string `yaml:"switch_inline_query_current_chat,omitempty"`
+	Pay                          bool   `yaml:"pay,omitempty"`
 }
 
 type Message struct {
@@ -108,6 +109,7 @@ func parseButtons(buttons [][]Button, vars map[string]string) [][]Button {
 				WebApp:                       ParseText(btn.WebApp, vars, detectPlaceholders(btn.WebApp)),
 				SwitchInlineQuery:            ParseText(btn.SwitchInlineQuery, vars, detectPlaceholders(btn.SwitchInlineQuery)),
 				SwitchInlineQueryCurrentChat: ParseText(btn.SwitchInlineQueryCurrentChat, vars, detectPlaceholders(btn.SwitchInlineQueryCurrentChat)),
+				Pay:                          btn.Pay,
 			}
 		}
 		parsed[i] = newRow
@@ -130,6 +132,7 @@ func BuildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
 				URL:                          btn.URL,
 				SwitchInlineQuery:            btn.SwitchInlineQuery,
 				SwitchInlineQueryCurrentChat: btn.SwitchInlineQueryCurrentChat,
+				Pay:                          btn.Pay,
 				WebApp: &models.WebAppInfo{
 					URL: btn.WebApp,
 				},

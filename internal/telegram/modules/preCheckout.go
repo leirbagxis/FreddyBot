@@ -36,7 +36,7 @@ func PreCheckoutHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		b.AnswerPreCheckoutQuery(ctx, &bot.AnswerPreCheckoutQueryParams{
 			PreCheckoutQueryID: query.ID,
-			OK:                 true,
+			OK:                 false,
 		})
 	}
 }

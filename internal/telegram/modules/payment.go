@@ -13,47 +13,73 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+
+	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
 func SendChannelActivationPayment(
 	ctx context.Context,
 	b *bot.Bot,
-	userID int64,
-	messageID int,
-	sessionKey,
-	description string,
+	update *models.Update,
+	c *container.AppContainer,
+	sessionKey string,
 ) {
+
+	getSession, err := c.SessionManager.GetChannelSession(ctx, sessionKey)
+	if err != nil {
+		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+			CallbackQueryID: update.CallbackQuery.ID,
+			Text:            "⌛ Tempo Esgotado. Faça o processo novamente!",
+			ShowAlert:       true,
+		})
+		return
+	}
+
+	getPrice, _ := c.PaymentService.GetPricePlan(ctx, "add_to_channel_fee")
+	price := getPrice.Amount
+
+	payment := dbmodels.Payment{
+		UserID:  getSession.OwnerID,
+		Amount:  int(price),
+		Payload: sessionKey,
+	}
+	_, err = c.PaymentService.CreateNewPayment(ctx, payment)
+	if err != nil {
+		log.Fatal("Erro ao criar pagamento: %w", err.Error())
+		return
+	}
+
+	user, err := b.GetChat(ctx, &bot.GetChatParams{
+		ChatID: getSession.OwnerID,
+	})
+	if err != nil {
+		log.Printf("Erro ao buscar usuário: %v", err)
+		b.SendMessage(ctx, &bot.SendMessageParams{ChatID: getSession.OwnerID, Text: "❌ Erro ao buscar informações do usuário."})
+		return
+	}
+
+	data := map[string]string{
+		"firstName": user.FirstName,
+		"value":     fmt.Sprintf("%d", price),
+	}
+
+	text, button := parser.GetMessage("toadd-payment-require-message", data)
 	b.SendInvoice(ctx, &bot.SendInvoiceParams{
-		ChatID:      userID,
+		ChatID:      getSession.OwnerID,
 		Title:       "🔓 Liberar cadastro",
-		Description: description,
+		Description: text,
 		Payload:     "active-pay-channel:" + sessionKey,
 		Currency:    "XTR",
 		Prices: []models.LabeledPrice{
 			{
 				Label:  "Ativação do canal",
-				Amount: 1,
+				Amount: int(price),
 			},
 		},
 		ReplyParameters: &models.ReplyParameters{
-			MessageID: messageID,
+			MessageID: update.Message.ID,
 		},
-		ReplyMarkup: &models.InlineKeyboardMarkup{
-			InlineKeyboard: [][]models.InlineKeyboardButton{
-				{
-					{
-						Text: "⭐ Pagar 1 Stars",
-						Pay:  true,
-					},
-				},
-				{
-					{
-						Text:         "Cancelar",
-						CallbackData: "add-not:" + sessionKey,
-					},
-				},
-			},
-		},
+		ReplyMarkup: button,
 	})
 }
 
@@ -199,146 +225,3 @@ func SuccessfulPaymentChannel(c *container.AppContainer) bot.HandlerFunc {
 		logs.LogAdmin(ctx, b, channel)
 	}
 }
-
-// func SuccessfulPaymentChannel(c *container.AppContainer) bot.HandlerFunc {
-// 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-// 		botInfo, _ := b.GetMe(ctx)
-// 		msg := update.Message
-// 		payment := msg.SuccessfulPayment
-// 		payload := payment.InvoicePayload
-// 		from := msg.From
-
-// 		parts := strings.Split(payload, ":")
-// 		if len(parts) != 2 {
-// 			log.Println("Callback invalido:", payload)
-// 			return
-// 		}
-
-// 		getSession, err := c.SessionManager.GetChannelSession(ctx, parts[1])
-// 		if err != nil || getSession == nil {
-// 			log.Printf("Pagamento recebido com sessão inválida. Payload=%s User=%d",
-// 				parts[1],
-// 				msg.From.ID,
-// 			)
-
-// 			b.SendMessage(ctx, &bot.SendMessageParams{
-// 				ChatID: msg.Chat.ID,
-// 				Text: "⚠️ O pagamento foi confirmado, mas a solicitação expirou.\n" +
-// 					"Entre em contato com o suporte para regularizar.\n\n" +
-// 					"ID: " + parts[1],
-// 			})
-
-// 			return
-// 		}
-
-// 		// 🧹 Limpa a sessão (evita replay)
-// 		_ = c.SessionManager.DeleteChannelSession(ctx, parts[1])
-
-// 		channelInfo, err := b.GetChat(ctx, &bot.GetChatParams{
-// 			ChatID: getSession.ChannelID,
-// 		})
-// 		if err != nil {
-// 			log.Printf("Erro ao obter info do canal: %v", err)
-// 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-// 				CallbackQueryID: update.CallbackQuery.ID,
-// 				Text:            "❌ Erro ao obter informações do canal!",
-// 				ShowAlert:       true,
-// 			})
-// 			return
-// 		}
-
-// 		inviteURL := channelInfo.InviteLink
-// 		if channelInfo.Username != "" {
-// 			inviteURL = fmt.Sprintf("t.me/%s", channelInfo.Username)
-// 		}
-
-// 		// Gerar newPackCaption
-// 		newPackCaption := fmt.Sprintf(`╔═━──━═༻✧༺═━──━═╗
-
-//         𖦹⁠⁠⁠ ࣪ ⭑ ᥫ᭡
-//         (｡•́︿•̀｡)っ✧.*ೃ༄
-//         ˗ˏˋ [$title]($link) ⋆｡˚ ☁︎
-//             彡♡ ₊˚
-
-// ⋆｡˚ ❀ @%s ☽⁺₊
-
-// ╚═━──━═༻✧༺═━──━═╝`, botInfo.Username)
-
-// 		defaultCaption := fmt.Sprintf("➽ 𝐛𝐲 @%s", botInfo.Username)
-
-// 		channel, err := c.ChannelRepo.CreateChannelWithDefaults(
-// 			ctx,
-// 			getSession.ChannelID,
-// 			getSession.Title,
-// 			inviteURL,
-// 			newPackCaption,
-// 			defaultCaption,
-// 			getSession.OwnerID,
-// 		)
-// 		if err != nil {
-// 			log.Printf("Erro ao criar canal: %v", err)
-// 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-// 				CallbackQueryID: callback.ID,
-// 				Text:            "❌ Erro ao criar canal!",
-// 				ShowAlert:       true,
-// 			})
-// 			return
-// 		}
-
-// 		userID := fmt.Sprintf("%d", from.ID)
-// 		channelID := fmt.Sprintf("%d", channel.ID)
-
-// 		data := map[string]string{
-// 			"firstName":   utils.RemoveHTMLTags(from.FirstName),
-// 			"botId":       fmt.Sprintf("%d", botInfo.ID),
-// 			"channelName": utils.RemoveHTMLTags(channel.Title),
-// 			"channelId":   fmt.Sprintf("%d", channel.ID),
-// 			"miniAppUrl":  auth.GenerateMiniAppUrl(userID, channelID),
-// 		}
-
-// 		text, button := parser.GetMessage("toadd-success-message", data)
-
-// 		editMsg, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
-// 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
-// 			MessageID:   update.CallbackQuery.Message.Message.ID,
-// 			Text:        text,
-// 			ReplyMarkup: button,
-// 			ParseMode:   "HTML",
-// 		})
-// 		if err != nil {
-// 			log.Printf("Erro ao editar mensagem: %v", err)
-// 			return
-// 		}
-
-// 		// CORREÇÃO: Adicionar reação de forma correta
-// 		reactionParams := &bot.SetMessageReactionParams{
-// 			ChatID:    editMsg.Chat.ID,
-// 			MessageID: editMsg.ID,
-// 			Reaction: []models.ReactionType{
-// 				{
-// 					Type: "emoji",
-// 					ReactionTypeEmoji: &models.ReactionTypeEmoji{
-// 						Type:  "emoji",
-// 						Emoji: "🎉",
-// 					},
-// 				},
-// 			},
-// 			IsBig: bot.True(),
-// 		}
-
-// 		// Tentar adicionar reação (não crítico se falhar)
-// 		_, err = b.SetMessageReaction(ctx, reactionParams)
-// 		if err != nil {
-// 			log.Printf("Aviso: Não foi possível adicionar reação: %v", err)
-// 			// Não retornar erro, apenas logar
-// 		}
-
-// 		// Responder ao callback
-// 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-// 			CallbackQueryID: callback.ID,
-// 			Text:            "✅ Canal adicionado com sucesso!",
-// 		})
-
-// 		logs.LogAdmin(ctx, b, channel)
-// 	}
-// }
