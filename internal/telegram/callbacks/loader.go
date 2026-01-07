@@ -9,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/about"
 	claimchannel "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/claimChannel"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/coupon"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/help"
 	mychannel "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/my_channel"
 	profileinfo "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/profile_info"
@@ -46,6 +47,10 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername st
 
 	b.RegisterHandlerMatchFunc(matchAwaitClaimOwner, claimchannel.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "accept.claim:", bot.MatchTypePrefix, claimchannel.AcceptClaimHandler(c))
+
+	// COUPON REQUIRE
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "coupon-enter:", bot.MatchTypePrefix, coupon.AskCouponHandler(c))
+	b.RegisterHandlerMatchFunc(matchAwaitingCoupon, coupon.CheckCouponHandler(c))
 }
 
 func matchAwaitingSticker(update *models.Update) bool {
@@ -65,4 +70,9 @@ func matchAwaitingNewOwner(update *models.Update) bool {
 
 func matchAwaitClaimOwner(update *models.Update) bool {
 	return update.InlineQuery != nil
+}
+
+func matchAwaitingCoupon(update *models.Update) bool {
+	fmt.Println("Checking Coupon: ", update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Text != "")
+	return update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Text != ""
 }

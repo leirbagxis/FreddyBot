@@ -84,15 +84,6 @@
       - text: "🏠 Início"
         callback_data: "start"
 
-- name: toadd-payment-require-message
-  text: "ℹ️ Atenção, {firstName}!!\n\nVocê atingiu o limite de canais gratuitos cadastrados.\n\nPara continuar e cadastrar este canal, é necessário realizar o pagamento.\n\n👇 Use o botão abaixo para prosseguir."
-  buttons:
-    - - text: "⭐ Pagar {value} Stars"
-        pay: true
-    - - text: "🎟️ Usar cupom"
-        callback_data: "coupon-enter:{sessionKey}"
-    - - text: "❌ | Cancelar"
-        callback_data: "add-not:{sessionKey}"
         
 - name: toadd-require-message
   text: "<b>❔ Confirmação necessária, {firstName}</b>\n\n<b><i>Você realmente deseja vincular o seguinte canal ao bot?</i></b>\n\n<blockquote>📌 <b>Canal:</b> <i>{channelName}</i>\n🔗 <b>ID:</b> <code>{channelId}</code></blockquote>\n\n✅ Se sim, clique em <b>Confirmar</b> para prosseguir.\n❌ Caso contrário, clique em <b>Cancelar</b>.\n\n⚠️ <i>Após a confirmação, o bot começará a gerenciar as legendas automáticas neste canal.</i>"
@@ -230,3 +221,22 @@
   buttons:
     - - text: "🏠 Início"
         callback_data: "start"
+
+
+- name: toadd-payment-require-message
+  text: "ℹ️ Atenção, {firstName}!!\n\nVocê atingiu o limite de canais gratuitos cadastrados.\n\nPara continuar e cadastrar este canal, é necessário realizar o pagamento.\n\n👇 Use o botão abaixo para prosseguir."
+  buttons:
+    - - text: "⭐ Pagar {value} Stars"
+        pay: true
+    - - text: "🎟️ Usar cupom"
+        callback_data: "coupon-enter:{sessionKey}"
+    - - text: "❌ | Cancelar Pagamento"
+        callback_data: "cancel-pay:{sessionKey}"
+
+- name: coupon-required-message
+  text: |
+    <b>🎟️ Cupom de desconto, {firstName}</b>
+
+    Se você tiver um cupom, envie o código agora neste chat.
+
+    <i>Caso contrário, é só prosseguir com o pagamento normalmente.</i>

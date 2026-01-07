@@ -13,8 +13,6 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
-
-	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
 func SendChannelActivationPayment(
@@ -35,17 +33,9 @@ func SendChannelActivationPayment(
 		return
 	}
 
-	getPrice, _ := c.PaymentService.GetPricePlan(ctx, "add_to_channel_fee")
-	price := getPrice.Amount
-
-	payment := dbmodels.Payment{
-		UserID:  getSession.OwnerID,
-		Amount:  int(price),
-		Payload: sessionKey,
-	}
-	_, err = c.PaymentService.CreateNewPayment(ctx, payment)
+	payment, err := c.PaymentService.GetPaymentWithPayload(ctx, sessionKey)
 	if err != nil {
-		log.Fatal("Erro ao criar pagamento: %w", err.Error())
+		log.Fatal("Erro ao consultar pagamento: %w", err.Error())
 		return
 	}
 
@@ -59,8 +49,9 @@ func SendChannelActivationPayment(
 	}
 
 	data := map[string]string{
-		"firstName": user.FirstName,
-		"value":     fmt.Sprintf("%d", price),
+		"firstName":  user.FirstName,
+		"value":      fmt.Sprintf("%d", payment.Amount),
+		"sessionKey": sessionKey,
 	}
 
 	text, button := parser.GetMessage("toadd-payment-require-message", data)
@@ -73,7 +64,7 @@ func SendChannelActivationPayment(
 		Prices: []models.LabeledPrice{
 			{
 				Label:  "Ativação do canal",
-				Amount: int(price),
+				Amount: int(payment.Amount),
 			},
 		},
 		ReplyParameters: &models.ReplyParameters{

@@ -16,9 +16,11 @@ type Payment struct {
 	ID        string `gorm:"primaryKey"`
 	UserID    int64  `gorm:"index"`
 	Amount    int
-	Payload   string  `gorm:"uniqueIndex"`
-	CouponID  *string `gorm:"default:nil"`
-	Status    string  `gorm:"default:pending"`
+	Payload   string `gorm:"uniqueIndex"`
+	CouponID  *string
+	Status    string `gorm:"default:pending"`
 	CreatedAt time.Time
 	PaidAt    *time.Time
 }
+
+//`gorm:"default:nil"`

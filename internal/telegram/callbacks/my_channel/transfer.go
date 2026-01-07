@@ -109,7 +109,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channelId, err := c.CacheService.GetTransferChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao buscar cache sticker: %v", err)
+			log.Printf("Erro ao buscar cache Transfer: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",

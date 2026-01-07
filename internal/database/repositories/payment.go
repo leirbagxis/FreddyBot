@@ -36,10 +36,7 @@ func (r *PaymentRepository) GetPricePlan(ctx context.Context, key string) (*mode
 	return &cfg, nil
 }
 
-func (r *PaymentRepository) CreateNewPayment(
-	ctx context.Context,
-	payload models.Payment,
-) (*models.Payment, error) {
+func (r *PaymentRepository) CreateNewPayment(ctx context.Context, payload models.Payment) (*models.Payment, error) {
 
 	p := models.Payment{
 		ID:        uuid.NewString(),
@@ -54,4 +51,32 @@ func (r *PaymentRepository) CreateNewPayment(
 	}
 
 	return &p, nil
+}
+
+func (r *PaymentRepository) GetPaymentWithPayload(ctx context.Context, payload string) (*models.Payment, error) {
+	var payment models.Payment
+
+	if err := r.db.WithContext(ctx).Where("payload = ?", payload).First(&payment).Error; err != nil {
+		return nil, err
+	}
+
+	return &payment, nil
+}
+
+func (r *PaymentRepository) CancelPayment(ctx context.Context, userID int64, payload string) error {
+	var payment models.Payment
+	if err := r.db.WithContext(ctx).
+		Where("user_id = ? AND payload = ?", userID, payload).
+		First(&payment).Error; err != nil {
+		return err
+	}
+
+	if err := r.db.WithContext(ctx).
+		Model(&models.Payment{}).
+		Where("user_id = ? AND payload = ?", userID, payload).
+		Update("status", "canceled").Error; err != nil {
+		return err
+	}
+
+	return nil
 }

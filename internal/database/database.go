@@ -30,6 +30,9 @@ func InitDB() *gorm.DB {
 		// payment
 		&models.PriceConfig{},
 		&models.Payment{},
+
+		&models.Coupon{},
+		&models.CouponUsage{},
 	)
 	if err != nil {
 		panic(err)

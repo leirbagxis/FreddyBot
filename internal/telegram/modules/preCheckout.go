@@ -24,6 +24,16 @@ func PreCheckoutHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		payment, err := c.PaymentService.GetPaymentWithPayload(ctx, parts[1])
+		if err != nil || payment.Status == "canceled" {
+			b.AnswerPreCheckoutQuery(ctx, &bot.AnswerPreCheckoutQueryParams{
+				PreCheckoutQueryID: query.ID,
+				ErrorMessage:       "❌ Este pagamento foi cancelado automaticamente.",
+				OK:                 false,
+			})
+			return
+		}
+
 		session, err := c.SessionManager.GetChannelSession(ctx, parts[1])
 		if err != nil || session == nil {
 			b.AnswerPreCheckoutQuery(ctx, &bot.AnswerPreCheckoutQueryParams{
@@ -36,7 +46,7 @@ func PreCheckoutHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		b.AnswerPreCheckoutQuery(ctx, &bot.AnswerPreCheckoutQueryParams{
 			PreCheckoutQueryID: query.ID,
-			OK:                 false,
+			OK:                 true,
 		})
 	}
 }

@@ -23,6 +23,7 @@ func LoadEvents(b *bot.Bot, c *container.AppContainer) {
 	// ### PAYMENT ### \\
 	b.RegisterHandlerMatchFunc(matchPreCheckout, modules.PreCheckoutHandler(c))
 	b.RegisterHandlerMatchFunc(matchSuccessfulPaymentChannel, modules.SuccessfulPaymentChannel(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "cancel-pay:", bot.MatchTypePrefix, modules.CancelPayment(c))
 
 	// ## CHANNEL POST ## \\
 	b.RegisterHandlerMatchFunc(matchChannelPost, channelpost.Handler(c))

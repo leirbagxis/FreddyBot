@@ -14,6 +14,8 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/modules"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+
+	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
 func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
@@ -116,6 +118,20 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		countChannel, _ := c.ChannelRepo.CountUserChannels(ctx, from.ID)
 		if countChannel >= 1 {
+			getPrice, _ := c.PaymentService.GetPricePlan(ctx, "add_to_channel_fee")
+			price := getPrice.Amount
+
+			payment := dbmodels.Payment{
+				UserID:  from.ID,
+				Amount:  int(price),
+				Payload: session.Key,
+			}
+			_, err = c.PaymentService.CreateNewPayment(ctx, payment)
+			if err != nil {
+				log.Fatal("Erro ao criar pagamento: %w", err.Error())
+				return
+			}
+
 			modules.SendChannelActivationPayment(ctx, b, update, c, session.Key)
 			return
 		}
@@ -293,6 +309,7 @@ func AddNotHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		c.SessionManager.DeleteChannelSession(ctx, parts[1])
+		c.CacheService.DeleteAwaitingCoupon(ctx, callback.From.ID)
 
 		data := map[string]string{}
 

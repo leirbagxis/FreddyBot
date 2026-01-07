@@ -19,6 +19,7 @@ type AppContainer struct {
 
 	// ### PAYMENT ## \\
 	PaymentService *repositories.PaymentRepository
+	CouponService  *repositories.CouponRepository
 }
 
 func NewAppContainer(db *gorm.DB) *AppContainer {
@@ -34,5 +35,6 @@ func NewAppContainer(db *gorm.DB) *AppContainer {
 		SessionManager: cache.NewSessionManager(cacheService),
 
 		PaymentService: repositories.NewPaymentRepository(db),
+		CouponService:  repositories.NewCouponRepository(db),
 	}
 }

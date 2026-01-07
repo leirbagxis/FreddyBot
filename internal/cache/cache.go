@@ -193,6 +193,38 @@ func (s *Service) GetTransferChannel(ctx context.Context, userID int64) (int64, 
 	return channelID, nil
 }
 
+// ### COUPON CHANNEL ## \\
+
+func (s *Service) SetAwaitingCoupon(ctx context.Context, userID int64, sessionKey string) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("awaiting_coupon:%d", userID)
+	return client.Set(ctx, key, sessionKey, 5*time.Minute).Err()
+}
+
+func (s *Service) GetAwaitingCoupon(ctx context.Context, userID int64) (string, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("awaiting_coupon:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return "", fmt.Errorf("session not found or expired")
+		}
+		return "", fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	return data, nil
+}
+
+func (s *Service) DeleteAwaitingCoupon(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("awaiting_coupon:%d", userID)
+
+	return client.Del(ctx, key).Err()
+}
+
 // ### DELETE ALL SESSIONS ### \\\
 func (s *Service) DeleteAllUserSessionsBySuffix(ctx context.Context, userID int64) (int64, error) {
 	client := GetRedisClient()
