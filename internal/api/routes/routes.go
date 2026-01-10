@@ -2,7 +2,10 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
+	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/controllers"
+	admincontroller "github.com/leirbagxis/FreddyBot/internal/api/controllers/adminController"
+	webappauthcontroller "github.com/leirbagxis/FreddyBot/internal/api/controllers/webappAuthController"
 	"github.com/leirbagxis/FreddyBot/internal/api/handlers"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 )
@@ -18,9 +21,11 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	permissionsController := controllers.NewPermissionController(c)
 	customCaptionController := controllers.NewCustomCaptionController(c)
 	separatorController := controllers.NewSeparatorController(c)
+	webappauthcontroller := webappauthcontroller.NewWebAppAuthController(c)
 	//auth.AuthMiddlewareJWT()
 
-	api.Use()
+	api.POST("/auth", webappauthcontroller.ReceiveAuthController)
+	api.Use(auth.AuthMiddlewareJWT())
 	{
 		api.GET("/ping", handlers.PingHandler(c))
 		api.GET("/channel/:channelId", handlers.GetChannelHandler(c))
@@ -45,5 +50,13 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 		api.GET("/channel/:channelId/separator/:separatorId", separatorController.GetSeparator)
 
+	}
+
+	adminRoute := r.Group("/admin/api")
+	getALlUsers := admincontroller.NewUsersAdminController(c)
+
+	adminRoute.Use()
+	{
+		adminRoute.GET("/users", getALlUsers.GetAllUsersAdminController)
 	}
 }

@@ -23,6 +23,11 @@ func ValidateSignature(ownerID, channelID, receivedSig, secreteKey string) bool 
 }
 
 func GenerateMiniAppUrl(userID, channelID string) string {
-	hash := GenerateSignature(userID, channelID, config.SecreteKey)
-	return fmt.Sprintf("%s/dashboard?id=%s&signature=%s", config.WebAppURL, channelID, hash)
+	//hash := GenerateSignature(userID, channelID, config.SecreteKey)
+	return fmt.Sprintf("%s/dashboard/%s", config.WebAppURL, channelID)
 }
+
+// func GenerateMiniAppUrl(userID, channelID string) string {
+// 	hash := GenerateSignature(userID, channelID, config.SecreteKey)
+// 	return fmt.Sprintf("%s/dashboard?id=%s&signature=%s", config.WebAppURL, channelID, hash)
+// }

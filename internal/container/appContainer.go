@@ -3,6 +3,7 @@ package container
 import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	adminrepositories "github.com/leirbagxis/FreddyBot/internal/database/repositories/adminRepositories"
 	"gorm.io/gorm"
 )
 
@@ -20,6 +21,9 @@ type AppContainer struct {
 	// ### PAYMENT ## \\
 	PaymentService *repositories.PaymentRepository
 	CouponService  *repositories.CouponRepository
+
+	// ### ADMIN ### \\
+	AdminService *adminrepositories.AdminRepositories
 }
 
 func NewAppContainer(db *gorm.DB) *AppContainer {
@@ -36,5 +40,7 @@ func NewAppContainer(db *gorm.DB) *AppContainer {
 
 		PaymentService: repositories.NewPaymentRepository(db),
 		CouponService:  repositories.NewCouponRepository(db),
+
+		AdminService: adminrepositories.NewAdminRepositories(db),
 	}
 }

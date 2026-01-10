@@ -11,7 +11,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
-func VerifyJWTHandler() gin.HandlerFunc {
+func VerifyJWTHandlera() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
@@ -42,6 +42,30 @@ func VerifyJWTHandler() gin.HandlerFunc {
 			"owner_id":   claims.OwnerID,
 			"expires_at": claims.ExpiresAt.Time,
 		})
+	}
+}
+
+func VerifyJWTHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		tokenString, err := c.Cookie("token")
+		if err != nil {
+			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		claims, err := auth.ValidateTokenJWT(tokenString)
+		if err != nil {
+			c.AbortWithStatusJSON(401, gin.H{"error": "invalid token"})
+			return
+		}
+
+		if ownerID, err := strconv.ParseUint(claims.OwnerID, 10, 64); err == nil {
+			c.Set("user_id", uint(ownerID))
+		}
+		c.Set("owner_id", claims.OwnerID)
+		c.Set("channel_id", claims.ChannelID)
+
+		c.Next()
 	}
 }
 

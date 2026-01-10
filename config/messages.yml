@@ -11,7 +11,16 @@
 
 - name: profile-info
   type: callback
-  text: "<b>📊 Informações da Conta</b>\n\n👤 <b>Usuário:</b> {firstName}\n🆔 <b>ID:</b> <code>{userId}</code>\n📆 <b>Registrado em:</b> {register}\n\n📡 <b>Canais Vinculados:</b> {countChannel}\n\n⚙️ Gerencie suas configurações e acompanhe os canais vinculados pelo menu abaixo!"
+  text: |
+    <b>📊 Informações da Conta</b>
+    
+    👤 <b>Usuário:</b> {firstName}
+    🆔 <b>ID:</b> <code>{userId}</code>
+    📆 <b>Registrado em:</b> {register}
+    
+    📡 <b>Canais Vinculados:</b> {countChannel}
+    
+    ⚙️ Gerencie suas configurações e acompanhe os canais vinculados pelo menu abaixo!"
   buttons:
     - - text: "👑 Assinatura VIP"
         callback_data: "subscribe-premium"

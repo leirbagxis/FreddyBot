@@ -26,7 +26,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 	router.Use(cors.New(cors.Config{
 		AllowOrigins:     []string{"*"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
-		AllowHeaders:     []string{"Content-Type", "Authorization"},
+		AllowHeaders:     []string{"Origin", "Content-Type", "Accept", "Authorization", "X-Telegram-Init-Data"},
 		ExposeHeaders:    []string{"Content-Length"},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -41,7 +41,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 	}
 
 	router.Static("/assets", "./webapp/assets")
-	router.GET("/dashboard", func(c *gin.Context) {
+	router.GET("/dashboard/:channelID", func(c *gin.Context) {
 		c.File("./webapp/index.html")
 	})
 
