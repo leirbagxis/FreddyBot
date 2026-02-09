@@ -46,6 +46,10 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 		c.File("./webapp/index.html")
 	})
 
+	router.GET("/admin/dash", func(c *gin.Context) {
+		c.File("./webapp/index.html")
+	})
+
 	port := utils.NormalizePort(config.AppPort)
 
 	srv := &http.Server{

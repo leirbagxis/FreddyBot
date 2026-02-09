@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/controllers"
+	admincontroller "github.com/leirbagxis/FreddyBot/internal/api/controllers/adminController"
 	webappauthcontroller "github.com/leirbagxis/FreddyBot/internal/api/controllers/webAppAuthController"
 	"github.com/leirbagxis/FreddyBot/internal/api/handlers"
 	"github.com/leirbagxis/FreddyBot/internal/container"
@@ -48,5 +49,13 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 		api.GET("/channel/:channelId/separator/:separatorId", separatorController.GetSeparator)
 
+	}
+
+	adminRoute := r.Group("/admin/api")
+	getALlUsers := admincontroller.NewUsersAdminController(c)
+
+	adminRoute.Use()
+	{
+		adminRoute.GET("/users", getALlUsers.GetAllUsersAdminController)
 	}
 }

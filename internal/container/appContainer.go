@@ -3,6 +3,7 @@ package container
 import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	adminrepositories "github.com/leirbagxis/FreddyBot/internal/database/repositories/adminRepositories"
 	"gorm.io/gorm"
 )
 
@@ -16,6 +17,9 @@ type AppContainer struct {
 	// ## CACHE ## \\
 	CacheService   *cache.Service
 	SessionManager *cache.SessionManager
+
+	// ### ADMIN ### \\
+	AdminService *adminrepositories.AdminRepositories
 }
 
 func NewAppContainer(db *gorm.DB) *AppContainer {
@@ -29,5 +33,7 @@ func NewAppContainer(db *gorm.DB) *AppContainer {
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),
+
+		AdminService: adminrepositories.NewAdminRepositories(db),
 	}
 }

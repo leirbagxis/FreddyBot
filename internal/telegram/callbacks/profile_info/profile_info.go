@@ -8,6 +8,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 	"gorm.io/gorm"
 )
@@ -50,6 +51,18 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		text, button := parser.GetMessage("profile-info", data)
+		if userID == config.OwnerID {
+			adminRow := []models.InlineKeyboardButton{
+				{
+					Text: "🛠 Admin Painel",
+					WebApp: &models.WebAppInfo{
+						URL: fmt.Sprintf("%s/admin/dash", config.WebAppURL),
+					},
+				},
+			}
+
+			button.InlineKeyboard = append(button.InlineKeyboard, adminRow)
+		}
 
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
