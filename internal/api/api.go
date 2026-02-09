@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/routes"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"gorm.io/gorm"
 )
@@ -41,17 +42,19 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler) error {
 	}
 
 	router.Static("/assets", "./webapp/assets")
-	router.GET("/dashboard", func(c *gin.Context) {
+	router.GET("/dashboard/:channelID", func(c *gin.Context) {
 		c.File("./webapp/index.html")
 	})
 
+	port := utils.NormalizePort(config.AppPort)
+
 	srv := &http.Server{
-		Addr:    ":7000",
+		Addr:    port,
 		Handler: router,
 	}
 
 	go func() {
-		log.Println("🌐 API REST rodando em http://localhost:7000")
+		log.Printf("🌐 API REST rodando em http://localhost:%s", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("Erro ao iniciar servidor: %v", err)
 		}

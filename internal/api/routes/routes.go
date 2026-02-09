@@ -4,6 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/controllers"
+	webappauthcontroller "github.com/leirbagxis/FreddyBot/internal/api/controllers/webAppAuthController"
 	"github.com/leirbagxis/FreddyBot/internal/api/handlers"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 )
@@ -19,7 +20,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	permissionsController := controllers.NewPermissionController(c)
 	customCaptionController := controllers.NewCustomCaptionController(c)
 	separatorController := controllers.NewSeparatorController(c)
+	webAppAuthController := webappauthcontroller.NewWebAppAuthController(c)
 
+	api.POST("/auth", webAppAuthController.ReceiveAuthController)
 	api.Use(auth.AuthMiddlewareJWT())
 	{
 		api.GET("/ping", handlers.PingHandler(c))

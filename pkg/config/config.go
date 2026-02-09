@@ -17,6 +17,7 @@ var (
 	SecreteKey       string
 	WebAppURL        string
 	WebhookURL       string
+	AppPort          string
 )
 
 func init() {
@@ -31,6 +32,7 @@ func init() {
 	RedisAddr = mustGetEnv("REDIS_HOST")
 	DatabaseFile = os.Getenv("DATABASE_FILE") // opcional
 	OwnerID = mustGetEnvInt64("OWNER_ID")
+	AppPort = os.Getenv("APP_PORT")
 	SecreteKey = mustGetEnv("SECRET_KEY")
 	WebAppURL = mustGetEnv("WEBAPP_URL")
 	WebhookURL = os.Getenv("WEBHOOK_URL") // opcional
