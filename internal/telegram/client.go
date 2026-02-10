@@ -21,7 +21,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func StartBot(db *gorm.DB) http.Handler {
+func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
@@ -32,12 +32,13 @@ func StartBot(db *gorm.DB) http.Handler {
 	}
 
 	cache.GetRedisClient()
-	app := container.NewAppContainer(db)
 
 	b, err := bot.New(config.TelegramBotToken, opts...)
 	if err != nil {
 		panic(err)
 	}
+
+	app := container.NewAppContainer(db, b)
 
 	botInfo, _ := b.GetMe(ctx)
 	botUsername := fmt.Sprintf("@%s", botInfo.Username)
@@ -105,5 +106,5 @@ func StartBot(db *gorm.DB) http.Handler {
 		go b.Start(ctx)
 	}
 
-	return debugHandler
+	return debugHandler, *b
 }

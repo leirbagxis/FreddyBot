@@ -54,8 +54,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	adminRoute := r.Group("/admin/api")
 	getALlUsers := admincontroller.NewUsersAdminController(c)
 
-	adminRoute.Use()
+	adminRoute.Use(auth.AuthMiddlewareJWT())
 	{
 		adminRoute.GET("/users", getALlUsers.GetAllUsersAdminController)
+		adminRoute.POST("/notice", getALlUsers.SendNoticeAdminController)
 	}
 }
