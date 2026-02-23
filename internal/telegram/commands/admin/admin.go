@@ -3,6 +3,7 @@ package admin
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"html"
 	"log"
@@ -765,5 +766,12 @@ func NoticeChannelsReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 				MessageID: update.Message.ID,
 			},
 		})
+	}
+}
+
+func LogRemoji(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		sla, _ := json.Marshal(update)
+		fmt.Println(string(sla))
 	}
 }
