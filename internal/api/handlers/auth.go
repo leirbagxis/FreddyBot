@@ -27,7 +27,7 @@ func VerifyJWTHandler() gin.HandlerFunc {
 			tokenString = authHeader[7:]
 		}
 
-		claims, err := auth.ValidateTokenJWT(tokenString)
+		claims, err := auth.ValidateChannelToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"valid": false,
@@ -39,7 +39,7 @@ func VerifyJWTHandler() gin.HandlerFunc {
 		c.JSON(http.StatusOK, gin.H{
 			"valid":      true,
 			"channel_id": claims.ChannelID,
-			"owner_id":   claims.OwnerID,
+			"isAdmin":    claims.IsAdmin,
 			"expires_at": claims.ExpiresAt.Time,
 		})
 	}
@@ -82,8 +82,12 @@ func GenerateJWTHandler(app *container.AppContainer) gin.HandlerFunc {
 			})
 			return
 		}
+		isAdmin := false
+		if ownerID == config.OwnerID {
+			isAdmin = true
+		}
 
-		token, err := auth.GenerateTokenJWT(request.ChannelID, ownerIDStr)
+		token, err := auth.GenerateChannelToken(request.ChannelID, ownerIDStr, isAdmin, 30)
 		fmt.Println(token, err)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{

@@ -47,6 +47,10 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
 		c.File("./webapp/index.html")
 	})
 
+	router.GET("/me/channels", func(c *gin.Context) {
+		c.File("./webapp/index.html")
+	})
+
 	router.GET("/admin/dash", func(c *gin.Context) {
 		c.File("./webapp/index.html")
 	})

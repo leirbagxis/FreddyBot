@@ -87,8 +87,7 @@ func (app *AppContainerLocal) DeleteDefaulfButtonService(ctx context.Context, ch
 		return fmt.Errorf("ID do canal é obrigatório")
 	}
 
-	result := app.DB.WithContext(ctx).
-		Debug().
+	result := app.DB.
 		Where("button_id = ? AND owner_channel_id = ?", buttonID, channelID).
 		Delete(&models.Button{})
 

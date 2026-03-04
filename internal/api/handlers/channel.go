@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -35,6 +37,10 @@ func GetChannelHandler(app *container.AppContainer) gin.HandlerFunc {
 			"user":    user,
 			"channel": channel,
 		}
+
+		sla, _ := json.Marshal(data)
+
+		fmt.Println(string(sla))
 
 		c.JSON(http.StatusOK, data)
 

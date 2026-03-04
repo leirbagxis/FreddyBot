@@ -57,6 +57,9 @@
     
     <b>Caso não funcione, encaminhe qualquer mensagem do seu canal mencionando o nome do canal para ativá-lo manualmente.</b>
   buttons:
+    - - text: "Adicionar ao Canal"
+        url: "http://t.me/{botUser}?startchannel&admin=post_messages+edit_messages+delete_messages+invite_users"
+        custom_emoji: "5330115548900501467"
     - - text: "Início"
         callback_data: "start"
         custom_emoji: "5465226866321268133"

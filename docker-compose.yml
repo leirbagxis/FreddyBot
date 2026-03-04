@@ -1,32 +1,21 @@
 version: "3.9"
 
 services:
-  app:
-    build: .
-    container_name: app
-    depends_on:
-      - redis
-    env_file:
-      - .env
-    ports:
-      - "7000:7000"
-    networks:
-      - app-network
 
   redis:
     image: redis:alpine
-    container_name: redis
+    container_name: redis_freddybot
     restart: always
     ports:
       - "6379:6379"
     volumes:
-      - redis-data:/data
+      - redis-data:/freddybot/data
     networks:
       - app-network
 
   postgres:
     image: postgres:17
-    container_name: postgres
+    container_name: postgres_freddybot
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -35,14 +24,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  adminer:
-    image: adminer
-    container_name: adminer
-    restart: always
-    ports:
-      - "8080:8080"
+      - postgres_data:/var/lib/postgresql/freddybot/data
 
 
 networks:

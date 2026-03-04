@@ -13,6 +13,7 @@ func Handler() bot.HandlerFunc {
 		user, _ := b.GetMe(ctx)
 		text, button := parser.GetMessage("help", map[string]string{
 			"botUsername": "@" + user.Username,
+			"botUser":     user.Username,
 		})
 
 		b.SendMessage(ctx, &bot.SendMessageParams{

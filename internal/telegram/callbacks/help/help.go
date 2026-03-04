@@ -14,8 +14,10 @@ type Deps struct {
 
 func Handler(deps Deps) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		user, _ := b.GetMe(ctx)
 		text, button := parser.GetMessage("help", map[string]string{
 			"botUsername": deps.BotUsername,
+			"botUser":     user.Username,
 		})
 		b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,

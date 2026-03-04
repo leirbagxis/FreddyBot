@@ -8,6 +8,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/commands/admin"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/commands/help"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/commands/start"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/commands/tutorial"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
@@ -15,6 +16,7 @@ func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, start.Handler())
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, help.Handler())
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, start.Handler())
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/tutorial", bot.MatchTypeExact, tutorial.Handler())
 
 	// ## ADMIM COMMANDS ### \\
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/users", bot.MatchTypeExact, admin.GetAllUsersHandler(c), middleware.CheckAdminMiddleware(config.OwnerID))

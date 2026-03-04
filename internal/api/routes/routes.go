@@ -11,9 +11,9 @@ import (
 )
 
 func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
-	loginRouter := r.Group("/auth")
-	loginRouter.GET("/verify-token", handlers.VerifyJWTHandler())
-	loginRouter.POST("/generate-token", handlers.GenerateJWTHandler(c))
+	// loginRouter := r.Group("/auth")
+	// loginRouter.GET("/verify-token", handlers.VerifyJWTHandler())
+	// loginRouter.POST("/generate-token", handlers.GenerateJWTHandler(c))
 
 	api := r.Group("/api")
 	captionController := controllers.NewCaptionController(c)
@@ -24,6 +24,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	webAppAuthController := webappauthcontroller.NewWebAppAuthController(c)
 
 	api.POST("/auth", webAppAuthController.ReceiveAuthController)
+	api.POST("/me/channels", webAppAuthController.ReceiveAuthMeChannelsController)
+	api.POST("/admin/dash", webAppAuthController.AdminAuthController)
+
 	api.Use(auth.AuthMiddlewareJWT())
 	{
 		api.GET("/ping", handlers.PingHandler(c))
