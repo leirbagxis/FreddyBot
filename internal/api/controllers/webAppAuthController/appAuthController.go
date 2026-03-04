@@ -73,7 +73,7 @@ func (c *WebAppAuthController) ReceiveAuthController(ctx *gin.Context) {
 
 	fmt.Println(isAdmin)
 
-	token, err := auth.GenerateChannelToken(fmt.Sprintf("%d", channel.ID), fmt.Sprintf("%d", channel.OwnerID), isAdmin, 16*time.Minute)
+	token, err := auth.GenerateChannelToken(fmt.Sprintf("%d", channel.ID), fmt.Sprintf("%d", channel.OwnerID), isAdmin, channel.TokenVersion, 16*time.Minute)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Erro ao gerar token",

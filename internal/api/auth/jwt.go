@@ -17,10 +17,11 @@ const issuer = "t.me/legendasbrbot"
 type ChannelClaims struct {
 	ChannelID string `json:"channel_id"`
 	IsAdmin   bool   `json:"is_admin"`
+	TV        int64  `json:"tv"` // token version, para invalidar tokens antigos se necessário
 	jwt.RegisteredClaims
 }
 
-func GenerateChannelToken(channelID, userID string, isAdmin bool, ttl time.Duration) (string, error) {
+func GenerateChannelToken(channelID, userID string, isAdmin bool, tv int64, ttl time.Duration) (string, error) {
 	if channelID == "" || userID == "" {
 		return "", errors.New("channelID and userID are required")
 	}
@@ -36,6 +37,7 @@ func GenerateChannelToken(channelID, userID string, isAdmin bool, ttl time.Durat
 	claims := ChannelClaims{
 		ChannelID: channelID,
 		IsAdmin:   isAdmin,
+		TV:        tv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
 			Subject:   userID,
@@ -84,6 +86,10 @@ func ValidateChannelToken(tokenStr string) (*ChannelClaims, error) {
 	}
 	if claims.ID == "" {
 		return nil, errors.New("missing jti")
+	}
+
+	if claims.TV <= 0 {
+		return nil, errors.New("invalid token version")
 	}
 
 	return claims, nil

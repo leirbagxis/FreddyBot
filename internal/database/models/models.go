@@ -4,7 +4,8 @@ import "time"
 
 type User struct {
 	UserId       int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
-	FirstName    string    `json:"firstName"`
+	FirstName    string    `json:"first_name"`
+	Username     string    `json:"username"`
 	IsContribute bool      `gorm:"default:false" json:"isContribute"`
 	Channels     []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
@@ -21,6 +22,7 @@ type Channel struct {
 	Buttons        []Button        `gorm:"foreignKey:OwnerChannelID" json:"buttons"`
 	Separator      *Separator      `gorm:"foreignKey:OwnerChannelID" json:"separator,omitempty"`
 	CustomCaptions []CustomCaption `gorm:"foreignKey:OwnerChannelID" json:"customCaptions"`
+	TokenVersion   int64           `gorm:"not null;default:1"`
 	CreatedAt      time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }

@@ -290,7 +290,13 @@ func (r *ChannelRepository) UpdateOwnerChannel(ctx context.Context, channelID, o
 		return fmt.Errorf("Ërro ao buscar canal %w", err)
 	}
 
-	err = r.db.WithContext(ctx).Model(&channel).Update("owner_id", newOwnerID).Error
+	err = r.db.WithContext(ctx).
+		Model(&channel).
+		Updates(map[string]any{
+			"owner_id":      newOwnerID,
+			"token_version": gorm.Expr("token_version + 1"),
+		}).Error
+	//Updates("owner_id", newOwnerID).Error
 
 	if err != nil {
 		return fmt.Errorf("Erro ao atualizar proprietario do canal: %w", err)

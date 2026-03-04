@@ -13,10 +13,11 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
+	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
-func AuthMiddlewareJWT() gin.HandlerFunc {
+func AuthMiddlewareJWT(v *container.AppContainer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		authHeader, err := c.Cookie("token")
 		if err != nil {
@@ -28,6 +29,18 @@ func AuthMiddlewareJWT() gin.HandlerFunc {
 		claims, err := ValidateChannelToken(tokenStr)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token invalido ou expirado"})
+			return
+		}
+
+		channelID, _ := strconv.ParseInt(claims.ChannelID, 10, 64)
+		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), channelID)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "canal não encontrado"})
+			return
+		}
+
+		if channel.TokenVersion != claims.TV {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token expirado"})
 			return
 		}
 

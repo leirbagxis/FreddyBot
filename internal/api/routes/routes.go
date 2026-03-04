@@ -22,12 +22,13 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	customCaptionController := controllers.NewCustomCaptionController(c)
 	separatorController := controllers.NewSeparatorController(c)
 	webAppAuthController := webappauthcontroller.NewWebAppAuthController(c)
+	userController := controllers.NewUserController(c)
 
 	api.POST("/auth", webAppAuthController.ReceiveAuthController)
 	api.POST("/me/channels", webAppAuthController.ReceiveAuthMeChannelsController)
 	api.POST("/admin/dash", webAppAuthController.AdminAuthController)
 
-	api.Use(auth.AuthMiddlewareJWT())
+	api.Use(auth.AuthMiddlewareJWT(c))
 	{
 		api.GET("/ping", handlers.PingHandler(c))
 		api.GET("/channel/:channelId", handlers.GetChannelHandler(c))
@@ -52,12 +53,14 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 		api.GET("/channel/:channelId/separator/:separatorId", separatorController.GetSeparator)
 
+		api.GET("/user/info/:userParams", userController.GetUserInfo)
+		api.POST("/channel/transfer", userController.TransferChannelController)
 	}
 
 	adminRoute := r.Group("/admin/api")
 	getALlUsers := admincontroller.NewUsersAdminController(c)
 
-	adminRoute.Use(auth.AuthMiddlewareJWT())
+	adminRoute.Use(auth.AuthMiddlewareJWT(c))
 	{
 		adminRoute.GET("/users", getALlUsers.GetAllUsersAdminController)
 		adminRoute.POST("/notice", getALlUsers.SendNoticeAdminController)
