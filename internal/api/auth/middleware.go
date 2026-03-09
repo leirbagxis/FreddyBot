@@ -32,8 +32,14 @@ func AuthMiddlewareJWT(v *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
-		channelID, _ := strconv.ParseInt(claims.ChannelID, 10, 64)
-		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), channelID)
+		if claims.IsAdmin {
+			c.Set("channelID", claims.ChannelID)
+			c.Set("isAdmin", true)
+			c.Next()
+			return
+		}
+
+		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), claims.ChannelID)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "canal não encontrado"})
 			return
@@ -44,15 +50,9 @@ func AuthMiddlewareJWT(v *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
-		if claims.IsAdmin {
-			c.Set("channelID", claims.ChannelID)
-			c.Set("isAdmin", true)
-			c.Next()
-			return
-		}
-
 		// Setando dados no contexto
 		c.Set("channelID", claims.ChannelID)
+		c.Set("ownerID", claims.Subject)
 		c.Set("isAdmin", false)
 		c.Next()
 	}

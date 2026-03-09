@@ -1,0 +1,4 @@
+GET http://localhost:7000/api/user/info/@Mallbs
+
+Content-Type: application/json
+Cookie: token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJjaGFubmVsX2lkIjoiLTEwMDI2NzYzODQ1MDUiLCJpc19hZG1pbiI6dHJ1ZSwiaXNzIjoidC5tZS9sZWdlbmRhc2JyYm90Iiwic3ViIjoiNzU5NTYwNzk1MyIsImV4cCI6MTc3MjU5NzM4NCwibmJmIjoxNzcyNTk2Mzk0LCJpYXQiOjE3NzI1OTY0MjQsImp0aSI6ImMyY2Y1MjEzMWU4OTA0ZmM0YTA3OTAzNzExZDUwZDg0In0.Q2Ip8ENiLsDnBuM6YbjV0HMBtgpbidixg6ObTe_qS2g; Path=/; Max-Age=3600; HttpOnly; Secure; SameSite=Strict

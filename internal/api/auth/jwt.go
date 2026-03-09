@@ -15,14 +15,14 @@ var secreteKey = []byte(config.SecreteKey)
 const issuer = "t.me/legendasbrbot"
 
 type ChannelClaims struct {
-	ChannelID string `json:"channel_id"`
-	IsAdmin   bool   `json:"is_admin"`
-	TV        int64  `json:"tv"` // token version, para invalidar tokens antigos se necessário
+	ChannelID int64 `json:"channel_id"`
+	IsAdmin   bool  `json:"is_admin"`
+	TV        int64 `json:"tv"` // token version, para invalidar tokens antigos se necessário
 	jwt.RegisteredClaims
 }
 
-func GenerateChannelToken(channelID, userID string, isAdmin bool, tv int64, ttl time.Duration) (string, error) {
-	if channelID == "" || userID == "" {
+func GenerateChannelToken(channelID, userID int64, isAdmin bool, tv int64, ttl time.Duration) (string, error) {
+	if channelID == 0 || userID == 0 {
 		return "", errors.New("channelID and userID are required")
 	}
 	if ttl <= 0 {
@@ -40,7 +40,7 @@ func GenerateChannelToken(channelID, userID string, isAdmin bool, tv int64, ttl 
 		TV:        tv,
 		RegisteredClaims: jwt.RegisteredClaims{
 			Issuer:    issuer,
-			Subject:   userID,
+			Subject:   fmt.Sprintf("%d", userID),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now.Add(-30 * time.Second)),
 			ExpiresAt: jwt.NewNumericDate(now.Add(ttl)),
@@ -81,7 +81,7 @@ func ValidateChannelToken(tokenStr string) (*ChannelClaims, error) {
 	if claims.Subject == "" {
 		return nil, errors.New("missing subject (userID)")
 	}
-	if claims.ChannelID == "" {
+	if claims.ChannelID == 0 {
 		return nil, errors.New("missing channel_id")
 	}
 	if claims.ID == "" {

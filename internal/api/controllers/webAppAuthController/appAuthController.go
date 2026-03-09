@@ -70,10 +70,7 @@ func (c *WebAppAuthController) ReceiveAuthController(ctx *gin.Context) {
 		}
 
 	}
-
-	fmt.Println(isAdmin)
-
-	token, err := auth.GenerateChannelToken(fmt.Sprintf("%d", channel.ID), fmt.Sprintf("%d", channel.OwnerID), isAdmin, channel.TokenVersion, 16*time.Minute)
+	token, err := auth.GenerateChannelToken(channel.ID, channel.OwnerID, isAdmin, channel.TokenVersion, 16*time.Minute)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Erro ao gerar token",
@@ -81,6 +78,10 @@ func (c *WebAppAuthController) ReceiveAuthController(ctx *gin.Context) {
 		})
 		return
 	}
+
+	ctx.Set("channelID", channel.ID)
+	ctx.Set("userID", authData.User.ID)
+	ctx.Set("isAdmin", isAdmin)
 
 	http.SetCookie(ctx.Writer, &http.Cookie{
 		Name:     "token",
@@ -175,6 +176,32 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 		})
 		return
 	}
+
+	var isAdmin bool
+	if authData.User.ID == config.OwnerID {
+		isAdmin = true
+	} else {
+		isAdmin = false
+	}
+
+	token, err := auth.GenerateChannelToken(1, authData.User.ID, isAdmin, 1, 16*time.Minute)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error":   "Erro ao gerar token",
+			"details": err,
+		})
+		return
+	}
+
+	http.SetCookie(ctx.Writer, &http.Cookie{
+		Name:     "token",
+		Value:    token,
+		Path:     "/",
+		MaxAge:   3600,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode, // 👈 Proteção contra CSRF
+	})
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"success": true,

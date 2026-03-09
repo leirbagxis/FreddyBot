@@ -87,7 +87,7 @@ func GenerateJWTHandler(app *container.AppContainer) gin.HandlerFunc {
 			isAdmin = true
 		}
 
-		token, err := auth.GenerateChannelToken(request.ChannelID, ownerIDStr, isAdmin, channel.TokenVersion, 30)
+		token, err := auth.GenerateChannelToken(channelIDInt, ownerID, isAdmin, channel.TokenVersion, 30)
 		fmt.Println(token, err)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{

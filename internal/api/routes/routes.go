@@ -23,10 +23,13 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	separatorController := controllers.NewSeparatorController(c)
 	webAppAuthController := webappauthcontroller.NewWebAppAuthController(c)
 	userController := controllers.NewUserController(c)
+	channelController := controllers.NewChannelController(c)
 
 	api.POST("/auth", webAppAuthController.ReceiveAuthController)
 	api.POST("/me/channels", webAppAuthController.ReceiveAuthMeChannelsController)
 	api.POST("/admin/dash", webAppAuthController.AdminAuthController)
+
+	getALlUsers := admincontroller.NewUsersAdminController(c)
 
 	api.Use(auth.AuthMiddlewareJWT(c))
 	{
@@ -52,17 +55,17 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.DELETE("/channel/:channelId/custom-captions/:captionId/buttons/:buttonId", customCaptionController.DeleteCustomCaptionButtonController)
 
 		api.GET("/channel/:channelId/separator/:separatorId", separatorController.GetSeparator)
+		api.DELETE("/channel/disconect", channelController.DisconectChannel)
 
 		api.GET("/user/info/:userParams", userController.GetUserInfo)
 		api.POST("/channel/transfer", userController.TransferChannelController)
+		api.POST("/admin/notice", getALlUsers.SendNoticeAdminController)
 	}
 
 	adminRoute := r.Group("/admin/api")
-	getALlUsers := admincontroller.NewUsersAdminController(c)
 
 	adminRoute.Use(auth.AuthMiddlewareJWT(c))
 	{
 		adminRoute.GET("/users", getALlUsers.GetAllUsersAdminController)
-		adminRoute.POST("/notice", getALlUsers.SendNoticeAdminController)
 	}
 }

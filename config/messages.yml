@@ -344,6 +344,38 @@
         url: "t.me/{botUsername}?start=start"
 
 
+- name: support-sent
+  text: |
+    <b><tg-emoji emoji-id="5472055112702629499">✅</tg-emoji> <a href='tg://user?id={botId}'>Mensagem enviada com sucesso!</a></b>
+    
+    <tg-emoji emoji-id="5226512880362332956">📨</tg-emoji> Sua mensagem foi <b><a href='tg://user?id={botId}'>encaminhada para um administrador</a></b>.
+    
+    <tg-emoji emoji-id="5472164874886846699">⏳</tg-emoji> <b><a href='tg://user?id={botId}'>Aguarde</a></b>, em breve um admin irá analisar sua solicitação e responder você.
+    
+    <tg-emoji emoji-id="5372981976804366741">💬</tg-emoji> <b><a href='tg://user?id={botId}'>Obrigado pelo contato!</a></b>
+  buttons:
+    - - text: "Início"
+        callback_data: "start"
+        custom_emoji: "5465226866321268133"
+
+  
+- name: support-msg-admin
+  text: |
+    <b><tg-emoji emoji-id="5226512880362332956">📨</tg-emoji> <a href='tg://user?id={botId}'>Novo contato recebido</a></b>
+    
+    <tg-emoji emoji-id="5472055112702629499">👤</tg-emoji> <b>Usuário:</b> <a href='tg://user?id={userId}'>{firstName}</a>
+    <tg-emoji emoji-id="5372981976804366741">🆔</tg-emoji> <b>ID:</b> <code>{userId}</code>
+    
+    <tg-emoji emoji-id="5472164874886846699">💬</tg-emoji> <b>Mensagem enviada pelo usuário:</b>
+    
+    <blockquote>{userMessage}</blockquote>
+    
+    <tg-emoji emoji-id="5256034020246003358">⚠️</tg-emoji> <b>Um administrador pode responder diretamente ao usuário.</b>
+  buttons:
+    - - text: "Início"
+        callback_data: "start"
+        custom_emoji: "5465226866321268133"
+
 
 - name: notfound-message
   text: "❌ <b>Comando não reconhecido!</b>\n\n✨ Parece que você tentou fazer algo que nem eu entendi… Talvez um bug na Matrix? Ou só um toque de criatividade mesmo!\n\nSe estiver em dúvida, corre lá na aba <b>Ajuda</b> — prometo te guiar com carinho e sem bugs!"
