@@ -47,6 +47,7 @@ func (c *ChannelController) DisconectChannel(ctx *gin.Context) {
 		})
 		return
 	}
+	c.container.CacheService.SetDeleteChannel(ctx, channel.OwnerID, channel.ID)
 
 	ctx.Status(http.StatusNoContent)
 }

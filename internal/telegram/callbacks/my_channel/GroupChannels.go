@@ -32,6 +32,11 @@ func GroupChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		_, err = c.ChannelRepo.GetChannelByTwoID(ctx, userID, channelId)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Canal não encontrado ou não pertence a você!",
+				ShowAlert:       true,
+			})
 			return
 		}
 

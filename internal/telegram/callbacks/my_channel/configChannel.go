@@ -49,6 +49,11 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 		err = c.CacheService.SetSelectedChannel(ctx, userID, channelId)
 		if err != nil {
 			log.Printf("Erro ao criar sessão: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Canal não encontrado ou não pertence a você!",
+				ShowAlert:       true,
+			})
 			return
 		}
 

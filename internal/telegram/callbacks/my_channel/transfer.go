@@ -121,13 +121,10 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID:    update.Message.Chat.ID,
-				Text:      "❌ Canal não encontrado ou você não tem permissão para alterá-lo.",
-				ParseMode: "HTML",
-				ReplyParameters: &models.ReplyParameters{
-					MessageID: update.Message.ID,
-				},
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Canal não encontrado ou não pertence a você!",
+				ShowAlert:       true,
 			})
 			return
 		}

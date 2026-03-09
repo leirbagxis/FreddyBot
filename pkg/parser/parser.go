@@ -19,6 +19,7 @@ type Button struct {
 	WebApp                       string `yaml:"web_app,omitempty"`
 	SwitchInlineQueryCurrentChat string `yaml:"switch_inline_query_current_chat,omitempty"`
 	IconCustomEmojiID            string `yaml:"custom_emoji,omitempty"`
+	Style                        string `yaml:"style,omitempty"`
 }
 
 type Message struct {
@@ -110,6 +111,7 @@ func parseButtons(buttons [][]Button, vars map[string]string) [][]Button {
 				SwitchInlineQuery:            ParseText(btn.SwitchInlineQuery, vars, detectPlaceholders(btn.SwitchInlineQuery)),
 				SwitchInlineQueryCurrentChat: ParseText(btn.SwitchInlineQueryCurrentChat, vars, detectPlaceholders(btn.SwitchInlineQueryCurrentChat)),
 				IconCustomEmojiID:            ParseText(btn.IconCustomEmojiID, vars, detectPlaceholders(btn.IconCustomEmojiID)),
+				Style:                        ParseText(btn.Style, vars, detectPlaceholders(btn.Style)),
 			}
 		}
 		parsed[i] = newRow
@@ -133,6 +135,7 @@ func BuildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
 				SwitchInlineQuery:            btn.SwitchInlineQuery,
 				SwitchInlineQueryCurrentChat: btn.SwitchInlineQueryCurrentChat,
 				IconCustomEmojiID:            btn.IconCustomEmojiID,
+				Style:                        btn.Style,
 			}
 
 			if btn.WebApp != "" {

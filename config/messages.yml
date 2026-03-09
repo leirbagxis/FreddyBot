@@ -104,6 +104,7 @@
   buttons:
     - - text: "⚙ Configure Agora"
         web_app: "{webAppUrl}"
+        style: "primary"
     - - text: "Sticker Separador"
         callback_data: "sptc"
         custom_emoji: "5472164874886846699"
@@ -132,8 +133,10 @@
   buttons:
     - - text: "✅ Confirmar"
         callback_data: "confirm-del:{channelId}"
+        style: "success"
       - text: "❌ Cancelar"
         callback_data: "config:{channelId}"
+        style: "danger"
 
 - name: confirm-del
   text: |
@@ -175,8 +178,10 @@
   buttons:
     - - text: "✅ | Confirmar"
         callback_data: "add-yes:{sessionKey}"
+        style: "success"
       - text: "❌ | Cancelar"
         callback_data: "add-not:{sessionKey}"
+        style: "danger"
 
 - name: toadd-success-message
   text: |
@@ -190,6 +195,7 @@
   buttons:
     - - text: "⚙️ Configure Agora"
         web_app: "{miniAppUrl}"
+        style: "primary"
     - - text: "📢 Meu Canal"
         callback_data: "config:{channelId}"
       - text: "Início"
@@ -361,21 +367,38 @@
   
 - name: support-msg-admin
   text: |
-    <b><tg-emoji emoji-id="5226512880362332956">📨</tg-emoji> <a href='tg://user?id={botId}'>Novo contato recebido</a></b>
+    <b>📨 Novo contato recebido</b>
     
-    <tg-emoji emoji-id="5472055112702629499">👤</tg-emoji> <b>Usuário:</b> <a href='tg://user?id={userId}'>{firstName}</a>
-    <tg-emoji emoji-id="5372981976804366741">🆔</tg-emoji> <b>ID:</b> <code>{userId}</code>
+    👤 <b>Usuário:</b> <a href='tg://user?id={userId}'>{firstName}</a>
+    🆔 <b>ID:</b> <code>{userId}</code>
     
-    <tg-emoji emoji-id="5472164874886846699">💬</tg-emoji> <b>Mensagem enviada pelo usuário:</b>
+    💬 <b>Mensagem enviada pelo usuário:</b>
     
     <blockquote>{userMessage}</blockquote>
     
-    <tg-emoji emoji-id="5256034020246003358">⚠️</tg-emoji> <b>Um administrador pode responder diretamente ao usuário.</b>
+    ⚠️ <b>Um administrador pode responder diretamente ao usuário.</b>
   buttons:
     - - text: "Início"
         callback_data: "start"
         custom_emoji: "5465226866321268133"
 
+- name: support-usage
+  text: |
+    <b><tg-emoji emoji-id="5467596412663372909">❓</tg-emoji> Como usar o comando /suporte</b>
+    
+    <tg-emoji emoji-id="5465300082628763143">💬</tg-emoji> Utilize este comando para enviar uma mensagem diretamente para a equipe de administração.
+    
+    <b><tg-emoji emoji-id="6021514878789883831">📌</tg-emoji> Exemplo de uso:</b>
+    
+    <code>/suporte Não estou conseguindo configurar o bot no meu canal.</code>
+    
+    <tg-emoji emoji-id="5406631276042002796">📨</tg-emoji> Sua mensagem será encaminhada para um administrador e você receberá uma resposta assim que possível.
+    
+    <tg-emoji emoji-id="6019102674832595118">⚠️</tg-emoji> <b>Importante:</b> envie uma descrição clara do problema para que possamos ajudar mais rápido.
+  buttons:
+    - - text: "Início"
+        callback_data: "start"
+        custom_emoji: "5465226866321268133"
 
 - name: notfound-message
   text: "❌ <b>Comando não reconhecido!</b>\n\n✨ Parece que você tentou fazer algo que nem eu entendi… Talvez um bug na Matrix? Ou só um toque de criatividade mesmo!\n\nSe estiver em dúvida, corre lá na aba <b>Ajuda</b> — prometo te guiar com carinho e sem bugs!"

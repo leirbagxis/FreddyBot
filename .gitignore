@@ -31,6 +31,9 @@ go.work.sum
 # .idea/
 # .vscode/
 
+.air.tol
+main
+/tmp/*
 *.db
 *.dat
 *.rdb

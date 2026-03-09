@@ -16,6 +16,19 @@ import (
 func Handler() bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		message := strings.TrimSpace(update.Message.Text[len("/suporte"):])
+		if len(message) <= 0 {
+			text, button := parser.GetMessage("support-usage", map[string]string{})
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:      update.Message.Chat.ID,
+				Text:        text,
+				ReplyMarkup: button,
+				ParseMode:   models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
+			})
+			return
+		}
 
 		firstName := html.EscapeString(utils.RemoveHTMLTags(update.Message.From.FirstName))
 		safeMessage := html.EscapeString(message)
