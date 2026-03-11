@@ -49,7 +49,16 @@ func (c *WebAppAuthController) ReceiveAuthController(ctx *gin.Context) {
 	var channel *models.Channel
 	var err error
 
-	if authData.User.ID == config.OwnerID {
+	user, err := c.container.UserRepo.GetUserById(ctx, authData.User.ID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Erro ao encontrar Usuario: " + err.Error(),
+		})
+		return
+	}
+
+	if authData.User.ID == config.OwnerID || user.IsAdmin {
 		channel, err = c.container.ChannelRepo.GetChannelByID(ctx, authData.ChannelID)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{
@@ -145,8 +154,18 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 		})
 		return
 	}
+	user, err := c.container.UserRepo.GetUserById(ctx, authData.User.ID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Erro ao encontrar Usuario: " + err.Error(),
+		})
+		return
+	}
 
-	if authData.User.ID != config.OwnerID {
+	fmt.Println(user.IsAdmin)
+
+	if authData.User.ID != config.OwnerID || !user.IsAdmin {
 		fmt.Println("❌ O usuario nao e admin!")
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -178,7 +197,7 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 	}
 
 	var isAdmin bool
-	if authData.User.ID == config.OwnerID {
+	if authData.User.ID == config.OwnerID || user.IsAdmin {
 		isAdmin = true
 	} else {
 		isAdmin = false

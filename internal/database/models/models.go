@@ -2,10 +2,18 @@ package models
 
 import "time"
 
+type ServerConfig struct {
+	ID        uint      `gorm:"primaryKey" json:"id"`
+	Maintence bool      `gorm:"default:false" json:"maintence"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
 type User struct {
 	UserId       int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
 	FirstName    string    `json:"first_name"`
 	Username     string    `json:"username"`
+	IsAdmin      bool      `gorm:"default:false" json:"is_admin"`
 	IsContribute bool      `gorm:"default:false" json:"isContribute"`
 	Channels     []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
 	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`

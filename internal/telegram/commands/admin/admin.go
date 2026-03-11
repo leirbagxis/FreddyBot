@@ -769,6 +769,93 @@ func NoticeChannelsReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 	}
 }
 
+func ToggleMaintenceHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.Message == nil {
+			return
+		}
+
+		maintence, err := app.ServerRepo.ToggleMaintence(ctx)
+		if err != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Erro ao alterar o modo de manutenção.",
+			})
+			return
+		}
+
+		var msg string
+
+		if maintence {
+			msg = "⚠️ <b>Modo de manutenção ativado</b>\n\nO bot pode ficar temporariamente indisponível."
+		} else {
+			msg = "✅ <b>Modo de manutenção desativado</b>\n\nO bot voltou a funcionar normalmente."
+		}
+
+		_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    update.Message.Chat.ID,
+			Text:      msg,
+			ParseMode: models.ParseModeHTML,
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
+		})
+	}
+}
+
+func SetAdminHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, upt *models.Update) {
+		if upt.Message == nil {
+			return
+		}
+
+		args := strings.Fields(upt.Message.Text)
+
+		if len(args) < 2 {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    upt.Message.Chat.ID,
+				Text:      "❌ Uso correto:\n<code>/setadmin [userID]</code>",
+				ParseMode: models.ParseModeHTML,
+			})
+			return
+		}
+
+		userID, err := strconv.ParseInt(args[1], 10, 64)
+		if err != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: upt.Message.Chat.ID,
+				Text:   "❌ userID inválido.",
+			})
+			return
+		}
+
+		isAdmin, err := app.UserRepo.UpdateUserAdmin(ctx, userID)
+		fmt.Println(isAdmin, err)
+
+		if err != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: upt.Message.Chat.ID,
+				Text:   "❌ Erro ao alterar status de admin.",
+			})
+			return
+		}
+
+		var msg string
+
+		if isAdmin {
+			msg = fmt.Sprintf("✅ Usuário <code>%d</code> agora é administrador.", userID)
+		} else {
+			msg = fmt.Sprintf("⚠️ Usuário <code>%d</code> não é mais administrador.", userID)
+		}
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    upt.Message.Chat.ID,
+			Text:      msg,
+			ParseMode: models.ParseModeHTML,
+		})
+	}
+}
+
 func LogRemoji(app *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		sla, _ := json.Marshal(update)

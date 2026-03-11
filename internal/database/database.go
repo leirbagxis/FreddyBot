@@ -2,6 +2,9 @@ package database
 
 import (
 	//"github.com/glebarez/sqlite"
+	"context"
+	"log"
+
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"gorm.io/driver/postgres"
@@ -17,6 +20,7 @@ func InitDB() *gorm.DB {
 	db.Config.Logger = logger.Default.LogMode(logger.Silent)
 
 	err = db.AutoMigrate(
+		&models.ServerConfig{},
 		&models.User{},
 		&models.Channel{},
 		&models.DefaultCaption{},
@@ -31,5 +35,23 @@ func InitDB() *gorm.DB {
 		panic(err)
 	}
 
+	if err := initServerConfig(db); err != nil {
+		panic(err)
+	}
+
 	return db
+}
+
+func initServerConfig(db *gorm.DB) error {
+	config := models.ServerConfig{
+		ID:        1,
+		Maintence: false,
+	}
+
+	if err := db.WithContext(context.Background()).FirstOrCreate(&config, models.ServerConfig{ID: 1}).Error; err != nil {
+		return err
+	}
+
+	log.Println("✔️ ServerConfig iniciado criadas com sucesso.")
+	return nil
 }

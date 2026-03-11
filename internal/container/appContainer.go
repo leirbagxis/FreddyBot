@@ -31,6 +31,8 @@ type AppContainer struct {
 
 	BroadcastQueue chan BroadcastJob
 
+	ServerRepo *repositories.ServerConfig
+
 	UserRepo      *repositories.UserRepository
 	ChannelRepo   *repositories.ChannelRepository
 	ButtonRepo    *repositories.ButtonRepository
@@ -49,6 +51,8 @@ func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
 	container := &AppContainer{
 		DB:  db,
 		Bot: bot,
+
+		ServerRepo: repositories.NewServerConfigRepository(db),
 
 		BroadcastQueue: make(chan BroadcastJob, 10000),
 

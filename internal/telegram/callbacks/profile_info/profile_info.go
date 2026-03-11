@@ -51,7 +51,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		text, button := parser.GetMessage("profile-info", data)
-		if userID == config.OwnerID {
+		if userID == config.OwnerID || user.IsAdmin {
 			adminRow := []models.InlineKeyboardButton{
 				{
 					Text: "🛠 Admin Painel",
