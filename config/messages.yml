@@ -344,7 +344,18 @@
 
 
 - name: publi
-  text: "<b>📣 Automatize suas postagens com estilo!</b>\n\nCom o <b>@{botUsername}</b>, você adiciona <i>legendas automáticas</i> em todas as publicações do seu canal — sem esforço e com muito mais organização.\n\n<blockquote>\n💬 <b>Personalize</b> sua legenda do jeito que quiser  \n🧩 <b>Adicione separadores</b> com stickers estilosos  \n⚙️ <b>Edite</b> tudo facilmente com apenas alguns toques\n</blockquote>\n\n<b>✨ Ideal para canais que buscam agilidade, praticidade e um visual mais charmoso.</b>\n\n<i>Chega de colar legenda manualmente — o bot faz isso por você!</i> 🚀"
+  text: |
+    <b>📣 Automatize suas postagens com estilo!</b>
+    
+    Com o <b>@{botUsername}</b>, você adiciona <i>legendas automáticas</i> em todas as publicações do seu canal — sem esforço e com muito mais organização.
+    
+    <blockquote>💬 <b>Personalize</b> sua legenda do jeito que quiser  
+    🧩 <b>Adicione separadores</b> com stickers estilosos  
+    ⚙️ <b>Edite</b> tudo facilmente com apenas alguns toques\n</blockquote>
+    
+    <b>✨ Ideal para canais que buscam agilidade, praticidade e um visual mais charmoso.</b>
+    
+    <i>Chega de colar legenda manualmente — o bot faz isso por você!</i> 🚀
   buttons:
     - - text: "🎯 Quero no meu Canal"
         url: "t.me/{botUsername}?start=start"
