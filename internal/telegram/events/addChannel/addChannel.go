@@ -170,19 +170,14 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			inviteURL = fmt.Sprintf("t.me/%s", channelInfo.Username)
 		}
 
-		// Gerar newPackCaption
-		newPackCaption := fmt.Sprintf(`╔═━──━═༻✧༺═━──━═╗
+		defaultCaption, _ := parser.GetMessage("default-caption", map[string]string{
+			"botUsername":     botInfo.Username,
+			"channelUsername": "LegendasBOTTopic",
+		})
 
-        𖦹⁠⁠⁠ ࣪ ⭑ ᥫ᭡
-        (｡•́︿•̀｡)っ✧.*ೃ༄
-        ˗ˏˋ [$title]($link) ⋆｡˚ ☁︎
-            彡♡ ₊˚
-
-⋆｡˚ ❀ @%s ☽⁺₊
-
-╚═━──━═༻✧༺═━──━═╝`, botInfo.Username)
-
-		defaultCaption := fmt.Sprintf("➽ 𝐛𝐲 @%s", botInfo.Username)
+		newPackCaption, _ := parser.GetMessage("newpack-caption", map[string]string{
+			"botUsername": botInfo.Username,
+		})
 
 		channel, err := c.ChannelRepo.CreateChannelWithDefaults(
 			ctx,
