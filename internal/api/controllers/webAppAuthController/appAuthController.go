@@ -10,7 +10,6 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
-	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
 type WebAppAuthController struct {
@@ -58,7 +57,7 @@ func (c *WebAppAuthController) ReceiveAuthController(ctx *gin.Context) {
 		return
 	}
 
-	if authData.User.ID == config.OwnerID || user.IsAdmin {
+	if user.IsAdmin {
 		channel, err = c.container.ChannelRepo.GetChannelByID(ctx, authData.ChannelID)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, gin.H{
@@ -165,7 +164,7 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 
 	fmt.Println(user.IsAdmin)
 
-	if authData.User.ID != config.OwnerID || !user.IsAdmin {
+	if !user.IsAdmin {
 		fmt.Println("❌ O usuario nao e admin!")
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -197,7 +196,7 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 	}
 
 	var isAdmin bool
-	if authData.User.ID == config.OwnerID || user.IsAdmin {
+	if user.IsAdmin {
 		isAdmin = true
 	} else {
 		isAdmin = false

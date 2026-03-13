@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -24,7 +25,8 @@ func CheckAdminMiddleware(app *container.AppContainer) bot.Middleware {
 			}
 
 			user, _ := app.UserRepo.GetUserById(ctx, userID)
-			if user.IsAdmin && user.UserId != ownerID {
+			if !user.IsAdmin && user.UserId != ownerID {
+				fmt.Println("caindo aqui: ", !user.IsAdmin || user.UserId != ownerID)
 				return
 			}
 

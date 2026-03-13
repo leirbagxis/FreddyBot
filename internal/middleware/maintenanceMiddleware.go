@@ -7,7 +7,6 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
-	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"gorm.io/gorm"
 )
 
@@ -17,10 +16,23 @@ func CheckMaintenceMiddleware(db *gorm.DB) bot.Middleware {
 
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, upt *models.Update) {
-			userID := getUpdateUserID(upt)
-			user, _ := userRepo.GetUserById(ctx, userID)
+			if upt.ChannelPost != nil {
+				next(ctx, b, upt)
+				return
+			}
 
-			if user.IsAdmin || user.UserId == config.OwnerID {
+			userID := getUpdateUserID(upt)
+			if userID == 0 {
+				return
+			}
+
+			user, err := userRepo.GetUserById(ctx, userID)
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+
+			if user.IsAdmin {
 				next(ctx, b, upt)
 				return
 			}
@@ -48,8 +60,6 @@ func getUpdateUserID(upt *models.Update) int64 {
 		return upt.Message.From.ID
 	case upt.CallbackQuery != nil:
 		return upt.CallbackQuery.From.ID
-	case upt.ChannelPost != nil:
-		return upt.ChannelPost.Chat.ID
 	default:
 		return 0
 	}

@@ -128,6 +128,11 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		maintence, _ := c.ServerRepo.GetMaintence(ctx)
+		if maintence {
+			return
+		}
+
 		processor := NewMessageProcessor(b)
 		chat := post.Chat
 

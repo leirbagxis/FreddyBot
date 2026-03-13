@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -82,8 +83,10 @@ func GenerateJWTHandler(app *container.AppContainer) gin.HandlerFunc {
 			})
 			return
 		}
+		user, _ := app.UserRepo.GetUserById(context.Background(), ownerID)
+
 		isAdmin := false
-		if ownerID == config.OwnerID {
+		if user.IsAdmin {
 			isAdmin = true
 		}
 
