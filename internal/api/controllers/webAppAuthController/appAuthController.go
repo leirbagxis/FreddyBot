@@ -162,8 +162,6 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 		return
 	}
 
-	fmt.Println(user.IsAdmin)
-
 	if !user.IsAdmin {
 		fmt.Println("❌ O usuario nao e admin!")
 		ctx.JSON(http.StatusBadRequest, gin.H{
@@ -194,15 +192,17 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 		})
 		return
 	}
+	channels, err := c.container.ChannelRepo.GetAllChannels(ctx)
 
-	var isAdmin bool
-	if user.IsAdmin {
-		isAdmin = true
-	} else {
-		isAdmin = false
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
 	}
 
-	token, err := auth.GenerateChannelToken(1, authData.User.ID, isAdmin, 1, 16*time.Minute)
+	token, err := auth.GenerateChannelToken(1, authData.User.ID, user.IsAdmin, 1, 16*time.Minute)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error":   "Erro ao gerar token",
@@ -222,7 +222,8 @@ func (c *WebAppAuthController) AdminAuthController(ctx *gin.Context) {
 	})
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"users":   users,
+		"success":  true,
+		"users":    users,
+		"channels": channels,
 	})
 }
