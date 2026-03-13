@@ -62,7 +62,7 @@ func (r *UserRepository) GetUserByUsername(ctx context.Context, username string)
 
 func (r *UserRepository) GetAllUSers(ctx context.Context) ([]models.User, error) {
 	var users []models.User
-	if err := r.db.WithContext(ctx).Find(&users).Error; err != nil {
+	if err := r.db.WithContext(ctx).Find(&users).Order("updated_at ASC").Error; err != nil {
 		return nil, err
 	}
 
