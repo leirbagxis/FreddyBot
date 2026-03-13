@@ -23,14 +23,7 @@ func (r *AdminRepositories) GetAllUsersAdminRepository(ctx context.Context) ([]m
 
 	result := r.db.WithContext(ctx).
 		Preload("Channels").
-		// Tudo que é do Channel deve vir como Channels.<Relacao>
-		Preload("Channels.DefaultCaption").
-		Preload("Channels.DefaultCaption.MessagePermission").
-		Preload("Channels.DefaultCaption.ButtonsPermission").
-		Preload("Channels.Separator").
-		Preload("Channels.Buttons").
-		Preload("Channels.CustomCaptions").
-		Preload("Channels.CustomCaptions.Buttons").
+		Order("updated_at DESC").
 		Find(&users)
 
 	if result.Error != nil {

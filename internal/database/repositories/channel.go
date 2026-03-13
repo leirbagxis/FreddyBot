@@ -323,6 +323,7 @@ func (r *ChannelRepository) GetAllChannelsByUserID(ctx context.Context, userID i
 func (r *ChannelRepository) GetAllChannels(ctx context.Context) ([]models.Channel, error) {
 	var channel []models.Channel
 	err := r.db.WithContext(ctx).
+		Order("updated_at DESC").
 		Find(&channel).Error
 
 	if err != nil {
