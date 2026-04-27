@@ -193,6 +193,46 @@ func (s *Service) GetTransferChannel(ctx context.Context, userID int64) (int64, 
 	return channelID, nil
 }
 
+// ### POST BUILDER ### \\
+
+func (s *Service) SetPostBuilderState(ctx context.Context, userID int64, state PostBuilderState) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("post_builder:%d", userID)
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return client.Set(ctx, key, data, 60*time.Minute).Err()
+}
+
+func (s *Service) GetPostBuilderState(ctx context.Context, userID int64) (*PostBuilderState, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("post_builder:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var state PostBuilderState
+	if err := json.Unmarshal([]byte(data), &state); err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}
+
+func (s *Service) DeletePostBuilderState(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("post_builder:%d", userID)
+	return client.Del(ctx, key).Err()
+}
+
 // ### DELETE ALL SESSIONS ### \\\
 func (s *Service) DeleteAllUserSessionsBySuffix(ctx context.Context, userID int64) (int64, error) {
 	client := GetRedisClient()

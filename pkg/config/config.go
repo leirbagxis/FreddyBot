@@ -18,6 +18,7 @@ var (
 	WebAppURL        string
 	WebhookURL       string
 	AppPort          string
+	AppEnv           string
 )
 
 func init() {
@@ -36,6 +37,7 @@ func init() {
 	SecreteKey = mustGetEnv("SECRET_KEY")
 	WebAppURL = mustGetEnv("WEBAPP_URL")
 	WebhookURL = os.Getenv("WEBHOOK_URL") // opcional
+	AppEnv = os.Getenv("APP_ENV")         // dev ou prod
 }
 
 func mustGetEnv(key string) string {

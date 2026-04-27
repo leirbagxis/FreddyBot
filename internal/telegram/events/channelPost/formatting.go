@@ -32,7 +32,7 @@ func processTextWithFormatting(text string, entities []models.MessageEntity) str
 
 	// ✅ SE TEM ENTITIES, PROCESSAR APENAS ELAS (não aplicar markdown)
 	if len(entities) > 0 {
-		return processEntitiesOnly(text, entities)
+		return ProcessEntitiesOnly(text, entities)
 	}
 
 	// ✅ SE NÃO TEM ENTITIES, APLICAR FORMATAÇÃO MARKDOWN
@@ -40,7 +40,7 @@ func processTextWithFormatting(text string, entities []models.MessageEntity) str
 }
 
 // ✅ CORRIGIDO: Processar entities para HTML
-// func processEntitiesOnly(text string, entities []models.MessageEntity) string {
+// func ProcessEntitiesOnly(text string, entities []models.MessageEntity) string {
 // 	if len(entities) == 0 {
 // 		return html.EscapeString(text)
 // 	}
@@ -188,7 +188,7 @@ func processTextWithFormatting(text string, entities []models.MessageEntity) str
 // 	return result.String()
 // }
 
-func processEntitiesOnly(text string, entities []models.MessageEntity) string {
+func ProcessEntitiesOnly(text string, entities []models.MessageEntity) string {
 	if text == "" {
 		return ""
 	}
