@@ -1,0 +1,51 @@
+<h2>System Design: Channel Manager Rebuild</h2>
+<p class="subtitle">Architecture and Data Flow for the new Webapp.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Application Architecture</div>
+  <div class="mockup-body">
+    <div style="display: flex; gap: 20px; align-items: center; justify-content: space-around;">
+      <div class="card" style="width: 150px; text-align: center;">
+        <div class="label">Frontend</div>
+        <strong>React + Vite</strong>
+        <p style="font-size: 10px;">Tailwind + Mono style</p>
+      </div>
+      <div style="font-size: 24px;">&harr;</div>
+      <div class="card" style="width: 150px; text-align: center;">
+        <div class="label">Auth</div>
+        <strong>Telegram WebApp</strong>
+        <p style="font-size: 10px;">JWT via Cookie</p>
+      </div>
+      <div style="font-size: 24px;">&harr;</div>
+      <div class="card" style="width: 150px; text-align: center;">
+        <div class="label">Backend</div>
+        <strong>Go (Gin)</strong>
+        <p style="font-size: 10px;">GORM + SQLite/Postgres</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>1. Core Data Flow</h3>
+  <ul>
+    <li><strong>Authentication:</strong> Webapp sends <code>initData</code> to <code>/api/auth</code>. Server validates and sets a Secure JWT Cookie.</li>
+    <li><strong>Channel Discovery:</strong> <code>GET /api/me/channels</code> populates the main dashboard.</li>
+    <li><strong>Configuration:</strong> Users select a channel &rarr; fetch channel details &rarr; edit Captions/Buttons/Permissions &rarr; <code>PUT</code> updates.</li>
+    <li><strong>Admin:</strong> <code>GET /admin/api/users</code> allows system-wide monitoring.</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>2. Proposed Component Map</h3>
+  <ul>
+    <li><code>ChannelList.tsx</code>: Grid of channels owned by the user.</li>
+    <li><code>ChannelEditor.tsx</code>: Tabbed interface for Captions, Buttons, and Permissions.</li>
+    <li><code>AdminPanel.tsx</code>: Table of all users/channels for superusers.</li>
+    <li><code>api.ts</code>: Cleaned up to match <code>routes.go</code> precisely.</li>
+  </ul>
+</div>
+
+<div class="section">
+  <p><strong>Does this architecture and data flow look correct to you?</strong></p>
+</div>

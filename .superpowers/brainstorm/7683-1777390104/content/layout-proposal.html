@@ -1,0 +1,52 @@
+<h2>New Dashboard Layout</h2>
+<p class="subtitle">How the Channel Management system will be structured.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Telegram Channel Manager</div>
+  <div style="display: flex; min-height: 300px;">
+    <div class="mock-sidebar" style="width: 200px; padding: 10px;">
+      <div class="label">Menu</div>
+      <ul style="list-style: none; padding: 0;">
+        <li style="padding: 8px; background: var(--panel); margin-bottom: 4px;">My Channels</li>
+        <li style="padding: 8px; opacity: 0.6;">Admin Panel</li>
+        <li style="padding: 8px; opacity: 0.6;">Settings</li>
+      </ul>
+    </div>
+    <div class="mock-content" style="flex: 1; padding: 20px;">
+      <div class="section">
+        <h3>My Channels</h3>
+        <div class="cards">
+          <div class="card" style="width: 100%;">
+            <div class="card-body">
+              <strong>Channel Title #1</strong>
+              <p class="label">Owner: @you</p>
+              <button class="mock-button">Configure</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>Visual Style Decision</h3>
+  <p>The current code uses a <strong>Cyberpunk/Terminal</strong> aesthetic (Neon colors, monospace fonts). Should we keep this for the Channel Manager, or go for a <strong>Modern/SaaS</strong> look?</p>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="cyberpunk" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Cyberpunk / Terminal</h3>
+      <p>Keep the existing neon-on-black, glitch effects, and high-tech feel.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="saas" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Modern SaaS / Clean</h3>
+      <p>Clean white/gray UI, high contrast, focus on productivity and clarity.</p>
+    </div>
+  </div>
+</div>

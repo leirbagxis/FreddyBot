@@ -5,18 +5,26 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Suporte ao SQLite3**: Agora é possível alternar entre SQLite e PostgreSQL usando a variável de ambiente `APP_ENV`.
-  - `APP_ENV=dev`: Utiliza SQLite (ideal para desenvolvimento local).
-  - `APP_ENV=prod`: Utiliza PostgreSQL (ideal para produção).
-- **Funcionalidade Post Builder**: Um sistema interativo para criar postagens personalizadas com mídias.
-  - Detecção automática de mídias (Fotos, Vídeos, GIFs, Áudios e Documentos).
-  - Edição de Título, Corpo e Rodapé com suporte a toda a formatação original do Telegram.
-  - Adição rápida de botões (Nome e Link em uma única mensagem).
-  - Função de **Preview** para visualizar a postagem antes de salvar, sem fechar o editor.
-  - Opção de **Salvar** para finalizar a postagem e encerrar a sessão.
-- Novas variáveis no `.env-example`: `APP_ENV`.
+- **Reconstrução Total do Webapp**: Transformação do frontend de um sistema de economia para um Gerenciador de Canais do Telegram robusto.
+  - **Dashboard de Canais**: Nova interface que lista automaticamente os canais gerenciados pelo usuário.
+  - **Editor de Canal Detalhado**:
+    - Gestão de Legendas (Padrão e Novos Packs).
+    - CRUD completo de Botões com controle de Layout (Posições X e Y).
+    - Aba de Permissões para controle granular de mídias (Preview, Foto, Vídeo, GIF, etc.) com atualizações em tempo real.
+  - **Painel Admin**: Refatorado para monitoramento global de todos os usuários e canais do sistema.
+  - **Integração Backend**: Autenticação nativa com Telegram WebApp e sincronização total com as rotas do backend Go.
+  - **Estética Cyberpunk/Terminal**: Interface unificada com tema Dark, cores neon, animações de scanline e fontes mono.
+- Novas tipagens TypeScript baseadas diretamente nos modelos Go (`models.go`).
 
-### Fixed
-- Erro ao tentar enviar mídias sem botões configurados (Bad Request no Telegram).
-- Problema de interface nula no `ReplyMarkup` que impedia o envio de mídias em certos casos.
-- Preservação de entidades de formatação (negrito, itálico, etc.) ao capturar textos do usuário para o Post Builder.
+### Changed
+- Refatoração completa da camada de API (`api.ts`) para mapear as novas rotas do servidor.
+- Atualização do fluxo de autenticação para utilizar cookies JWT seguros.
+
+### Removed
+- Antigo sistema de Economia (Loja, Ranking, Inventário e Itens).
+- Código legado e componentes de UI que não pertenciam ao escopo de gerenciamento de canais.
+
+### [0.1.0] - 2024-04-28 (Anterior)
+### Added
+- **Suporte ao SQLite3**: Agora é possível alternar entre SQLite e PostgreSQL usando a variável de ambiente `APP_ENV`.
+...

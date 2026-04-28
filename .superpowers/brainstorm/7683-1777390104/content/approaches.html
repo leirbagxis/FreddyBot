@@ -1,0 +1,32 @@
+<h2>Implementation Approaches</h2>
+<p class="subtitle">How we will transition from Economy to Channel Management.</p>
+
+<div class="options">
+  <div class="option" data-choice="refactor" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Approach 1: Surgical Refactor</h3>
+      <p>Modify existing pages (Dashboard, Admin) to swap Shop logic for Channel logic.</p>
+      <div class="pros-cons">
+        <div class="pros"><ul><li>Faster to start</li><li>Keeps existing CSS/Theme</li></ul></div>
+        <div class="cons"><ul><li>Residual "dead code"</li><li>Messy state management</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="rebuild" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Approach 2: Clean Rebuild (Recommended)</h3>
+      <p>Create fresh pages (ChannelList, Config, Admin) based on Go models. Delete old economy code.</p>
+      <div class="pros-cons">
+        <div class="pros"><ul><li>Type-safe models</li><li>No technical debt</li><li>Easier to maintain</li></ul></div>
+        <div class="cons"><ul><li>Initial setup time</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <p>I recommend <strong>Approach 2 (Clean Rebuild)</strong> to ensure the Webapp is high-quality and directly reflects your Go backend.</p>
+</div>

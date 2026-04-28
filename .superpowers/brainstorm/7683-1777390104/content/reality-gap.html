@@ -1,0 +1,50 @@
+<h2>Reality Gap Analysis</h2>
+<p class="subtitle">The Webapp code and the API routes are currently misaligned.</p>
+
+<div class="split">
+  <div class="mockup">
+    <div class="mockup-header">Current API (Go)</div>
+    <div class="mockup-body">
+      <ul class="label">
+        <li>/api/channel/:channelId/caption</li>
+        <li>/api/channel/:channelId/buttons</li>
+        <li>/api/channel/:channelId/permissions</li>
+        <li>/api/me/channels</li>
+        <li>/admin/api/users</li>
+      </ul>
+      <p style="color: var(--primary); font-weight: bold;">Focus: Telegram Channel Management</p>
+    </div>
+  </div>
+  <div class="mockup" style="opacity: 0.5; border-color: #ff4444;">
+    <div class="mockup-header">Current Webapp (React)</div>
+    <div class="mockup-body">
+      <ul class="label" style="text-decoration: line-through;">
+        <li>/api/v1/bots/shop</li>
+        <li>/api/v1/bots/ranking</li>
+        <li>/api/v1/bots/inventory</li>
+      </ul>
+      <p style="color: #ff4444; font-weight: bold;">Focus: Economy / RPG Bot (WRONG)</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 2rem;">
+  <h3>The Plan</h3>
+  <p>I will transform the Webapp into a <strong>Telegram Channel Manager</strong>. This includes:</p>
+  <ul>
+    <li><strong>Dashboard:</strong> List of user's channels.</li>
+    <li><strong>Channel Config:</strong> Edit Captions, Buttons, and Separators.</li>
+    <li><strong>Permissions:</strong> Toggle Link Previews and Media types.</li>
+    <li><strong>Admin:</strong> View all Users and Channels across the system.</li>
+  </ul>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="proceed" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Proceed with Alignment</h3>
+      <p>Start the design for the Channel Management Dashboard.</p>
+    </div>
+  </div>
+</div>
