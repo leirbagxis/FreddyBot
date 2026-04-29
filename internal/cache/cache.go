@@ -69,6 +69,36 @@ func (s *Service) DeleteSession(ctx context.Context, key string) error {
 	return client.Del(ctx, key).Err()
 }
 
+func (s *Service) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+	client := GetRedisClient()
+
+	data, err := json.Marshal(value)
+	if err != nil {
+		return fmt.Errorf("failed to marshal value: %w", err)
+	}
+
+	return client.Set(ctx, key, data, expiration).Err()
+}
+
+func (s *Service) Get(ctx context.Context, key string, dest interface{}) error {
+	client := GetRedisClient()
+
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return fmt.Errorf("cache miss")
+		}
+		return fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	err = json.Unmarshal([]byte(data), dest)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+
+	return nil
+}
+
 // ### SELECTED CHANNEL ## \\
 
 func (s *Service) SetSelectedChannel(ctx context.Context, userID, channelID int64) error {

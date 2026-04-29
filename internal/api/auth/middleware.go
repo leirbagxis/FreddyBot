@@ -19,41 +19,97 @@ import (
 
 func AuthMiddlewareJWT(v *container.AppContainer) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authHeader, err := c.Cookie("token")
+		tokenStr, err := c.Cookie("token")
 		if err != nil {
-			c.AbortWithStatusJSON(401, gin.H{"error": "unauthorized"})
+			// Fallback para header Authorization se o cookie falhar
+			authHeader := c.GetHeader("Authorization")
+			if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
+				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
+			} else {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Acesso não autorizado"})
+				return
+			}
+		}
+
+		claims, err := ValidateToken(tokenStr)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Sessão expirada ou inválida"})
 			return
 		}
 
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-		claims, err := ValidateChannelToken(tokenStr)
-		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token invalido ou expirado"})
+		// Injetar dados no contexto para uso nos controllers
+		c.Set("userID", claims.UserID)
+		c.Set("role", claims.Role)
+		c.Next()
+	}
+}
+
+// RequireRole garante que o usuário tenha um dos cargos permitidos
+func RequireRole(roles ...Role) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		userRole, exists := c.Get("role")
+		if !exists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Cargo não identificado"})
 			return
 		}
 
-		if claims.IsAdmin {
-			c.Set("channelID", claims.ChannelID)
-			c.Set("isAdmin", true)
+		role := userRole.(Role)
+		for _, r := range roles {
+			if role == r {
+				c.Next()
+				return
+			}
+		}
+
+		// Owner sempre tem acesso a tudo
+		if role == RoleOwner {
 			c.Next()
 			return
 		}
 
-		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), claims.ChannelID)
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Você não tem permissão para esta ação"})
+	}
+}
+
+// AuthorizeChannel garante que o usuário tenha permissão sobre o canal especificado na URL
+func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		channelIdStr := c.Param("channelId")
+		if channelIdStr == "" {
+			c.Next()
+			return
+		}
+
+		channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "canal não encontrado"})
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "ID do canal inválido"})
 			return
 		}
 
-		if channel.TokenVersion != claims.TV {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "token expirado"})
+		ctxUserID, _ := c.Get("userID")
+		ctxRole, _ := c.Get("role")
+
+		userID := ctxUserID.(int64)
+		role := ctxRole.(Role)
+
+		// Owner e Admin têm passe livre
+		if role == RoleOwner || role == RoleAdmin {
+			c.Next()
 			return
 		}
 
-		// Setando dados no contexto
-		c.Set("channelID", claims.ChannelID)
-		c.Set("ownerID", claims.Subject)
-		c.Set("isAdmin", false)
+		// Usuário comum: verificar se ele é o dono no banco
+		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), channelId)
+		if err != nil {
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Canal não encontrado"})
+			return
+		}
+
+		if channel.OwnerID != userID {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Você não tem permissão para gerenciar este canal"})
+			return
+		}
+
 		c.Next()
 	}
 }

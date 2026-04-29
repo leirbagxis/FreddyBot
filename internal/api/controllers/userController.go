@@ -25,6 +25,25 @@ func NewUserController(container *container.AppContainer) *UserController {
 	}
 }
 
+func (c *UserController) GetUserChannelsController(ctx *gin.Context) {
+	userID, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Usuário não identificado"})
+		return
+	}
+
+	channels, err := c.container.ChannelRepo.GetAllChannelsByUserID(ctx, userID.(int64))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Erro ao buscar canais"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"channels": channels,
+	})
+}
+
 func (c *UserController) GetUserInfo(ctx *gin.Context) {
 	userParams := ctx.Param("userParams")
 	if len(userParams) < 5 {

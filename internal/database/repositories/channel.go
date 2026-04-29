@@ -8,17 +8,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"gorm.io/gorm"
 )
 
 type ChannelRepository struct {
-	db *gorm.DB
+	db           *gorm.DB
+	cacheService *cache.Service
 }
 
-func NewChannelRepository(db *gorm.DB) *ChannelRepository {
-	return &ChannelRepository{db: db}
+func NewChannelRepository(db *gorm.DB, cacheService *cache.Service) *ChannelRepository {
+	return &ChannelRepository{db: db, cacheService: cacheService}
 }
 
 func (r *ChannelRepository) CountUserChannels(ctx context.Context, userID int64) (int64, error) {
@@ -78,6 +80,15 @@ func (r *ChannelRepository) GetChannelByUserID(ctx context.Context, userId int64
 
 func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64) (*models.Channel, error) {
 	var channel models.Channel
+	cacheKey := fmt.Sprintf("channel:%d", channelId)
+
+	if r.cacheService != nil {
+		err := r.cacheService.Get(ctx, cacheKey, &channel)
+		if err == nil {
+			return &channel, nil
+		}
+	}
+
 	err := r.db.WithContext(ctx).
 		// Usar Joins para relações 1:1 (melhor performance)
 		Joins("DefaultCaption").
@@ -95,8 +106,25 @@ func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64)
 		return nil, err
 	}
 
+	if r.cacheService != nil {
+		_ = r.cacheService.Set(ctx, cacheKey, &channel, 1*time.Hour)
+	}
+
 	return &channel, nil
 
+}
+
+func (r *ChannelRepository) GetChannelByIDLight(ctx context.Context, channelId int64) (*models.Channel, error) {
+	var channel models.Channel
+	err := r.db.WithContext(ctx).
+		Where("id = ?", channelId).
+		First(&channel).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &channel, nil
 }
 
 func (r *ChannelRepository) DeleteChannelByTwoId(ctx context.Context, userId, channelId int64) error {

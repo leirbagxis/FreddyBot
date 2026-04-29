@@ -10,63 +10,41 @@ import (
 )
 
 func (app *AppContainerLocal) UpdateMessagePermissionService(ctx context.Context, channelID int64, messagePermissionsData types.UpdateMessagePermissionRequest) (*types.UpdatePermissionsResponse, error) {
-	var caption models.DefaultCaption
-	err := app.DB.Where("owner_channel_id = ?", channelID).
-		Preload("MessagePermission").
-		First(&caption).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("erro ao criar botão: %w", err)
-	}
-
-	now := time.Now()
-	result := app.DB.Model(&caption.MessagePermission).
+	// Subquery rápida para encontrar o ID da permissão vinculada ao canal sem carregar tudo
+	result := app.DB.Model(&models.MessagePermission{}).
+		Where("owner_caption_id = (SELECT caption_id FROM default_captions WHERE owner_channel_id = ?)", channelID).
 		Updates(messagePermissionsData)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("erro ao atualizar permissao message: %w", result.Error)
 	}
 
-	fmt.Println("✅ MessagePermission atualizada com sucesso")
-
 	return &types.UpdatePermissionsResponse{
 		Success: true,
 		Message: "MessagePermission atualizada com sucesso",
 		Data: map[string]interface{}{
 			"rows_affected": result.RowsAffected,
-			"updated_at":    now,
+			"updated_at":    time.Now(),
 		},
 	}, nil
-
 }
 
 func (app *AppContainerLocal) UpdateButtonsPermissionService(ctx context.Context, channelID int64, buttonsPermissionsData types.UpdateButtonsPermissionRequest) (*types.UpdatePermissionsResponse, error) {
-	var caption models.DefaultCaption
-	err := app.DB.Where("owner_channel_id = ?", channelID).
-		Preload("ButtonsPermission").
-		First(&caption).Error
-
-	if err != nil {
-		return nil, fmt.Errorf("erro ao criar botão: %w", err)
-	}
-
-	now := time.Now()
-	result := app.DB.Model(&caption.ButtonsPermission).
+	// Atualização direta via subquery para performance máxima
+	result := app.DB.Model(&models.ButtonsPermission{}).
+		Where("owner_caption_id = (SELECT caption_id FROM default_captions WHERE owner_channel_id = ?)", channelID).
 		Updates(buttonsPermissionsData)
 
 	if result.Error != nil {
 		return nil, fmt.Errorf("erro ao atualizar ButtonsPermission: %w", result.Error)
 	}
 
-	fmt.Println("✅ ButtonsPermission atualizada com sucesso")
-
 	return &types.UpdatePermissionsResponse{
 		Success: true,
 		Message: "ButtonsPermission atualizada com sucesso",
 		Data: map[string]interface{}{
 			"rows_affected": result.RowsAffected,
-			"updated_at":    now,
+			"updated_at":    time.Now(),
 		},
 	}, nil
-
 }

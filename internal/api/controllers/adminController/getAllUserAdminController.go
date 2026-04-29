@@ -40,8 +40,29 @@ func (c *UsersAdminController) GetAllUsersAdminController(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, users)
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"users":   users,
+	})
+}
 
+func (c *UsersAdminController) GetAdminOverview(ctx *gin.Context) {
+	users, err := c.container.AdminService.GetAllUsersAdminRepository(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	channels, err := c.container.ChannelRepo.GetAllChannels(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"users":    users,
+		"channels": channels,
+	})
 }
 
 func (c *UsersAdminController) SendNoticeAdminController(ctx *gin.Context) {

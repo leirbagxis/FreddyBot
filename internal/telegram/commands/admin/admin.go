@@ -6,10 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
-	"log"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -19,6 +19,7 @@ import (
 	userModes "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -54,12 +55,10 @@ func GetAllUsersHandler(app *container.AppContainer) bot.HandlerFunc {
 				Text:      msg,
 				ParseMode: models.ParseModeHTML,
 			})
-
 			if err != nil {
 				break
 			}
 		}
-
 	}
 }
 
@@ -99,7 +98,6 @@ func GetAllChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 					IsDisabled: &val,
 				},
 			})
-
 			if err != nil {
 				break
 			}
@@ -247,7 +245,6 @@ func RegisterTransferHandler(app *container.AppContainer) bot.HandlerFunc {
 			Text:      msg,
 			ParseMode: models.ParseModeHTML,
 		})
-
 	}
 }
 
@@ -395,7 +392,7 @@ func NoticeCommandHandler(app *container.AppContainer) bot.HandlerFunc {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				log.Printf("Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
+				logger.Error("ADMIN","Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
 				failedUsers = append(failedUsers, fmt.Sprintf("<code>%d</code> - %s", user.UserId, html.EscapeString(user.FirstName)))
 			} else {
 				sentCount++
@@ -451,7 +448,7 @@ func NoticeChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 				ReplyMarkup: button,
 			})
 			if err != nil {
-				log.Printf("Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
+				logger.Error("ADMIN","Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
 				failedChannels = append(failedChannels, fmt.Sprintf("<code>%d</code> - %s", ch.ID, html.EscapeString(ch.Title)))
 			} else {
 				sentCount++
@@ -519,7 +516,7 @@ func SendMessageToIdHandler(app *container.AppContainer) bot.HandlerFunc {
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
-			log.Printf("Erro ao enviar mensagem para %d: %v", targetID, err)
+			logger.Error("ADMIN","Erro ao enviar mensagem para %d: %v", targetID, err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      fmt.Sprintf("❌ Falha ao enviar para <code>%d</code>: %v", targetID, err),
@@ -576,14 +573,14 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		// Pega informações do canal e do dono
 		channelInfo, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: channelID})
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("ADMIN","Erro ao buscar canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao buscar informações do canal."})
 			return
 		}
 
 		ownerInfo, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: ownerID})
 		if err != nil {
-			log.Printf("Erro ao buscar usuário: %v", err)
+			logger.Error("ADMIN","Erro ao buscar usuário: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao buscar informações do usuário."})
 			return
 		}
@@ -615,7 +612,7 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		// Cria canal
 		channel, err := c.ChannelRepo.CreateChannelWithDefaults(ctx, channelID, channelInfo.Title, inviteURL, newPackCaption, defaultCaption, ownerID)
 		if err != nil {
-			log.Printf("Erro ao criar canal: %v", err)
+			logger.Error("ADMIN","Erro ao criar canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao salvar canal."})
 			return
 		}
@@ -673,7 +670,7 @@ func NoticeUsersReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				log.Printf("Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
+				logger.Error("ADMIN","Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
 				failedUsers = append(failedUsers, fmt.Sprintf("<code>%d</code> - %s", user.UserId, html.EscapeString(user.FirstName)))
 			} else {
 				sentCount++
@@ -743,7 +740,7 @@ func NoticeChannelsReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				log.Printf("Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
+				logger.Error("ADMIN","Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
 				failedChannels = append(failedChannels, fmt.Sprintf("<code>%d</code> - %s", ch.ID, html.EscapeString(ch.Title)))
 			} else {
 				sentCount++
@@ -860,5 +857,197 @@ func LogRemoji(app *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		sla, _ := json.Marshal(update)
 		fmt.Println(string(sla))
+	}
+}
+
+func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		const targetBotID = 5986082367
+		const targetBotUser = "@XavolaBot"
+
+		channels, err := app.ChannelRepo.GetAllChannels(ctx)
+		if err != nil {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "❌ Erro ao buscar canais do banco.",
+			})
+			return
+		}
+
+		statusMsg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: update.Message.Chat.ID,
+			Text:   fmt.Sprintf("🔍 Verificando <b>%d</b> canais... Isso pode levar um tempo.", len(channels)),
+			ParseMode: models.ParseModeHTML,
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: update.Message.ID,
+			},
+		})
+
+		var foundChannels []string
+		var mu sync.Mutex
+		count := 0
+
+		// Canal para processar os canais em paralelo
+		type result struct {
+			info string
+			err  error
+		}
+		
+		chQueue := make(chan *userModes.Channel, len(channels))
+		for i := range channels {
+			chQueue <- &channels[i]
+		}
+		close(chQueue)
+
+		// Usar um WaitGroup para gerenciar as goroutines (limite de 10 concorrentes)
+		var wg sync.WaitGroup
+		numWorkers := 10
+		if len(channels) < numWorkers {
+			numWorkers = len(channels)
+		}
+
+		for i := 0; i < numWorkers; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				for ch := range chQueue {
+					member, err := b.GetChatMember(ctx, &bot.GetChatMemberParams{
+						ChatID: ch.ID,
+						UserID: targetBotID,
+					})
+
+					if err == nil && (member.Type == "administrator" || member.Type == "creator") {
+						owner, _ := app.UserRepo.GetUserById(ctx, ch.OwnerID)
+						ownerName := "Desconhecido"
+						if owner != nil {
+							ownerName = owner.FirstName
+						}
+
+						info := fmt.Sprintf(
+							"<b>Canal:</b> %s\n<b>ID:</b> <code>%d</code>\n<b>Link:</b> %s\n<b>Dono:</b> <a href='tg://user?id=%d'>%s</a> (<code>%d</code>)\n",
+							html.EscapeString(ch.Title),
+							ch.ID,
+							ch.InviteURL,
+							ch.OwnerID,
+							html.EscapeString(ownerName),
+							ch.OwnerID,
+						)
+						
+						mu.Lock()
+						foundChannels = append(foundChannels, info)
+						count++
+						mu.Unlock()
+					}
+				}
+			}()
+		}
+		wg.Wait()
+
+		if count == 0 {
+			b.EditMessageText(ctx, &bot.EditMessageTextParams{
+				ChatID:    update.Message.Chat.ID,
+				MessageID: statusMsg.ID,
+				Text:      fmt.Sprintf("✅ O bot %s não foi encontrado como admin em nenhum canal.", targetBotUser),
+			})
+			return
+		}
+
+		header := fmt.Sprintf("🤖 <b>Bot %s encontrado em %d canais:</b>\n\n", targetBotUser, count)
+		
+		// Enviar em blocos para evitar limite de caracteres do Telegram
+		msg := header
+		first := true
+		for i, info := range foundChannels {
+			if len(msg)+len(info) > 3800 {
+				if first {
+					b.EditMessageText(ctx, &bot.EditMessageTextParams{
+						ChatID:    update.Message.Chat.ID,
+						MessageID: statusMsg.ID,
+						Text:      msg,
+						ParseMode: models.ParseModeHTML,
+						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
+					})
+					first = false
+				} else {
+					b.SendMessage(ctx, &bot.SendMessageParams{
+						ChatID:    update.Message.Chat.ID,
+						Text:      msg,
+						ParseMode: models.ParseModeHTML,
+						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
+					})
+				}
+				msg = ""
+			}
+			msg += info + "────────────────────\n"
+			if i == len(foundChannels)-1 {
+				if first {
+					b.EditMessageText(ctx, &bot.EditMessageTextParams{
+						ChatID:    update.Message.Chat.ID,
+						MessageID: statusMsg.ID,
+						Text:      msg,
+						ParseMode: models.ParseModeHTML,
+						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
+					})
+				} else {
+					b.SendMessage(ctx, &bot.SendMessageParams{
+						ChatID:    update.Message.Chat.ID,
+						Text:      msg,
+						ParseMode: models.ParseModeHTML,
+						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
+					})
+				}
+			}
+		}
+	}
+}
+
+func AdminHelpHandler(app *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		msg := `👨‍💻 <b>Painel de Administração</b>
+
+<b>Comandos de Listagem:</b>
+/users - Lista todos os usuários
+/channels - Lista todos os canais
+/user [id] - Informações detalhadas do usuário
+/info [id] - Informações detalhadas do canal
+
+<b>Comandos de Mensagem:</b>
+/notice [msg] - Envia aviso para todos os usuários (primeira linha é comando)
+/publi - Envia mensagem de publicidade padrão para todos os canais
+/send [id]\n[msg] - Envia mensagem privada para um ID específico
+/allusers (reply) - Envia a mensagem respondida para todos os usuários
+/allchannels (reply) - Envia a mensagem respondida para todos os canais
+
+<b>Comandos de Gerenciamento:</b>
+/add [canalID] [donoID] - Adiciona canal e dono manualmente
+/remove [id] - Remove um canal do sistema
+/transfer [canalID] [novoDonoID] - Transfere posse de um canal
+/setadmin [id] - Alterna status de administrador de um usuário
+/maintence - Ativa/Desativa modo de manutenção
+/backup - Gera backup do banco de dados
+
+<b>Utilidades:</b>
+/checkbot - Verifica se o XavolaBot é admin nos canais
+/emoji - Log de update (debug)`
+
+		kb := &models.InlineKeyboardMarkup{
+			InlineKeyboard: [][]models.InlineKeyboardButton{
+				{
+					{
+						Text: "📊 Abrir Dashboard Admin",
+						WebApp: &models.WebAppInfo{
+							URL: fmt.Sprintf("%s/admin/dash", config.WebAppURL),
+						},
+					},
+				},
+			},
+		}
+
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:      update.Message.Chat.ID,
+			Text:        msg,
+			ParseMode:   models.ParseModeHTML,
+			ReplyMarkup: kb,
+		})
 	}
 }

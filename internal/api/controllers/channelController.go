@@ -18,6 +18,19 @@ func NewChannelController(container *container.AppContainer) *ChannelController 
 	}
 }
 
+func (c *ChannelController) GetAllChannelsController(ctx *gin.Context) {
+	channels, err := c.container.ChannelRepo.GetAllChannels(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Erro ao buscar todos os canais"})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"channels": channels,
+	})
+}
+
 func (c *ChannelController) DisconectChannel(ctx *gin.Context) {
 	channelIDStr, exists := ctx.Get("channelID")
 	channelID, ok := channelIDStr.(int64)

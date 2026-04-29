@@ -11,9 +11,12 @@ func GenerateRSAKey() (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, 2048)
 }
 
+var (
+	htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
+)
+
 func RemoveHTMLTags(input string) string {
-	re := regexp.MustCompile(`<[^>]*>`)
-	return re.ReplaceAllString(input, "")
+	return htmlTagRegex.ReplaceAllString(input, "")
 }
 
 func NormalizePort(p string) string {

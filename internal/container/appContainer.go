@@ -57,7 +57,7 @@ func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
 		BroadcastQueue: make(chan BroadcastJob, 10000),
 
 		UserRepo:      repositories.NewUserRepository(db),
-		ChannelRepo:   repositories.NewChannelRepository(db),
+		ChannelRepo:   repositories.NewChannelRepository(db, cacheService),
 		ButtonRepo:    repositories.NewButtonRepository(db),
 		SeparatorRepo: repositories.NewSeparatorRepository(db),
 

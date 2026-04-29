@@ -3,7 +3,6 @@ package channelpost
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -12,6 +11,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 var (
@@ -617,7 +617,7 @@ func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Chann
 			}
 		}
 		if sendErr != nil {
-			log.Printf("❌ Falha ao reenviar áudio do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
+			logger.Error("BOT", "❌ Falha ao reenviar áudio do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
 			// Não apaga o original se falhou o reenvio
 			continue
 		}
@@ -629,7 +629,7 @@ func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Chann
 			MessageID: m.MessageID,
 		})
 		if delErr != nil {
-			log.Printf("⚠️ Falha ao apagar áudio original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
+			logger.Error("BOT", "⚠️ Falha ao apagar áudio original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
 		}
 	}
 
@@ -643,9 +643,9 @@ func (mp *MessageProcessor) finishGroupedAudioProcessing(channel *dbmodels.Chann
 			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 		})
 		if err != nil {
-			log.Printf("⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
+			logger.Error("BOT", "⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
 		} else {
-			log.Printf("✅ Separator enviado após processamento do grupo %s", groupID)
+			logger.Bot("✅ Separator enviado após processamento do grupo %s", groupID)
 		}
 	}
 
@@ -743,7 +743,7 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 	defer group.mu.Unlock()
 
 	if !loaded {
-		log.Printf("📸 Novo grupo criado: %s", mediaGroupID)
+		logger.Bot("📸 Novo grupo criado: %s", mediaGroupID)
 	}
 
 	if group.Processed {
@@ -772,11 +772,11 @@ func (mp *MessageProcessor) handleGroupedMedia(ctx context.Context, channel *dbm
 }
 
 func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID string, channel *dbmodels.Channel, buttons []dbmodels.Button, messageType MessageType) {
-	log.Printf("📸 Iniciando processamento final do grupo: %s", groupID)
+	logger.Bot("📸 Iniciando processamento final do grupo: %s", groupID)
 
 	value, ok := mediaGroups.Load(groupID)
 	if !ok {
-		log.Printf("❌ Grupo %s não encontrado", groupID)
+		logger.Error("BOT", "❌ Grupo %s não encontrado", groupID)
 		return
 	}
 
@@ -785,22 +785,22 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 	defer group.mu.Unlock()
 
 	if group.Processed {
-		log.Printf("⚠️ Grupo %s já foi processado", groupID)
+		logger.Bot("⚠️ Grupo %s já foi processado", groupID)
 		return
 	}
 
 	group.Processed = true
-	log.Printf("📸 Marcando grupo como processado: %s com %d mensagens", groupID, len(group.Messages))
+	logger.Bot("📸 Marcando grupo como processado: %s com %d mensagens", groupID, len(group.Messages))
 
 	if len(group.Messages) == 0 {
-		log.Printf("❌ Grupo %s não tem mensagens", groupID)
+		logger.Error("BOT", "❌ Grupo %s não tem mensagens", groupID)
 		return
 	}
 
 	// ✅ VERIFICAR PERMISSÕES
 	permissions := mp.CheckPermissions(channel, messageType)
 	if !permissions.CanEdit {
-		log.Printf("❌ Sem permissões para editar mensagens no grupo %s", groupID)
+		logger.Error("BOT", "❌ Sem permissões para editar mensagens no grupo %s", groupID)
 		mp.cleanupGroup(groupID)
 		return
 	}
@@ -833,7 +833,7 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 
 	canEdit, allowedButtons, allowedCustomCaption := mp.ApplyPermissions(channel, messageType, customCaption, buttons)
 	if !canEdit {
-		log.Printf("❌ Permissões insuficientes para editar grupo %s", groupID)
+		logger.Error("BOT", "❌ Permissões insuficientes para editar grupo %s", groupID)
 		mp.cleanupGroup(groupID)
 		return
 	}
@@ -857,31 +857,31 @@ func (mp *MessageProcessor) finishGroupProcessing(ctx context.Context, groupID s
 
 	_, err := mp.bot.EditMessageCaption(editCtx, editParams)
 	if err != nil {
-		log.Printf("❌ Erro ao editar caption do grupo %s, mensagem %d: %v", groupID, targetMessage.MessageID, err)
+		logger.Error("BOT", "❌ Erro ao editar caption do grupo %s, mensagem %d: %v", groupID, targetMessage.MessageID, err)
 	} else {
-		log.Printf("✅ Grupo %s processado - mensagem %d editada", groupID, targetMessage.MessageID)
+		logger.Bot("✅ Grupo %s processado - mensagem %d editada", groupID, targetMessage.MessageID)
 	}
 
 	// ✅ ENVIAR SEPARATOR APÓS EDITAR A MENSAGEM
 	if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
 		time.Sleep(1 * time.Second) // Delay antes de enviar separator
 
-		log.Printf("🔄 Tentando enviar separator para grupo %s (tipo: %s)", groupID, messageType)
+		logger.Bot("🔄 Tentando enviar separator para grupo %s (tipo: %s)", groupID, messageType)
 
 		separatorCtx, separatorCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer separatorCancel()
 
 		err := mp.ProcessSeparator(separatorCtx, channel, nil)
 		if err != nil {
-			log.Printf("❌ Erro ao processar separator para grupo %s: %v", groupID, err)
+			logger.Error("BOT", "❌ Erro ao processar separator para grupo %s: %v", groupID, err)
 		} else {
-			log.Printf("✅ Separator enviado com sucesso para grupo %s", groupID)
+			logger.Bot("✅ Separator enviado com sucesso para grupo %s", groupID)
 		}
 	} else {
 		if channel.Separator == nil {
-			log.Printf("⚠️ Separator não configurado para canal %d", channel.ID)
+			logger.Bot("⚠️ Separator não configurado para canal %d", channel.ID)
 		} else {
-			log.Printf("⚠️ Sem permissões para enviar separator no grupo %s", groupID)
+			logger.Bot("⚠️ Sem permissões para enviar separator no grupo %s", groupID)
 		}
 	}
 
@@ -926,13 +926,13 @@ func (mp *MessageProcessor) ProcessStickerMessagea(ctx context.Context, channel 
 // Use esta função no Handler após enfileirar a mensagem; o finalizador de grupo enviará no fim do álbum.
 func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmodels.Channel, post *models.Message) error {
 	if channel == nil || channel.Separator == nil || channel.Separator.SeparatorID == "" {
-		log.Printf("⚠️ Separator não configurado para o canal")
+		logger.Bot("⚠️ Separator não configurado para o canal")
 		return nil
 	}
 
 	// Suprime no início do álbum de áudio: deixa para o finalizador do grupo
 	if post != nil && post.MediaGroupID != "" && post.Audio != nil {
-		log.Printf("ℹ️ Separator suprimido no início do álbum de áudio (groupID=%s)", post.MediaGroupID)
+		logger.Bot("ℹ️ Separator suprimido no início do álbum de áudio (groupID=%s)", post.MediaGroupID)
 		return nil
 	}
 
@@ -948,7 +948,7 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 	sendCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	log.Printf("🔄 Enviando separator para chat %d", chatID)
+	logger.Bot("🔄 Enviando separator para chat %d", chatID)
 
 	maxRetries := 2
 	baseDelay := 2 * time.Second
@@ -959,7 +959,7 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 		})
 		if err == nil {
-			log.Printf("✅ Separator enviado com sucesso para chat %d", chatID)
+			logger.Bot("✅ Separator enviado com sucesso para chat %d", chatID)
 			return nil
 		}
 
@@ -969,12 +969,12 @@ func (mp *MessageProcessor) ProcessSeparator(ctx context.Context, channel *dbmod
 			if retryAfter <= 0 {
 				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
 			}
-			log.Printf("⏳ Rate limit no separator, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
+			logger.Bot("⏳ Rate limit no separator, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
 			time.Sleep(time.Duration(retryAfter) * time.Second)
 			continue
 		}
 
-		log.Printf("❌ Erro ao enviar separator: %v", err)
+		logger.Error("BOT", "❌ Erro ao enviar separator: %v", err)
 		return err
 	}
 

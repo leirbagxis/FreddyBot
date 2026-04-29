@@ -20,6 +20,7 @@ func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
 	//b.RegisterHandler(bot.HandlerTypeMessageText, "/tutorial", bot.MatchTypeExact, tutorial.Handler())
 
 	// ## ADMIM COMMANDS ### \\
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/admin", bot.MatchTypeExact, admin.AdminHelpHandler(c), middleware.CheckAdminMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/users", bot.MatchTypeExact, admin.GetAllUsersHandler(c), middleware.CheckAdminMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/channels", bot.MatchTypeExact, admin.GetAllChannelsHandler(c), middleware.CheckAdminMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/backup", bot.MatchTypeExact, admin.GetBackUpHandler(c), middleware.CheckAdminMiddleware(c))
@@ -33,6 +34,7 @@ func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/send", bot.MatchTypePrefix, admin.SendMessageToIdHandler(c), middleware.CheckAdminMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/add", bot.MatchTypePrefix, admin.AddChannelCommandHandler(c), middleware.CheckAdminMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/setadmin", bot.MatchTypePrefix, admin.SetAdminHandler(c), middleware.CheckAdminMiddleware(c))
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/checkbot", bot.MatchTypeExact, admin.CheckBotAdminHandler(c), middleware.CheckAdminMiddleware(c))
 
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/emoji", bot.MatchTypePrefix, admin.LogRemoji(c))
 

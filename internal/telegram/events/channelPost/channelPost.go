@@ -3,7 +3,6 @@ package channelpost
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,14 +14,15 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 // ✅ SISTEMA DE FILA SIMPLIFICADO
 type MessageQueue struct {
 	queue       chan QueueItem
-	rateLimiter *time.Ticker
 	mu          sync.Mutex
 	isRunning   bool
+	lastProcess sync.Map // map[int64]time.Time
 }
 
 type QueueItem struct {
@@ -34,8 +34,10 @@ type QueueItem struct {
 	Processor          *MessageProcessor
 }
 
-// ✅ CONTROLE SIMPLES DE SEPARATORS POR GRUPO
-var groupSeparators = sync.Map{} // string -> bool
+var (
+	groupSeparators = sync.Map{} // string -> bool
+	retryAfterRegex = regexp.MustCompile(`retry after (\d+)`)
+)
 
 var messageQueue *MessageQueue
 
@@ -46,10 +48,12 @@ func init() {
 func NewMessageQueue() *MessageQueue {
 	mq := &MessageQueue{
 		queue:       make(chan QueueItem, 1000),
-		rateLimiter: time.NewTicker(time.Second),
 		isRunning:   true,
 	}
-	go mq.worker()
+	// Iniciar 5 workers para processamento paralelo
+	for i := 0; i < 5; i++ {
+		go mq.worker()
+	}
 	return mq
 }
 
@@ -57,11 +61,22 @@ func (mq *MessageQueue) worker() {
 	for mq.isRunning {
 		select {
 		case item := <-mq.queue:
-			<-mq.rateLimiter.C
+			// Controle per-chat: evita processar mensagens do mesmo chat muito rápido
+			if item.Channel != nil {
+				last, ok := mq.lastProcess.Load(item.Channel.ID)
+				if ok {
+					elapsed := time.Since(last.(time.Time))
+					if elapsed < 500*time.Millisecond {
+						time.Sleep(500*time.Millisecond - elapsed)
+					}
+				}
+				mq.lastProcess.Store(item.Channel.ID, time.Now())
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			err := mq.processWithRetry(ctx, item)
 			if err != nil {
-				log.Printf("❌ Erro ao processar item da fila: %v", err)
+				logger.Error("BOT", "❌ Erro ao processar item da fila: %v", err)
 			}
 			cancel()
 		}
@@ -82,7 +97,7 @@ func (mq *MessageQueue) processWithRetry(ctx context.Context, item QueueItem) er
 			if retryAfter == 0 {
 				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
 			}
-			log.Printf("⏳ Rate limit atingido, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
+			logger.Bot("⏳ Rate limit atingido, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
 			time.Sleep(time.Duration(retryAfter) * time.Second)
 			continue
 		}
@@ -92,8 +107,7 @@ func (mq *MessageQueue) processWithRetry(ctx context.Context, item QueueItem) er
 }
 
 func extractRetryAfter(errorMsg string) int {
-	re := regexp.MustCompile(`retry after (\d+)`)
-	matches := re.FindStringSubmatch(errorMsg)
+	matches := retryAfterRegex.FindStringSubmatch(errorMsg)
 	if len(matches) > 1 {
 		if retryAfter, err := strconv.Atoi(matches[1]); err == nil {
 			return retryAfter
@@ -112,9 +126,9 @@ func (mq *MessageQueue) AddToQueue(messageType MessageType, channel *dbmodels.Ch
 		MessageEditAllowed: messageEditAllowed,
 		Processor:          processor,
 	}:
-		log.Printf("📥 Mensagem adicionada à fila (tamanho: %d)", len(mq.queue))
+		logger.Bot("📥 Mensagem adicionada à fila (tamanho: %d)", len(mq.queue))
 	default:
-		log.Printf("⚠️ Fila cheia, descartando mensagem")
+		logger.Bot("⚠️ Fila cheia, descartando mensagem")
 	}
 }
 
@@ -138,13 +152,13 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelWithRelations(dbCtx, chat.ID)
 		if err != nil {
-			log.Printf("Canal %d não encontrado: %v", chat.ID, err)
+			logger.Error("BOT", "Canal %d não encontrado: %v", chat.ID, err)
 			return
 		}
 
 		handled, err := processor.TryHandleNewPack(dbCtx, *channel, *post)
 		if err != nil {
-			log.Printf("Erro no fluxo newpack canal %d: %v", chat.ID, err)
+			logger.Error("BOT", "Erro no fluxo newpack canal %d: %v", chat.ID, err)
 			return
 		}
 		if handled {
@@ -160,9 +174,9 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 				return
 			}
 			if err := c.ChannelRepo.UpdateChannelBasicInfoAndFirstButton(updateCtx, updatedChannel); err != nil {
-				log.Printf("❌ Erro ao salvar informações do canal %d: %v", chat.ID, err)
+				logger.Error("BOT", "❌ Erro ao salvar informações do canal %d: %v", chat.ID, err)
 			} else {
-				log.Printf("✅ Canal %d: informações básicas e primeiro botão atualizados automaticamente", chat.ID)
+				logger.Bot("✅ Canal %d: informações básicas e primeiro botão atualizados automaticamente", chat.ID)
 			}
 		}()
 
@@ -173,7 +187,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 		permissions := processor.CheckPermissions(channel, messageType)
 		if !permissions.CanEdit && !permissions.CanAddButtons {
-			log.Printf("❌ Sem permissões para processar mensagem no canal %d", channel.ID)
+			logger.Error("BOT", "❌ Sem permissões para processar mensagem no canal %d", channel.ID)
 			return
 		}
 
@@ -205,7 +219,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 					defer cancelSep()
 					// Chama a função central de separador, que já faz retry/backoff
 					if err := processor.ProcessSeparator(ctxSep, ch, p); err != nil {
-						log.Printf("⚠️ Falha ao enviar separador: %v", err)
+						logger.Error("BOT", "⚠️ Falha ao enviar separador: %v", err)
 					}
 				}(channel, post)
 			}
@@ -256,7 +270,7 @@ func (mp *MessageProcessor) HandleSeparator(channel *dbmodels.Channel, post *mod
 
 	// Grupos de fotos/vídeos: enviados por finishGroupProcessing
 	if mediaGroupID != "" && (messageType == MessageTypePhoto || messageType == MessageTypeVideo || messageType == MessageTypeAnimation) {
-		log.Printf("🔄 Separator para grupo de mídia %s será enviado via finishGroupProcessing", mediaGroupID)
+		logger.Bot("🔄 Separator para grupo de mídia %s será enviado via finishGroupProcessing", mediaGroupID)
 		return
 	}
 
@@ -272,9 +286,9 @@ func (mp *MessageProcessor) sendSeparatorDirect(channel *dbmodels.Channel, chatI
 		Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 	})
 	if err != nil {
-		log.Printf("❌ Erro ao enviar separator: %v", err)
+		logger.Error("BOT", "❌ Erro ao enviar separator: %v", err)
 	} else {
-		log.Printf("✅ Separator enviado com sucesso")
+		logger.Bot("✅ Separator enviado com sucesso")
 	}
 }
 
@@ -353,7 +367,7 @@ func (mp *MessageProcessor) updateFirstButtonFromChannel(ctx context.Context, ch
 		return false
 	}
 
-	log.Printf("🔘 Primeiro botão atualizado: '%s' → '%s' | URL: '%s' → '%s'",
+	logger.Bot("🔘 Primeiro botão atualizado: '%s' → '%s' | URL: '%s' → '%s'",
 		firstButton.NameButton, novoNome, firstButton.ButtonURL, novaURL)
 	firstButton.NameButton = utils.RemoveHTMLTags(novoNome)
 	firstButton.ButtonURL = novaURL

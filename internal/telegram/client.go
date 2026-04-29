@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -18,6 +17,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/commands"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/events"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -43,35 +43,35 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 
 	botInfo, _ := b.GetMe(ctx)
 	botUsername := fmt.Sprintf("@%s", botInfo.Username)
-	log.Println("🤖 Bot iniciado:", botInfo.Username)
+	logger.Bot("🤖 Bot iniciado: %s", botInfo.Username)
 
 	originalHandler := b.WebhookHandler()
 	debugHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			log.Printf("❌ Erro ao ler body: %v", err)
+			logger.Error("BOT", "❌ Erro ao ler body: %v", err)
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
 		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
 		originalHandler.ServeHTTP(w, r)
-		log.Println("✅ Webhook processado com sucesso")
+		logger.Bot("✅ Webhook processado com sucesso")
 	})
 
 	go func() {
 		<-ctx.Done()
-		log.Println("🔻 Shutting down gracefully...")
+		logger.Bot("🔻 Shutting down gracefully...")
 		if err := cache.CloseRedis(); err != nil {
-			log.Printf("❌ Error closing Redis: %v", err)
+			logger.Error("SYS", "❌ Error closing Redis: %v", err)
 		}
 		cancel()
 	}()
 
 	webhookUrl := config.WebhookURL
 	if webhookUrl != "" {
-		log.Printf("🔗 Bot configurado para modo webhook: %s", webhookUrl)
+		logger.Bot("🔗 Bot configurado para modo webhook: %s", webhookUrl)
 
 		events.LoadEvents(b, app)
 		commands.LoadCommandHandlers(b, app)
@@ -82,22 +82,23 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 			//AllowedUpdates: []string{"message", "callback_query", "inline_query", "my_chat_member"},
 		})
 		if err != nil {
-			log.Fatalf("❌ Erro ao setar webhook: %v", err)
+			logger.Error("BOT", "❌ Erro ao setar webhook: %v", err)
+			os.Exit(1)
 		}
 
-		log.Println("✅ Webhook configurado com sucesso")
+		logger.Bot("✅ Webhook configurado com sucesso")
 
 		webhookInfo, err := b.GetWebhookInfo(ctx)
 		if err == nil {
-			log.Printf("📊 Webhook Info - URL: %s, Pending: %d",
+			logger.Bot("📊 Webhook Info - URL: %s, Pending: %d",
 				webhookInfo.URL, webhookInfo.PendingUpdateCount)
 		}
 
-		log.Println("🚀 Iniciando webhook...")
+		logger.Bot("🚀 Iniciando webhook...")
 		go b.StartWebhook(ctx)
 
 	} else {
-		log.Println("🔄 Bot iniciado em modo polling")
+		logger.Bot("🔄 Bot iniciado em modo polling")
 
 		events.LoadEvents(b, app)
 		commands.LoadCommandHandlers(b, app)

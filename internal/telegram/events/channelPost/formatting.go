@@ -22,6 +22,9 @@ var (
 	linkRegex          = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 	spoilerRegex       = regexp.MustCompile(`\|\|([^|]+)\|\|`)
 	blockquoteRegex    = regexp.MustCompile(`(?m)^>\s*(.+)$`)
+	htmlTagDetector    = regexp.MustCompile(`(<[^>]+>)`)
+	markdownDetector   = regexp.MustCompile(`(?m)\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|` + "`[^`]+`" + `|\[.+\]\(.+\)|\|\|[^|]+\|\||^>\s*.+$`)
+	htmlDetector       = regexp.MustCompile(`(?i)<b>.*</b>|<i>.*</i>|<u>.*</u>|<s>.*</s>|<code>.*</code>|<pre>.*</pre>|<a href=.*>.*</a>|<blockquote>.*</blockquote>|<span class="tg-spoiler">.*</span>`)
 )
 
 // ✅ CORRIGIDO: processTextWithFormatting
@@ -448,7 +451,6 @@ func processInlineFormatting(line string) string {
 	// ✅ PROCESSAR EM ORDEM DE PRIORIDADE, ESCAPANDO ADEQUADAMENTE
 
 	// 1. Code inline (maior prioridade) - processa primeiro para evitar conflitos
-	codeRegex := regexp.MustCompile("`([^`]+)`")
 	line = codeRegex.ReplaceAllStringFunc(line, func(match string) string {
 		content := match[1 : len(match)-1]
 		// ✅ ESCAPAR CONTEÚDO DO CODE
@@ -456,7 +458,6 @@ func processInlineFormatting(line string) string {
 	})
 
 	// 2. Spoiler
-	spoilerRegex := regexp.MustCompile(`\|\|([^|]+)\|\|`)
 	line = spoilerRegex.ReplaceAllStringFunc(line, func(match string) string {
 		content := spoilerRegex.FindStringSubmatch(match)[1]
 		// ✅ ESCAPAR CONTEÚDO DO SPOILER
@@ -464,7 +465,6 @@ func processInlineFormatting(line string) string {
 	})
 
 	// 3. Bold
-	boldRegex := regexp.MustCompile(`\*\*([^*]+)\*\*`)
 	line = boldRegex.ReplaceAllStringFunc(line, func(match string) string {
 		content := boldRegex.FindStringSubmatch(match)[1]
 		// ✅ ESCAPAR CONTEÚDO DO BOLD
@@ -472,7 +472,6 @@ func processInlineFormatting(line string) string {
 	})
 
 	// 4. Underline
-	underlineRegex := regexp.MustCompile(`__([^_]+)__`)
 	line = underlineRegex.ReplaceAllStringFunc(line, func(match string) string {
 		content := underlineRegex.FindStringSubmatch(match)[1]
 		// ✅ ESCAPAR CONTEÚDO DO UNDERLINE
@@ -480,15 +479,13 @@ func processInlineFormatting(line string) string {
 	})
 
 	// 5. Strikethrough
-	strikeRegex := regexp.MustCompile(`~~([^~]+)~~`)
-	line = strikeRegex.ReplaceAllStringFunc(line, func(match string) string {
-		content := strikeRegex.FindStringSubmatch(match)[1]
+	line = strikethroughRegex.ReplaceAllStringFunc(line, func(match string) string {
+		content := strikethroughRegex.FindStringSubmatch(match)[1]
 		// ✅ ESCAPAR CONTEÚDO DO STRIKETHROUGH
 		return fmt.Sprintf("<s>%s</s>", html.EscapeString(content))
 	})
 
 	// 6. Italic (deve vir por último para evitar conflitos com **)
-	italicRegex := regexp.MustCompile(`\*([^*]+)\*`)
 	line = italicRegex.ReplaceAllStringFunc(line, func(match string) string {
 		content := italicRegex.FindStringSubmatch(match)[1]
 		// ✅ ESCAPAR CONTEÚDO DO ITALIC
@@ -503,12 +500,9 @@ func processInlineFormatting(line string) string {
 
 // ✅ NOVA FUNÇÃO: Escapar texto que não está dentro de tags HTML
 func escapeRemainingText(text string) string {
-	// Regex para encontrar texto fora de tags HTML
-	htmlTagRegex := regexp.MustCompile(`(<[^>]+>)`)
-
 	// Dividir o texto em partes: tags HTML e texto normal
-	parts := htmlTagRegex.Split(text, -1)
-	tags := htmlTagRegex.FindAllString(text, -1)
+	parts := htmlTagDetector.Split(text, -1)
+	tags := htmlTagDetector.FindAllString(text, -1)
 
 	var result strings.Builder
 
@@ -578,25 +572,7 @@ func isMarkdown(text string) bool {
 	if text == "" {
 		return false
 	}
-
-	markdownPatterns := []string{
-		`\*\*[^*]+\*\*`, // **bold**
-		`\*[^*]+\*`,     // *italic*
-		`__[^_]+__`,     // __underline__
-		`~~[^~]+~~`,     // ~~strikethrough~~
-		"`[^`]+`",       // `code`
-		`\[.+\]\(.+\)`,  // [link](url)
-		`\|\|[^|]+\|\|`, // ||spoiler||
-		`(?m)^>\s*.+$`,  // > blockquote
-	}
-
-	for _, pattern := range markdownPatterns {
-		if matched, _ := regexp.MatchString(pattern, text); matched {
-			return true
-		}
-	}
-
-	return false
+	return markdownDetector.MatchString(text)
 }
 
 // ✅ FUNÇÃO: Detectar se texto é HTML
@@ -604,26 +580,7 @@ func isHTML(text string) bool {
 	if text == "" {
 		return false
 	}
-
-	htmlPatterns := []string{
-		`<b>.*</b>`,
-		`<i>.*</i>`,
-		`<u>.*</u>`,
-		`<s>.*</s>`,
-		`<code>.*</code>`,
-		`<pre>.*</pre>`,
-		`<a href=.*>.*</a>`,
-		`<blockquote>.*</blockquote>`,
-		`<span class="tg-spoiler">.*</span>`,
-	}
-
-	for _, pattern := range htmlPatterns {
-		if matched, _ := regexp.MatchString(pattern, text); matched {
-			return true
-		}
-	}
-
-	return false
+	return htmlDetector.MatchString(text)
 }
 
 func removeHashtag(text, hashtag string) string {

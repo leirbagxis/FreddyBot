@@ -2,11 +2,11 @@ package database
 
 import (
 	"context"
-	"log"
 
 	"github.com/glebarez/sqlite"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	customLogger "github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -16,10 +16,10 @@ func InitDB() *gorm.DB {
 	var dialector gorm.Dialector
 
 	if config.AppEnv == "dev" {
-		log.Println("📦 Usando banco de dados SQLite (modo dev)")
+		customLogger.DB("📦 Usando banco de dados SQLite (modo dev)")
 		dialector = sqlite.Open(config.DatabaseFile)
 	} else {
-		log.Println("🐘 Usando banco de dados PostgreSQL (modo prod)")
+		customLogger.DB("🐘 Usando banco de dados PostgreSQL (modo prod)")
 		dialector = postgres.Open(config.DatabaseFile)
 	}
 
@@ -62,6 +62,6 @@ func initServerConfig(db *gorm.DB) error {
 		return err
 	}
 
-	log.Println("✔️ ServerConfig iniciado criadas com sucesso.")
+	customLogger.DB("✔️ ServerConfig iniciado criadas com sucesso.")
 	return nil
 }

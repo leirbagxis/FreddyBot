@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
@@ -28,7 +29,7 @@ func VerifyJWTHandler() gin.HandlerFunc {
 			tokenString = authHeader[7:]
 		}
 
-		claims, err := auth.ValidateChannelToken(tokenString)
+		claims, err := auth.ValidateToken(tokenString)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"valid": false,
@@ -39,8 +40,8 @@ func VerifyJWTHandler() gin.HandlerFunc {
 
 		c.JSON(http.StatusOK, gin.H{
 			"valid":      true,
-			"channel_id": claims.ChannelID,
-			"isAdmin":    claims.IsAdmin,
+			"user_id":    claims.UserID,
+			"role":       claims.Role,
 			"expires_at": claims.ExpiresAt.Time,
 		})
 	}
@@ -85,12 +86,12 @@ func GenerateJWTHandler(app *container.AppContainer) gin.HandlerFunc {
 		}
 		user, _ := app.UserRepo.GetUserById(context.Background(), ownerID)
 
-		isAdmin := false
+		role := auth.RoleUser
 		if user.IsAdmin {
-			isAdmin = true
+			role = auth.RoleAdmin
 		}
 
-		token, err := auth.GenerateChannelToken(channelIDInt, ownerID, isAdmin, channel.TokenVersion, 30)
+		token, err := auth.GenerateToken(ownerID, role, channel.TokenVersion, 30*time.Second)
 		fmt.Println(token, err)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{
