@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -23,7 +24,7 @@ func NewCaptionController(container *container.AppContainer) *CaptionController 
 func (c *CaptionController) UpdateDefaultCaptionController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -51,19 +52,13 @@ func (c *CaptionController) UpdateDefaultCaptionController(ctx *gin.Context) {
 		return
 	}
 
-	if !result.Success {
-		ctx.JSON(http.StatusOK, result)
-		return
-	}
-
 	ctx.JSON(http.StatusOK, result)
-
 }
 
 func (c *CaptionController) UpdateNewPackCaptionController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -91,11 +86,79 @@ func (c *CaptionController) UpdateNewPackCaptionController(ctx *gin.Context) {
 		return
 	}
 
-	if !result.Success {
-		ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, result)
+}
+
+func (c *CaptionController) UpdateReactionsController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+	fmt.Printf("DEBUG: UpdateReactionsController channelIdStr=%s\n", channelIdStr)
+
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
+	if err != nil {
+		fmt.Printf("DEBUG: Invalid channel ID: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "ID do canal inválido",
+		})
+		return
+	}
+
+	var reactionsData types.ReactionsUpdateRequest
+	if err := ctx.ShouldBindJSON(&reactionsData); err != nil {
+		fmt.Printf("DEBUG: Bind JSON error: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Dados inválidos: " + err.Error(),
+		})
+		return
+	}
+
+	fmt.Printf("DEBUG: Updating reactions for channel %d: %s\n", channelId, reactionsData.Reactions)
+
+	appService := (*service.AppContainerLocal)(c.container)
+	result, err := appService.UpdateReactionsService(ctx, channelId, reactionsData)
+	if err != nil {
+		fmt.Printf("DEBUG: UpdateReactionsService error: %v\n", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
 		return
 	}
 
 	ctx.JSON(http.StatusOK, result)
+}
 
+func (c *CaptionController) UpdateReactionPositionController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "ID do canal inválido",
+		})
+		return
+	}
+
+	var posData types.ReactionPositionUpdateRequest
+	if err := ctx.ShouldBindJSON(&posData); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Dados inválidos: " + err.Error(),
+		})
+		return
+	}
+
+	appService := (*service.AppContainerLocal)(c.container)
+	result, err := appService.UpdateReactionPositionService(ctx, channelId, posData)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, result)
 }

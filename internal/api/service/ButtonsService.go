@@ -140,7 +140,12 @@ func (app *AppContainerLocal) UpdateButtonsLayoutService(ctx context.Context, ch
 
 	now := time.Now()
 	err = app.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Verify if any button is on the same row as the reactions
 		for _, btn := range buttonsToUpdate {
+			if int64(btn.PositionY) == int64(channel.ReactionPosition) {
+				return fmt.Errorf("não é possível colocar botões na linha das reações (Linha %d)", channel.ReactionPosition)
+			}
+
 			result := tx.Model(&models.Button{}).
 				Where("button_id = ? AND owner_channel_id = ?", btn.ID, channelID).
 				Updates(map[string]interface{}{

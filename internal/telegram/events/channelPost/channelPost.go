@@ -142,6 +142,13 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		// Ignorar mensagens enviadas via este bot (modo inline)
+		botInfo, _ := b.GetMe(ctx)
+		if post.ViaBot != nil && post.ViaBot.ID == botInfo.ID {
+			logger.Bot("⏭️ Ignorando mensagem enviada via modo inline deste bot.")
+			return
+		}
+
 		maintence, _ := c.ServerRepo.GetMaintence(ctx)
 		if maintence {
 			return

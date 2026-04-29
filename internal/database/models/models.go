@@ -30,8 +30,10 @@ type Channel struct {
 	Buttons        []Button        `gorm:"foreignKey:OwnerChannelID" json:"buttons"`
 	Separator      *Separator      `gorm:"foreignKey:OwnerChannelID" json:"separator,omitempty"`
 	CustomCaptions []CustomCaption `gorm:"foreignKey:OwnerChannelID" json:"customCaptions"`
-	TokenVersion   int64           `gorm:"not null;default:1"`
-	CreatedAt      time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	TokenVersion     int64           `gorm:"not null;default:1"`
+	Reactions        string          `json:"reactions"`
+	ReactionPosition int             `gorm:"default:0" json:"reactionPosition"`
+	CreatedAt        time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
@@ -112,6 +114,15 @@ type CustomCaptionButton struct {
 	OwnerCaptionID string    `json:"ownerCaptionId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type Vote struct {
+	ID        uint   `gorm:"primaryKey" json:"id"`
+	ChatID    int64  `gorm:"index:idx_vote_user,unique" json:"chat_id"`
+	MessageID int    `gorm:"index:idx_vote_user,unique" json:"message_id"`
+	UserID    int64  `gorm:"index:idx_vote_user,unique" json:"user_id"`
+	Emoji     string `gorm:"index:idx_vote_user,unique" json:"emoji"`
+	CreatedAt time.Time
 }
 
 func (User) TableName() string {

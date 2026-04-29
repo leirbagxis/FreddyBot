@@ -42,6 +42,8 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 			channelRoutes.GET("", handlers.GetChannelHandler(c))
 			channelRoutes.PUT("/caption", captionController.UpdateDefaultCaptionController)
 			channelRoutes.PUT("/newpackcaption", captionController.UpdateNewPackCaptionController)
+			channelRoutes.PUT("/reactions", captionController.UpdateReactionsController)
+			channelRoutes.PUT("/reactions/position", captionController.UpdateReactionPositionController)
 			channelRoutes.PUT("/caption/permissions", permissionsController.UpdateMessagePermissionController)
 			channelRoutes.PUT("/buttons/permissions", permissionsController.UpdateButtonsPermissionController)
 

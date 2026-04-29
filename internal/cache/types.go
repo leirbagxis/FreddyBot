@@ -23,6 +23,7 @@ type PostBuilderState struct {
 	Title       string              `json:"title"`
 	Body        string              `json:"body"`
 	Footer      string              `json:"footer"`
+	Reactions   string              `json:"reactions"`
 	Buttons     []PostBuilderButton `json:"buttons"`
 	Step        string              `json:"step"`
 }

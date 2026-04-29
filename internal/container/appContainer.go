@@ -37,6 +37,7 @@ type AppContainer struct {
 	ChannelRepo   *repositories.ChannelRepository
 	ButtonRepo    *repositories.ButtonRepository
 	SeparatorRepo *repositories.SeparatorRepository
+	VoteRepo      *repositories.VoteRepository
 
 	// ## CACHE ## \\
 	CacheService   *cache.Service
@@ -60,6 +61,7 @@ func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
 		ChannelRepo:   repositories.NewChannelRepository(db, cacheService),
 		ButtonRepo:    repositories.NewButtonRepository(db),
 		SeparatorRepo: repositories.NewSeparatorRepository(db),
+		VoteRepo:      repositories.NewVoteRepository(db),
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),

@@ -21,34 +21,31 @@ func CheckMaintenceMiddleware(db *gorm.DB) bot.Middleware {
 				return
 			}
 
-			userID := getUpdateUserID(upt)
-			if userID == 0 {
-				return
-			}
-
-			user, err := userRepo.GetUserById(ctx, userID)
-			if err != nil {
-				fmt.Println(err)
-				return
-			}
-
-			if user.IsAdmin {
-				next(ctx, b, upt)
-				return
-			}
-
-			maintence, err := serverRepo.GetMaintence(ctx)
+			// 1. Get maintenance status first
+			maintenance, err := serverRepo.GetMaintence(ctx)
 			if err != nil {
 				fmt.Printf("erro ao pegar o maintence: %v\n", err)
 				next(ctx, b, upt)
 				return
 			}
 
-			if !maintence {
+			// 2. If not in maintenance, allow everything
+			if !maintenance {
 				next(ctx, b, upt)
 				return
 			}
 
+			// 3. If in maintenance, check if user is admin
+			userID := getUpdateUserID(upt)
+			if userID != 0 {
+				user, err := userRepo.GetUserById(ctx, userID)
+				if err == nil && user.IsAdmin {
+					next(ctx, b, upt)
+					return
+				}
+			}
+
+			// 4. Send maintenance response
 			sendMaintenceResponse(ctx, b, upt, userID)
 		}
 	}
@@ -60,6 +57,12 @@ func getUpdateUserID(upt *models.Update) int64 {
 		return upt.Message.From.ID
 	case upt.CallbackQuery != nil:
 		return upt.CallbackQuery.From.ID
+	case upt.InlineQuery != nil:
+		return upt.InlineQuery.From.ID
+	case upt.MyChatMember != nil:
+		return upt.MyChatMember.From.ID
+	case upt.ChatMember != nil:
+		return upt.ChatMember.From.ID
 	default:
 		return 0
 	}
@@ -83,6 +86,21 @@ func sendMaintenceResponse(ctx context.Context, b *bot.Bot, upt *models.Update, 
 			Text:            "🚧 O bot está em manutenção no momento.",
 			ShowAlert:       true,
 			CacheTime:       0,
+		})
+
+	case upt.InlineQuery != nil:
+		_, _ = b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
+			InlineQueryID: upt.InlineQuery.ID,
+			Results: []models.InlineQueryResult{
+				&models.InlineQueryResultArticle{
+					ID:    "maintenance",
+					Title: "⚙️ Manutenção em andamento",
+					InputMessageContent: &models.InputTextMessageContent{
+						MessageText: "O bot está em manutenção no momento. Tente novamente mais tarde.",
+					},
+				},
+			},
+			CacheTime: 0,
 		})
 
 	case upt.ChannelPost != nil:

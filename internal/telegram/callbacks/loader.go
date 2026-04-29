@@ -3,6 +3,7 @@ package callbacks
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -11,16 +12,20 @@ import (
 	claimchannel "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/claimChannel"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/help"
 	mychannel "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/my_channel"
-	profileinfo "github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/profile_info"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/profile_info"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/start"
-)
+	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/vote"
+	)
 
-func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername string) {
+	func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername string) {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "help", bot.MatchTypeExact, help.Handler(help.Deps{BotUsername: botUsername}))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "start", bot.MatchTypeExact, start.Handler())
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "about", bot.MatchTypeExact, about.Handler())
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-info", bot.MatchTypeExact, profileinfo.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-user-channels", bot.MatchTypeExact, mychannel.Handler(c))
+
+	// ## VOTE HANDLERS ## \\
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "vote:", bot.MatchTypePrefix, vote.Handler(c))
 
 	// ## MY CHANNEL HANDLERS ## \\
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "config:", bot.MatchTypePrefix, mychannel.ConfigHandler(c))
@@ -64,5 +69,5 @@ func matchAwaitingNewOwner(update *models.Update) bool {
 }
 
 func matchAwaitClaimOwner(update *models.Update) bool {
-	return update.InlineQuery != nil
+	return update.InlineQuery != nil && strings.HasPrefix(update.InlineQuery.Query, "claim ")
 }

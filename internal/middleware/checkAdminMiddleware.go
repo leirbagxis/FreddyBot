@@ -24,8 +24,14 @@ func CheckAdminMiddleware(app *container.AppContainer) bot.Middleware {
 				userID = update.InlineQuery.From.ID
 			}
 
-			user, _ := app.UserRepo.GetUserById(ctx, userID)
-			if !user.IsAdmin && user.UserId != ownerID {
+			user, err := app.UserRepo.GetUserById(ctx, userID)
+			if err != nil || user == nil {
+				if userID != ownerID {
+					fmt.Println("User not found or not admin: ", userID)
+					return
+				}
+				// If owner but not in DB, we still want to allow
+			} else if !user.IsAdmin && user.UserId != ownerID {
 				fmt.Println("caindo aqui: ", !user.IsAdmin || user.UserId != ownerID)
 				return
 			}

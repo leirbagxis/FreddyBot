@@ -241,6 +241,25 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			keyboard = append(keyboard, line)
 		}
 	}
+
+	// Adicionar reações (se houver)
+	if channel != nil && channel.Reactions != "" {
+		reactions := strings.Split(channel.Reactions, ",")
+		var reactionRow []models.InlineKeyboardButton
+		for _, r := range reactions {
+			emoji := strings.TrimSpace(r)
+			if emoji != "" {
+				reactionRow = append(reactionRow, models.InlineKeyboardButton{
+					Text:         emoji,
+					CallbackData: "vote:" + emoji, // Exemplo de callback data
+				})
+			}
+		}
+		if len(reactionRow) > 0 {
+			keyboard = append(keyboard, reactionRow)
+		}
+	}
+
 	if len(keyboard) == 0 {
 		return nil
 	}

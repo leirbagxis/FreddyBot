@@ -70,3 +70,57 @@ func (app *AppContainerLocal) UpdateNewPackCaptionService(ctx context.Context, c
 		},
 	}, nil
 }
+
+func (app *AppContainerLocal) UpdateReactionsService(ctx context.Context, channelID int64, reactionsData types.ReactionsUpdateRequest) (*types.CaptionUpdateResponse, error) {
+	now := time.Now()
+	result := app.DB.Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Updates(map[string]interface{}{
+			"reactions":  reactionsData.Reactions,
+			"updated_at": now,
+		})
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("erro ao atualizar reações: %w", result.Error)
+	}
+
+	return &types.CaptionUpdateResponse{
+		Success: true,
+		Message: "Reações atualizadas com sucesso",
+		Data: map[string]interface{}{
+			"rows_affected": result.RowsAffected,
+			"updated_at":    now,
+		},
+	}, nil
+}
+
+func (app *AppContainerLocal) UpdateReactionPositionService(ctx context.Context, channelID int64, posData types.ReactionPositionUpdateRequest) (*types.CaptionUpdateResponse, error) {
+	// Verify if any button is already in this row
+	var count int64
+	app.DB.Model(&models.Button{}).Where("owner_channel_id = ? AND position_y = ?", channelID, posData.ReactionPosition).Count(&count)
+	if count > 0 {
+		return nil, fmt.Errorf("esta linha já possui botões e não pode ser usada para reações")
+	}
+
+	now := time.Now()
+	result := app.DB.Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Updates(map[string]interface{}{
+			"reaction_position": posData.ReactionPosition,
+			"updated_at":        now,
+		})
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("erro ao atualizar posição das reações: %w", result.Error)
+	}
+
+	return &types.CaptionUpdateResponse{
+		Success: true,
+		Message: "Posição das reações atualizada com sucesso",
+		Data: map[string]interface{}{
+			"rows_affected": result.RowsAffected,
+			"updated_at":    now,
+		},
+	}, nil
+}
+

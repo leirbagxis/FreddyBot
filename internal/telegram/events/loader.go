@@ -23,10 +23,15 @@ func LoadEvents(b *bot.Bot, c *container.AppContainer) {
 	// ## POST BUILDER ## \\
 	b.RegisterHandlerMatchFunc(matchPostBuilder(c), postbuilder.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "pb-", bot.MatchTypePrefix, postbuilder.CallbackHandler(c))
+	b.RegisterHandlerMatchFunc(matchPostBuilderInline, postbuilder.InlineHandler(c))
 
 	// ## CHANNEL POST ## \\
 	b.RegisterHandlerMatchFunc(matchChannelPost, channelpost.Handler(c))
 
+}
+
+func matchPostBuilderInline(update *models.Update) bool {
+	return update.InlineQuery != nil && strings.HasPrefix(update.InlineQuery.Query, "pb ")
 }
 
 func matchPostBuilder(c *container.AppContainer) bot.MatchFunc {

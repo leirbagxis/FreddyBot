@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -261,6 +262,55 @@ func (s *Service) DeletePostBuilderState(ctx context.Context, userID int64) erro
 
 	key := fmt.Sprintf("post_builder:%d", userID)
 	return client.Del(ctx, key).Err()
+}
+
+func (s *Service) SavePostBuilderSession(ctx context.Context, state PostBuilderState) (string, error) {
+	client := GetRedisClient()
+
+	id := generateShortID(8)
+	key := fmt.Sprintf("pb_session:%s", id)
+
+	data, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+
+	err = client.Set(ctx, key, data, 24*time.Hour).Err()
+	if err != nil {
+		return "", err
+	}
+
+	return id, nil
+}
+
+func (s *Service) GetPostBuilderSession(ctx context.Context, id string) (*PostBuilderState, error) {
+	client := GetRedisClient()
+
+	key := fmt.Sprintf("pb_session:%s", id)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	var state PostBuilderState
+	if err := json.Unmarshal([]byte(data), &state); err != nil {
+		return nil, err
+	}
+
+	return &state, nil
+}
+
+func generateShortID(length int) string {
+	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	b := make([]byte, length)
+	for i := range b {
+		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		b[i] = charset[num.Int64()]
+	}
+	return string(b)
 }
 
 // ### DELETE ALL SESSIONS ### \\\

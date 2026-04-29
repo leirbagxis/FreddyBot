@@ -376,7 +376,7 @@ func (r *ChannelRepository) GetChannelButtons(ctx context.Context, channelId int
 	return buttons, nil
 }
 
-func (r *ChannelRepository) UpdateChannelBasicInfo(ctx context.Context, channelID int64, title, inviteURL string) error {
+func (r *ChannelRepository) UpdateChannelBasicInfo(ctx context.Context, channelID int64, title, inviteURL, reactions string) error {
 	var channel models.Channel
 	err := r.db.WithContext(ctx).
 		Where("id = ?", channelID).
@@ -392,6 +392,7 @@ func (r *ChannelRepository) UpdateChannelBasicInfo(ctx context.Context, channelI
 	err = r.db.WithContext(ctx).Model(&channel).Updates(map[string]interface{}{
 		"title":      utils.RemoveHTMLTags(title),
 		"invite_url": inviteURL,
+		"reactions":  reactions,
 		"updated_at": now,
 	}).Error
 
@@ -421,6 +422,7 @@ func (r *ChannelRepository) UpdateChannelBasicInfoAndFirstButton(ctx context.Con
 		Updates(map[string]interface{}{
 			"title":      channel.Title,
 			"invite_url": channel.InviteURL,
+			"reactions":  channel.Reactions,
 			"updated_at": time.Now(),
 		})
 

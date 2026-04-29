@@ -78,8 +78,8 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 		callbacks.LoadCallbacksHandlers(b, app, botUsername)
 
 		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
-			URL: webhookUrl,
-			//AllowedUpdates: []string{"message", "callback_query", "inline_query", "my_chat_member"},
+			URL:            webhookUrl,
+			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "my_chat_member", "channel_post", "edited_channel_post"},
 		})
 		if err != nil {
 			logger.Error("BOT", "❌ Erro ao setar webhook: %v", err)

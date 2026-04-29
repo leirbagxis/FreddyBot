@@ -110,6 +110,7 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
+		c.Set("channelID", channelId)
 		c.Next()
 	}
 }
