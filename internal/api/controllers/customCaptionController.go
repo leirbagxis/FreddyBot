@@ -50,7 +50,7 @@ func (ctrl *CustomCaptionController) UpdateCustomCaptionController(ctx *gin.Cont
 	channelIdStr := ctx.Param("channelId")
 	captionID := ctx.Param("captionId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -80,7 +80,7 @@ func (ctrl *CustomCaptionController) DeleteCustomCaptionController(ctx *gin.Cont
 	channelIdStr := ctx.Param("channelId")
 	captionID := ctx.Param("captionId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,

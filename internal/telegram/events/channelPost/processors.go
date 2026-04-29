@@ -220,8 +220,10 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 		return nil
 	}
 
-	// Construção simples por linhas
+	// Construção por linhas
 	rows := map[int][]models.InlineKeyboardButton{}
+	
+	// Adicionar botões
 	for _, b := range finalButtons {
 		if b.NameButton == "" || b.ButtonURL == "" {
 			continue
@@ -234,15 +236,7 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 		rows[row] = append(rows[row], btn)
 	}
 
-	// Ordenar por linha
-	keyboard := make([][]models.InlineKeyboardButton, 0, len(rows))
-	for r := 0; r < 20; r++ {
-		if line, ok := rows[r]; ok && len(line) > 0 {
-			keyboard = append(keyboard, line)
-		}
-	}
-
-	// Adicionar reações (se houver)
+	// Adicionar reações (se houver) na posição correta
 	if channel != nil && channel.Reactions != "" {
 		reactions := strings.Split(channel.Reactions, ",")
 		var reactionRow []models.InlineKeyboardButton
@@ -251,12 +245,33 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			if emoji != "" {
 				reactionRow = append(reactionRow, models.InlineKeyboardButton{
 					Text:         emoji,
-					CallbackData: "vote:" + emoji, // Exemplo de callback data
+					CallbackData: "vote:" + emoji,
 				})
 			}
 		}
 		if len(reactionRow) > 0 {
-			keyboard = append(keyboard, reactionRow)
+			row := channel.ReactionPosition
+			if row < 0 {
+				row = 0
+			}
+			// Se já existir botão na mesma linha (conflito), o botão ganha e a reação vai para a próxima disponível?
+			// De acordo com o dashboard, não deveria haver conflito.
+			rows[row] = append(rows[row], reactionRow...)
+		}
+	}
+
+	// Ordenar por linha
+	keyboard := make([][]models.InlineKeyboardButton, 0)
+	maxRow := 0
+	for r := range rows {
+		if r > maxRow {
+			maxRow = r
+		}
+	}
+
+	for r := 0; r <= maxRow; r++ {
+		if line, ok := rows[r]; ok && len(line) > 0 {
+			keyboard = append(keyboard, line)
 		}
 	}
 

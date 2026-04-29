@@ -23,7 +23,7 @@ func NewButtonsController(container *container.AppContainer) *ButtonsController 
 func (c *ButtonsController) CreateDefaultButtonController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -64,7 +64,7 @@ func (c *ButtonsController) DeleteDefaultButtonController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 	buttonID := ctx.Param("buttonId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -91,7 +91,7 @@ func (c *ButtonsController) UpdateDefaultButtonController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 	buttonID := ctx.Param("buttonId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -131,7 +131,7 @@ func (c *ButtonsController) UpdateDefaultButtonController(ctx *gin.Context) {
 func (c *ButtonsController) UpdateLayoutDefaultButtons(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,

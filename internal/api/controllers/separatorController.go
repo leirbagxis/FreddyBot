@@ -24,7 +24,7 @@ func NewSeparatorController(container *container.AppContainer) *SeparatorControl
 
 func (ctrl *SeparatorController) GetSeparator(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
@@ -87,7 +87,7 @@ func (ctrl *SeparatorController) GetSeparator(ctx *gin.Context) {
 // func (ctrl *SeparatorController) GetSeparator(ctx *gin.Context) {
 // 	channelIdStr := ctx.Param("channelId")
 
-// 	channelId, err := strconv.ParseInt(channelIdStr, 10, 54)
+// 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 // 	if err != nil {
 // 		ctx.JSON(http.StatusBadRequest, gin.H{
 // 			"success": false,

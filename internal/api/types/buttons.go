@@ -27,7 +27,7 @@ type ButtonPosition struct {
 }
 
 type ButtonLayoutItem struct {
-	ID string `json:"id" binding:"required"`
+	ID string `json:"buttonId" binding:"required"`
 }
 
 type UpdateLayoutRequest struct {

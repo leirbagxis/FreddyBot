@@ -13,7 +13,7 @@ type CreateCustomCaptionResponse struct {
 }
 
 type CustomCaptionLayoutItem struct {
-	ID string `json:"id" binding:"required"`
+	ID string `json:"buttonId" binding:"required"`
 }
 
 type UpdateCustomCaptionLayoutRequest struct {

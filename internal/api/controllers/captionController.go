@@ -1,7 +1,6 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -91,11 +90,9 @@ func (c *CaptionController) UpdateNewPackCaptionController(ctx *gin.Context) {
 
 func (c *CaptionController) UpdateReactionsController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-	fmt.Printf("DEBUG: UpdateReactionsController channelIdStr=%s\n", channelIdStr)
 
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		fmt.Printf("DEBUG: Invalid channel ID: %v\n", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "ID do canal inválido",
@@ -105,7 +102,6 @@ func (c *CaptionController) UpdateReactionsController(ctx *gin.Context) {
 
 	var reactionsData types.ReactionsUpdateRequest
 	if err := ctx.ShouldBindJSON(&reactionsData); err != nil {
-		fmt.Printf("DEBUG: Bind JSON error: %v\n", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Dados inválidos: " + err.Error(),
@@ -113,12 +109,9 @@ func (c *CaptionController) UpdateReactionsController(ctx *gin.Context) {
 		return
 	}
 
-	fmt.Printf("DEBUG: Updating reactions for channel %d: %s\n", channelId, reactionsData.Reactions)
-
 	appService := (*service.AppContainerLocal)(c.container)
 	result, err := appService.UpdateReactionsService(ctx, channelId, reactionsData)
 	if err != nil {
-		fmt.Printf("DEBUG: UpdateReactionsService error: %v\n", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": err.Error(),
