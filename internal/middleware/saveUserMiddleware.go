@@ -37,16 +37,16 @@ func SaveUserMiddleware(db *gorm.DB) bot.Middleware {
 			}
 
 			if userId != 0 {
-				user := &models.User{
+				go func(u *models.User) {
+					err := userRepo.UpsertUser(context.Background(), u)
+					if err != nil {
+						log.Printf("❌ Erro ao upsert do usuário: %v", err)
+					}
+				}(&models.User{
 					UserId:    userId,
 					FirstName: utils.RemoveHTMLTags(firstName),
 					Username:  username,
-				}
-
-				err := userRepo.UpsertUser(ctx, user)
-				if err != nil {
-					log.Printf("❌ Erro ao upsert do usuário: %v", err)
-				}
+				})
 			}
 
 			next(ctx, b, update)

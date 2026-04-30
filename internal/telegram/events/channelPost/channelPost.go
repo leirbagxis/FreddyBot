@@ -247,7 +247,7 @@ func (mp *MessageProcessor) ProcessMessage(ctx context.Context, messageType Mess
 			return mp.ProcessStickerMessage(ctx, channel, post, buttons)
 		}
 		return nil
-	case MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation:
+	case MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation, MessageTypeDocument:
 		return mp.ProcessMediaMessage(ctx, channel, post, buttons, messageEditAllowed)
 	default:
 		return nil

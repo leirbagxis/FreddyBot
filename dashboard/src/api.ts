@@ -111,6 +111,7 @@ export const updateMessagePermission = async (channelId: number, perms: Permissi
         audio: Boolean(perms.audio),
         video: Boolean(perms.video),
         photo: Boolean(perms.photo),
+        document: Boolean(perms.document),
         sticker: Boolean(perms.sticker),
         gif: Boolean(perms.gif),
         reactions: Boolean(perms.reactions),
@@ -127,6 +128,7 @@ export const updateButtonsPermission = async (channelId: number, perms: Permissi
         audio: Boolean(perms.audio),
         video: Boolean(perms.video),
         photo: Boolean(perms.photo),
+        document: Boolean(perms.document),
         sticker: Boolean(perms.sticker),
         gif: Boolean(perms.gif),
     };

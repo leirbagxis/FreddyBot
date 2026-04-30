@@ -14,6 +14,7 @@ export interface Permission {
   audio: boolean;
   video: boolean;
   photo: boolean;
+  document: boolean;
   sticker: boolean;
   gif: boolean;
   reactions?: boolean;

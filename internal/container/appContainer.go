@@ -53,7 +53,7 @@ func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
 		DB:  db,
 		Bot: bot,
 
-		ServerRepo: repositories.NewServerConfigRepository(db),
+		ServerRepo: repositories.NewServerConfigRepository(db, cacheService),
 
 		BroadcastQueue: make(chan BroadcastJob, 10000),
 

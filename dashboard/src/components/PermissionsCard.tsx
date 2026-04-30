@@ -1,6 +1,6 @@
 import { Permission } from '../types';
 import {
-  MessageSquare, Headphones, Video, Image, Smile, Film, Link2, Zap
+  MessageSquare, Headphones, Video, Image, Smile, Film, Link2, Zap, FileText
 } from 'lucide-react';
 import { type ReactNode, useEffect } from 'react';
 import gsap from 'gsap';
@@ -17,6 +17,7 @@ const fields: { key: string; label: string; icon: ReactNode }[] = [
   { key: 'audio', label: 'Áudio', icon: <Headphones size={16} /> },
   { key: 'video', label: 'Vídeo', icon: <Video size={16} /> },
   { key: 'photo', label: 'Foto', icon: <Image size={16} /> },
+  { key: 'document', label: 'Arquivo', icon: <FileText size={16} /> },
   { key: 'sticker', label: 'Sticker', icon: <Smile size={16} /> },
   { key: 'gif', label: 'GIF', icon: <Film size={16} /> },
   { key: 'linkPreview', label: 'Link Preview', icon: <Link2 size={16} /> },

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { DashboardData, Button, TelegramUser, AdminDashboardData, Channel } from './types';
 import {
   login, fetchDashboardData, fetchUserChannels, fetchAdminDashboard,
@@ -43,7 +43,7 @@ const adminTabs: Tab[] = [
 
 const permLabels: Record<string, string> = {
   message: 'Mensagem', audio: 'Áudio', video: 'Vídeo',
-  photo: 'Foto', sticker: 'Sticker', gif: 'GIF', linkPreview: 'Link Preview',
+  photo: 'Foto', document: 'Arquivo', sticker: 'Sticker', gif: 'GIF', linkPreview: 'Link Preview',
   reactions: 'Reações',
 };
 
@@ -62,6 +62,8 @@ function isAdminDashRoute(): boolean {
 
 type AuthState = 'idle' | 'authenticating' | 'authenticated' | 'error';
 
+const MemoizedAdminDashboard = memo(AdminDashboard);
+
 function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ function DashboardContent() {
   const [noticeTarget, setNoticeTarget] = useState<'channels' | 'users' | 'all'>('all');
   const [noticeButtons, setNoticeButtons] = useState<NoticeButton[]>([]);
   const [isSendingNotice, setIsSendingNotice] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Mudado para isSidebarOpen
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     const savedUid = sessionStorage.getItem('lastAdminUserId');
@@ -109,7 +111,6 @@ function DashboardContent() {
       tg.expand();
       if (tg.initDataUnsafe?.user) setTgUser(tg.initDataUnsafe.user);
 
-      // Lógica do BackButton Nativo
       if (isSpecificChannel) {
         tg.BackButton.show();
         tg.BackButton.onClick(handleBack);
@@ -131,14 +132,12 @@ function DashboardContent() {
       const initData = tg?.initData || '';
       const userID = tg?.initDataUnsafe?.user?.id || 0;
 
-      // 1. Unified Login
       try {
         const authRes = await login(initData, userID);
         if (!authRes.success) throw new Error(authRes.message || 'Falha no login');
 
         setAuthState('authenticated');
 
-        // 2. Fetch data based on route
         if (isAdminDashRoute()) {
           const response = await fetchAdminDashboard();
           setAdminData(response);
@@ -160,7 +159,6 @@ function DashboardContent() {
           setData(dashRes);
         }
 
-        // 3. CloudStorage (optional)
         if (tg?.CloudStorage && initData) {
           tg.CloudStorage.setItem('initData', initData);
         }
@@ -169,7 +167,6 @@ function DashboardContent() {
         console.warn('Auth/fetch failed, checking error:', err);
         const errMsg = err?.message || 'Erro na autenticação';
 
-        // Dev Fallback
         // @ts-ignore
         if (import.meta.env.DEV) {
           const { fallbackData, mockAdminData } = await import('./mockData');
@@ -191,7 +188,6 @@ function DashboardContent() {
     if (!data) return;
     const cid = parseInt(String(channelId), 10);
     
-    // Atualização Otimista: Muda o estado instantaneamente na UI
     setData(p => {
       if (!p) return p;
       return {
@@ -209,7 +205,6 @@ function DashboardContent() {
       await updateMessagePermission(cid, newPerms);
       toast(`${permLabels[field] || field} ${value ? 'ativado' : 'desativado'}`, value ? 'success' : 'info');
     } catch {
-      // Reverter em caso de erro
       setData(data); 
       toast(`Erro ao atualizar permissão`, 'error');
     }
@@ -219,7 +214,6 @@ function DashboardContent() {
     if (!data) return;
     const cid = parseInt(String(channelId), 10);
 
-    // Atualização Otimista
     setData(p => {
       if (!p) return p;
       return {
@@ -246,7 +240,6 @@ function DashboardContent() {
     const cid = parseInt(String(channelId), 10);
     try {
       const resp = await createButton(cid, button);
-      // Backend returns: { Success: true, Message: "...", Data: { ButtonID: "..." } }
       const newButtonData = resp?.data || resp?.Data || resp;
       const realId = newButtonData?.buttonId || newButtonData?.ButtonID || newButtonData?.id;
 
@@ -260,7 +253,6 @@ function DashboardContent() {
       });
       toast(`"${button.nameButton}" adicionado`, 'success');
 
-      // Sync layout
       setData(p => {
         if (!p) return p;
         const allButtons = p.channel.buttons;
@@ -327,12 +319,10 @@ function DashboardContent() {
     const cid = parseInt(String(channelId), 10);
     if (!data) return;
 
-    // Calculamos o novo layout
     const updatedButtons = data.channel.buttons.map(b =>
       b.buttonId === buttonId ? { ...b, positionX: x, positionY: y, updated_at: new Date().toISOString() } : b
     );
 
-    // Só forçamos a mudança das reações se houver conflito real de linha
     const currentReactionPos = data.channel.reactionPosition;
     let desiredReactionPos = currentReactionPos;
     
@@ -343,7 +333,6 @@ function DashboardContent() {
     }
 
     try {
-      // Se houver mudança na posição das reações, movemos para longe primeiro para evitar erros de unique constraint se houvesse
       if (desiredReactionPos !== currentReactionPos) {
         await updateReactionPosition(cid, 99);
       }
@@ -366,7 +355,6 @@ function DashboardContent() {
 
       await updateLayoutButtons(cid, layout);
       
-      // Sincronizamos a posição final das reações
       if (desiredReactionPos !== currentReactionPos) {
         await updateReactionPosition(cid, desiredReactionPos);
       }
@@ -392,7 +380,6 @@ function DashboardContent() {
     const cid = parseInt(String(channelId), 10);
     if (!data) return;
 
-    // Verificar se existe algum botão na linha de destino
     const conflictingButtons = data.channel.buttons.filter(b => b.positionY === y);
     if (conflictingButtons.length > 0) {
       const names = conflictingButtons.map(b => `"${b.nameButton}"`).join(', ');
@@ -448,8 +435,6 @@ function DashboardContent() {
       await updateReactions(cid, text);
       
       let newPos = data.channel.reactionPosition;
-      // Se for a primeira vez adicionando reações e a posição for 0 (default), 
-      // mas já existirem botões na linha 0, movemos para o final.
       if (text.trim() !== '' && newPos === 0) {
         const hasButtonsAtZero = data.channel.buttons.some(b => b.positionY === 0);
         if (hasButtonsAtZero) {
@@ -495,7 +480,6 @@ function DashboardContent() {
   const [transferNewOwnerId, setTransferNewOwnerId] = useState<number | null>(null);
   const [showTransferError, setShowTransferError] = useState(false);
 
-
   const handleDisconnect = () => {
     setShowDisconnect(true);
   };
@@ -508,11 +492,11 @@ function DashboardContent() {
     }
 
     setIsTransferring(true);
-    setTransferErrorMessage(''); // Clear previous errors
-    setShowTransferError(false); // Hide previous error message
+    setTransferErrorMessage('');
+    setShowTransferError(false);
 
     try {
-      const resp = await fetchUserInfo(newOwner); // Assuming fetchUserInfo is defined elsewhere
+      const resp = await fetchUserInfo(newOwner);
       const isSuccess = resp && (resp.success || resp.succes) && resp.user;
 
       if (isSuccess) {
@@ -637,26 +621,12 @@ function DashboardContent() {
 
   useEffect(() => {
     if (!loading && (data || adminData)) {
-      gsap.fromTo('.main-content', 
-        { opacity: 0 }, 
-        { opacity: 1, duration: 0.3, ease: 'power2.out' }
+      gsap.fromTo('.tab-content-wrapper', 
+        { opacity: 0, y: 5 }, 
+        { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out' }
       );
-
-      if (activeTab === 'legendas') {
-        gsap.fromTo('.tab-content-wrapper-legendas > *',
-          { opacity: 0 },
-          { opacity: 1, duration: 0.3, stagger: 0.05, ease: 'power2.out' }
-        );
-      }
-
-      if (activeTab === 'permissoes') {
-        gsap.fromTo('.tab-content-wrapper-permissoes > *',
-          { opacity: 0 },
-          { opacity: 1, duration: 0.3, stagger: 0.05, ease: 'power2.out' }
-        );
-      }
     }
-  }, [activeTab, adminActiveTab, loading, data, adminData]);
+  }, [activeTab, adminActiveTab, loading]);
 
   if (authState === 'error') {
     return (
@@ -701,14 +671,13 @@ function DashboardContent() {
           activeTab={adminActiveTab}
           onTabChange={(id) => {
             setAdminActiveTab(id as any);
-            setIsSidebarOpen(false); // Fecha ao selecionar
+            setIsSidebarOpen(false);
           }}
           isCollapsed={!isSidebarOpen}
         />
       )}
       
       <div className={isAdmin ? 'app-main' : 'w-full flex flex-col min-h-screen'}>
-        {/* Top bar */}
         <div className="top-bar">
           {isAdmin && (
             <button 
@@ -746,35 +715,33 @@ function DashboardContent() {
           </button>
         </div>
 
-        {/* Content */}
         <div className="main-content">
-
-          {/* ====== ADMIN DASHBOARD ====== */}
           {isAdmin && adminData && (
-            <AdminDashboard
-              adminData={adminData}
-              activeTab={adminActiveTab}
-              navigateToChannel={navigateToChannel}
-              selectedUserId={adminSelectedUserId}
-              onSelectUser={(id) => {
-                setAdminSelectedUserId(id);
-                if (id) sessionStorage.setItem('lastAdminUserId', id.toString());
-                else sessionStorage.removeItem('lastAdminUserId');
-              }}
-              noticeMessage={noticeMessage}
-              setNoticeMessage={setNoticeMessage}
-              noticeTarget={noticeTarget}
-              setNoticeTarget={setNoticeTarget}
-              noticeButtons={noticeButtons}
-              handleAddNoticeButton={handleAddNoticeButton}
-              updateNoticeButton={updateNoticeButton}
-              removeNoticeButton={removeNoticeButton}
-              handleSendNotice={handleSendNotice}
-              isSendingNotice={isSendingNotice}
-            />
+            <div className="tab-content-wrapper">
+              <MemoizedAdminDashboard
+                adminData={adminData}
+                activeTab={adminActiveTab}
+                navigateToChannel={navigateToChannel}
+                selectedUserId={adminSelectedUserId}
+                onSelectUser={(id) => {
+                  setAdminSelectedUserId(id);
+                  if (id) sessionStorage.setItem('lastAdminUserId', id.toString());
+                  else sessionStorage.removeItem('lastAdminUserId');
+                }}
+                noticeMessage={noticeMessage}
+                setNoticeMessage={setNoticeMessage}
+                noticeTarget={noticeTarget}
+                setNoticeTarget={setNoticeTarget}
+                noticeButtons={noticeButtons}
+                handleAddNoticeButton={handleAddNoticeButton}
+                updateNoticeButton={updateNoticeButton}
+                removeNoticeButton={removeNoticeButton}
+                handleSendNotice={handleSendNotice}
+                isSendingNotice={isSendingNotice}
+              />
+            </div>
           )}
 
-          {/* ====== CANAL OU VAZIO ====== */}
           {(!isAdmin && (!channel || isChannelsRoute())) && (
             <div className="space-y-4">
               {isChannelsRoute() && (
@@ -815,14 +782,11 @@ function DashboardContent() {
                     <p className="text-[13px]" style={{ opacity: 0.7, marginBottom: 24 }}>
                       Para começar, adicione este bot como <strong style={{ color: 'var(--text)' }}>administrador</strong> no seu canal do Telegram.
                     </p>
-
                     <div style={{ width: '100%', height: 1, background: 'var(--border)', marginBottom: 24 }}></div>
-
                     <h4 className="text-[14px] font-semibold" style={{ color: 'var(--text)', marginBottom: 12 }}>Fique por dentro das novidades!</h4>
                     <p className="text-[13px]" style={{ opacity: 0.8, marginBottom: 16 }}>
                       Entre no nosso canal oficial para acompanhar atualizações, dicas e novos recursos.
                     </p>
-
                     <a
                       href="https://t.me/LegendasBOTTopic"
                       target="_blank"
@@ -839,46 +803,45 @@ function DashboardContent() {
             </div>
           )}
 
-          {/* ====== INÍCIO (DASHBOARD) ====== */}
           {!isChannels && !isAdmin && activeTab === 'geral' && channel && (
-            <DashboardInicioTab
-              channel={channel}
-              displayName={displayName}
-              getGreeting={getGreeting}
-              getGreetingEmoji={getGreetingEmoji}
-              transferInput={transferInput}
-              setTransferInput={setTransferInput}
-              isTransferring={isTransferring}
-              handleTransferClick={handleTransferClick}
-              handleDisconnect={handleDisconnect}
-              showDisconnect={showDisconnect}
-              setShowDisconnect={setShowDisconnect}
-              isDisconnecting={isDisconnecting}
-              confirmDisconnect={confirmDisconnect}
-              showDisconnectSuccess={showDisconnectSuccess}
-              setShowDisconnectSuccess={setShowDisconnectSuccess}
-              showTransferConfirm={showTransferConfirm}
-              setShowTransferConfirm={setShowTransferConfirm}
-              confirmTransfer={confirmTransfer}
-              transferNewOwnerName={transferNewOwnerName}
-              showTransferError={showTransferError}
-              setShowTransferError={setShowTransferError}
-              transferErrorMessage={transferErrorMessage}
-              showTransferSuccess={showTransferSuccess}
-              setShowTransferSuccess={setShowTransferSuccess}
-            />
+            <div className="tab-content-wrapper">
+              <DashboardInicioTab
+                channel={channel}
+                displayName={displayName}
+                getGreeting={getGreeting}
+                getGreetingEmoji={getGreetingEmoji}
+                transferInput={transferInput}
+                setTransferInput={setTransferInput}
+                isTransferring={isTransferring}
+                handleTransferClick={handleTransferClick}
+                handleDisconnect={handleDisconnect}
+                showDisconnect={showDisconnect}
+                setShowDisconnect={setShowDisconnect}
+                isDisconnecting={isDisconnecting}
+                confirmDisconnect={confirmDisconnect}
+                showDisconnectSuccess={showDisconnectSuccess}
+                setShowDisconnectSuccess={setShowDisconnectSuccess}
+                showTransferConfirm={showTransferConfirm}
+                setShowTransferConfirm={setShowTransferConfirm}
+                confirmTransfer={confirmTransfer}
+                transferNewOwnerName={transferNewOwnerName}
+                showTransferError={showTransferError}
+                setShowTransferError={setShowTransferError}
+                transferErrorMessage={transferErrorMessage}
+                showTransferSuccess={showTransferSuccess}
+                setShowTransferSuccess={setShowTransferSuccess}
+              />
+            </div>
           )}
 
-          {/* ====== LEGENDAS ====== */}
           {!isChannels && !isAdmin && activeTab === 'legendas' && channel && (
-            <div className="space-y-4 tab-content-wrapper-legendas">
+            <div className="space-y-4 tab-content-wrapper">
               <CaptionCard caption={channel.defaultCaption} onUpdate={handleUpdateCaption} />
               <NewPackCaptionCard caption={channel.newPackCaption} onUpdate={handleUpdateNewPack} />
               <ReactionsCard reactions={channel.reactions} onUpdate={handleUpdateReactions} />
             </div>
           )}
 
-          {/* ====== BOTÕES ====== */}
           {!isChannels && !isAdmin && activeTab === 'botoes' && channel && (
             <ButtonGrid
               buttons={channel.buttons}
@@ -893,10 +856,8 @@ function DashboardContent() {
             />
           )}
 
-          {/* ====== PERMISSÕES ====== */}
           {!isChannels && !isAdmin && activeTab === 'permissoes' && channel && (
-            <div className="space-y-4 tab-content-wrapper-permissoes">
-              {/* Card de Reações Separado */}
+            <div className="space-y-4 tab-content-wrapper">
               <div className="card">
                 <div className="section-header">
                   <div className="section-icon purple">
@@ -912,7 +873,6 @@ function DashboardContent() {
                     {channel.defaultCaption.messagePermission.reactions ? 'ON' : 'OFF'}
                   </span>
                 </div>
-
                 <div className="space-y-2">
                   <div
                     className={`perm-row ${channel.defaultCaption.messagePermission.reactions ? 'on' : ''}`}
@@ -934,7 +894,6 @@ function DashboardContent() {
                   </div>
                 </div>
               </div>
-
               <PermissionsCard
                 title="Permissões de Mensagem"
                 icon={<MessageCircle size={18} />}
@@ -950,21 +909,25 @@ function DashboardContent() {
             </div>
           )}
         </div>
-
-        {/* Bottom nav */}
-        {!isChannels && !isAdmin && (
-          <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
-        )}
       </div>
+      
+      {!isChannels && !isAdmin && (
+        <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+      )}
+      
       <BackgroundEffect />
     </div>
   );
 }
 
+import { ReactLenis } from 'lenis/react';
+
 export default function App() {
   return (
-    <ToastProvider>
-      <DashboardContent />
-    </ToastProvider>
+    <ReactLenis root options={{ lerp: 0.1, duration: 1.5, smoothWheel: true }}>
+      <ToastProvider>
+        <DashboardContent />
+      </ToastProvider>
+    </ReactLenis>
   );
 }

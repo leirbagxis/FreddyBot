@@ -160,7 +160,7 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, on
       c.className = `${target.className} drag-clone`;
       c.style.position = 'fixed';
       c.style.margin = '0';
-      c.style.zIndex = '9999';
+      c.style.zIndex = '25000';
       c.style.width = `${target.offsetWidth}px`;
       c.style.height = `${target.offsetHeight}px`;
       c.style.pointerEvents = 'none';

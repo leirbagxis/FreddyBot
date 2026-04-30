@@ -55,6 +55,7 @@ type MessagePermission struct {
 	Audio               bool      `gorm:"default:true" json:"audio"`
 	Video               bool      `gorm:"default:true" json:"video"`
 	Photo               bool      `gorm:"default:true" json:"photo"`
+	Document            bool      `gorm:"default:true" json:"document"`
 	Sticker             bool      `gorm:"default:true" json:"sticker"`
 	GIF                 bool      `gorm:"default:true" json:"gif"`
 	Reactions           bool      `gorm:"default:true" json:"reactions"`
@@ -69,6 +70,7 @@ type ButtonsPermission struct {
 	Audio               bool      `gorm:"default:true" json:"audio"`
 	Video               bool      `gorm:"default:true" json:"video"`
 	Photo               bool      `gorm:"default:true" json:"photo"`
+	Document            bool      `gorm:"default:true" json:"document"`
 	Sticker             bool      `gorm:"default:true" json:"sticker"`
 	GIF                 bool      `gorm:"default:true" json:"gif"`
 	OwnerCaptionID      string    `gorm:"unique" json:"ownerCaptionId"`

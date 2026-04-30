@@ -1,7 +1,9 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +41,21 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 	validateResult := auth.ValidateTelegramInitData(authData, 3600)
 	if !validateResult.IsValid {
 		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Autenticação do Telegram falhou"})
+		return
+	}
+
+	// 1.1 Verificar se o userID do InitData condiz com o userID do Request
+	// Isso impede que um usuário envie o InitData dele mas peça um token para outro ID (impersonation)
+	userDataRaw, ok := validateResult.Data["user"]
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Dados de usuário ausentes no Telegram"})
+		return
+	}
+
+	// O Telegram envia o campo 'user' como um JSON stringificado
+	// Exemplo: {"id":123456,"first_name":"...","username":"..."}
+	if !strings.Contains(userDataRaw, fmt.Sprintf("\"id\":%d", req.UserID)) {
+		ctx.JSON(http.StatusForbidden, gin.H{"success": false, "message": "ID de usuário não coincide com a autenticação"})
 		return
 	}
 

@@ -13,11 +13,11 @@ export const BackgroundEffect = () => {
     const renderer = new THREE.WebGLRenderer({ 
       alpha: true, 
       antialias: false,
-      powerPreference: "low-power"
+      powerPreference: "high-performance"
     });
 
     renderer.setSize(window.innerWidth, window.innerHeight);
-    renderer.setPixelRatio(1);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     container.appendChild(renderer.domElement);
 
     // Partículas reduzidas para fluidez máxima
@@ -59,10 +59,6 @@ export const BackgroundEffect = () => {
     const animate = (time: number) => {
       frameId = requestAnimationFrame(animate);
       
-      // Trava em ~40 FPS para deixar o thread da UI livre
-      if (time - lastTime < 25) return;
-      lastTime = time;
-
       points.rotation.y += 0.0008;
       points.rotation.x += 0.0004;
       

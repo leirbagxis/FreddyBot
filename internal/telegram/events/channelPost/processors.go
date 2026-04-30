@@ -128,6 +128,11 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 				result.CanEdit = false
 				result.Reason = "Edição de mensagens de foto desabilitada"
 			}
+		case MessageTypeDocument:
+			if !mpPerm.Document {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de documento desabilitada"
+			}
 		case MessageTypeSticker:
 			if !mpPerm.Sticker {
 				result.CanEdit = false
@@ -161,6 +166,11 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 			}
 		case MessageTypePhoto:
 			if !bp.Photo {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypeDocument:
+			if !bp.Document {
 				result.CanAddButtons = false
 				result.CanEditButtons = false
 			}
@@ -305,6 +315,8 @@ func (mp *MessageProcessor) GetMessageType(post *models.Message) MessageType {
 		return MessageTypeVideo
 	case post.Animation != nil:
 		return MessageTypeAnimation
+	case post.Document != nil:
+		return MessageTypeDocument
 	default:
 		return ""
 	}
@@ -321,7 +333,7 @@ func (mp *MessageProcessor) ProcessMessagea(ctx context.Context, messageType Mes
 			return mp.ProcessStickerMessage(ctx, channel, post, buttons)
 		}
 		return nil
-	case MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation:
+	case MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation, MessageTypeDocument:
 		return mp.ProcessMediaMessage(ctx, channel, post, buttons, true)
 	default:
 		return nil
@@ -705,6 +717,8 @@ func (mp *MessageProcessor) ProcessMediaMessage(ctx context.Context, channel *db
 		messageType = MessageTypeVideo
 	case post.Animation != nil:
 		messageType = MessageTypeAnimation
+	case post.Document != nil:
+		messageType = MessageTypeDocument
 	default:
 		return fmt.Errorf("tipo de mídia não suportado")
 	}

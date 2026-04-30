@@ -5,6 +5,8 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Suporte para Arquivos (Arquivos)**: O bot agora suporta a edição e inclusão de botões em postagens do tipo "Arquivo". Suporte adicionado em todas as camadas (Backend, Bot e Dashboard).
+- **Controle Granular de Arquivos**: Adicionadas permissões específicas para "Arquivos" na aba de permissões da Dashboard, permitindo ativar/desativar a edição de legenda e adição de botões para este tipo de mídia.
 - **Despedida Dramática**: O bot agora envia uma mensagem melodramática e sarcástica antes de sair automaticamente de um canal ao ser desconectado.
 - **Alertas de Callback**: Adicionada verificação de existência de canal em todos os handlers de callback do Telegram, exibindo um alerta (ShowAlert) caso o canal não esteja vinculado ou o usuário não tenha permissão.
 - **Testes Unitários**: Implementação inicial de suite de testes para o middleware de autorização e repositórios de banco de dados.
@@ -32,6 +34,8 @@ All notable changes to this project will be documented in this file.
 - **Processamento de Canais**: Implementada verificação `via_bot` para que o bot ignore postagens enviadas por ele mesmo via modo inline, prevenindo loops de edição ou processamento duplicado.
 
 ### Fixed
+- **Camada de UI (Z-Index)**: Corrigido problema onde o toast de confirmação e modais ficavam atrás do menu inferior (TabBar) e de outros elementos, garantindo visibilidade total em todas as resoluções.
+- **Payload de Permissões**: Corrigida falha no dashboard que impedia a ativação de novas permissões devido à falta do campo `document` no payload enviado para a API.
 - **Contexto de Canal**: Corrigida falha no middleware `AuthorizeChannel` que impedia a injeção do `channelID` no contexto para usuários com cargo Admin/Owner, resolvendo o erro "channelID invalido no contexto" na desconexão de canais.
 - **Desconexão de Bot**: Corrigido erro de "channelID inválido" ao mover a rota para o grupo autorizado e padronizar para o padrão RESTful.
 - **Sincronização de UI**: Padronização de campos camelCase (ex: `forceJoin`) entre frontend e backend para garantir persistência visual dos toggles.

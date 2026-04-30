@@ -6,14 +6,11 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
-	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
-	"gorm.io/gorm"
+	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
 
-func CheckMaintenceMiddleware(db *gorm.DB) bot.Middleware {
-	serverRepo := repositories.NewServerConfigRepository(db)
-	userRepo := repositories.NewUserRepository(db)
-
+func CheckMaintenceMiddleware(c *container.AppContainer) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, upt *models.Update) {
 			if upt.ChannelPost != nil {
@@ -22,7 +19,7 @@ func CheckMaintenceMiddleware(db *gorm.DB) bot.Middleware {
 			}
 
 			// 1. Get maintenance status first
-			maintenance, err := serverRepo.GetMaintence(ctx)
+			maintenance, err := c.ServerRepo.GetMaintence(ctx)
 			if err != nil {
 				fmt.Printf("erro ao pegar o maintence: %v\n", err)
 				next(ctx, b, upt)
@@ -35,11 +32,18 @@ func CheckMaintenceMiddleware(db *gorm.DB) bot.Middleware {
 				return
 			}
 
-			// 3. If in maintenance, check if user is admin
+			// 3. If in maintenance, check if user is admin or owner
 			userID := getUpdateUserID(upt)
 			if userID != 0 {
-				user, err := userRepo.GetUserById(ctx, userID)
-				if err == nil && user.IsAdmin {
+				// Owner sempre passa
+				if userID == config.OwnerID {
+					next(ctx, b, upt)
+					return
+				}
+
+				// Admins também passam
+				user, err := c.UserRepo.GetUserById(ctx, userID)
+				if err == nil && user != nil && user.IsAdmin {
 					next(ctx, b, upt)
 					return
 				}

@@ -1,4 +1,4 @@
-import { useState, Dispatch, SetStateAction } from 'react';
+import { useState, useMemo, useTransition, useEffect, Dispatch, SetStateAction } from 'react';
 import { AdminDashboardData, User, Channel } from '../types';
 import { AdminNoticeTab } from './AdminNoticeTab';
 import { AdminConfigTab } from './AdminConfigTab';
@@ -41,19 +41,45 @@ export function AdminDashboard({
   const [adminChannelCountFilter, setAdminChannelCountFilter] = useState('');
   const [visibleChannelsCount, setVisibleChannelsCount] = useState(40);
   const [visibleUsersCount, setVisibleUsersCount] = useState(40);
-
-  // Derivar o usuário selecionado das props
-  const usersList = adminData.users || [];
-  const adminSelectedUser = selectedUserId ? usersList.find(u => u.id === selectedUserId) : null;
-  const setAdminSelectedUser = (user: User | null) => onSelectUser(user ? user.id : null);
-
   const [channelSearch, setChannelSearch] = useState('');
+
+  const [localActiveTab, setLocalActiveTab] = useState(activeTab);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    startTransition(() => {
+      setLocalActiveTab(activeTab);
+    });
+  }, [activeTab]);
+
+  const usersList = adminData.users || [];
+  
+  const filteredUsers = useMemo(() => {
+    return usersList.filter(u => {
+      const name = (u.firstName || (u as any).first_name || '').toLowerCase();
+      const matchesSearch = name.includes(adminSearch.toLowerCase()) || u.id.toString().includes(adminSearch);
+      const matchesCount = adminChannelCountFilter ? (u.channels?.length || 0) === parseInt(adminChannelCountFilter, 10) : true;
+      return matchesSearch && matchesCount;
+    });
+  }, [usersList, adminSearch, adminChannelCountFilter]);
+
+  const filteredChannels = useMemo(() => {
+    return (adminData.channels || []).filter(c => {
+      return c.title.toLowerCase().includes(channelSearch.toLowerCase()) || c.id.toString().includes(channelSearch);
+    });
+  }, [adminData.channels, channelSearch]);
+
+  const adminSelectedUser = useMemo(() => 
+    selectedUserId ? usersList.find(u => u.id === selectedUserId) : null,
+  [selectedUserId, usersList]);
+
+  const setAdminSelectedUser = (user: User | null) => onSelectUser(user ? user.id : null);
 
   const renderUserDetail = () => {
     if (!adminSelectedUser) return null;
     const name = adminSelectedUser.firstName || (adminSelectedUser as any).first_name || 'Sem nome';
     return (
-      <>
+      <div className="tab-content-wrapper">
         <button
           onClick={() => setAdminSelectedUser(null)}
           className="mb-2 flex items-center text-sm font-medium transition-colors"
@@ -92,22 +118,15 @@ export function AdminDashboard({
             </div>
           )}
         </div>
-      </>
+      </div>
     );
   };
 
   const renderUsersTab = () => {
-    const filteredUsers = usersList.filter(u => {
-      const name = (u.firstName || (u as any).first_name || '').toLowerCase();
-      const matchesSearch = name.includes(adminSearch.toLowerCase()) || u.id.toString().includes(adminSearch);
-      const matchesCount = adminChannelCountFilter ? (u.channels?.length || 0) === parseInt(adminChannelCountFilter, 10) : true;
-      return matchesSearch && matchesCount;
-    });
-
     const visibleUsers = filteredUsers.slice(0, visibleUsersCount);
 
     return (
-      <>
+      <div className="tab-content-wrapper">
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="admin-stat-card">
             <div className="admin-stat-icon-glow" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
@@ -186,20 +205,15 @@ export function AdminDashboard({
             </div>
           )}
         </div>
-      </>
+      </div>
     );
   };
 
   const renderChannelsTab = () => {
-    const filteredChannels = (adminData.channels || []).filter(c => {
-      const matchSearch = c.title.toLowerCase().includes(channelSearch.toLowerCase()) || c.id.toString().includes(channelSearch);
-      return matchSearch;
-    });
-
     const visibleChannels = filteredChannels.slice(0, visibleChannelsCount);
 
     return (
-      <>
+      <div className="tab-content-wrapper">
         <div className="flex flex-col gap-2 mb-4">
           <div className="search-bar-container relative">
             <Search className="absolute left-4 top-1/2 transform -translate-y-1/2" size={18} style={{ color: 'var(--hint)' }} />
@@ -246,29 +260,31 @@ export function AdminDashboard({
             </div>
           )}
         </div>
-      </>
+      </div>
     );
   };
 
   const renderNoticeTab = () => {
     return (
-      <AdminNoticeTab
-        noticeMessage={noticeMessage}
-        setNoticeMessage={setNoticeMessage}
-        noticeTarget={noticeTarget}
-        setNoticeTarget={setNoticeTarget}
-        noticeButtons={noticeButtons}
-        handleAddNoticeButton={handleAddNoticeButton}
-        updateNoticeButton={updateNoticeButton}
-        removeNoticeButton={removeNoticeButton}
-        handleSendNotice={handleSendNotice}
-        isSendingNotice={isSendingNotice}
-      />
+      <div className="tab-content-wrapper">
+        <AdminNoticeTab
+          noticeMessage={noticeMessage}
+          setNoticeMessage={setNoticeMessage}
+          noticeTarget={noticeTarget}
+          setNoticeTarget={setNoticeTarget}
+          noticeButtons={noticeButtons}
+          handleAddNoticeButton={handleAddNoticeButton}
+          updateNoticeButton={updateNoticeButton}
+          removeNoticeButton={removeNoticeButton}
+          handleSendNotice={handleSendNotice}
+          isSendingNotice={isSendingNotice}
+        />
+      </div>
     );
-  }
+  };
 
   return (
-    <div className="space-y-4">
+    <div className={`space-y-4 ${isPending ? 'opacity-60 pointer-events-none' : ''}`} style={{ transition: 'opacity 0.2s ease' }}>
       <div className="admin-welcome-card z-10">
         <div className="welcome-greeting relative z-10">
           <span className="welcome-emoji text-3xl">⚙️</span>
@@ -279,11 +295,15 @@ export function AdminDashboard({
         </div>
       </div>
 
-      {activeTab === 'users' && !adminSelectedUser && renderUsersTab()}
-      {activeTab === 'users' && adminSelectedUser && renderUserDetail()}
-      {activeTab === 'channels' && renderChannelsTab()}
-      {activeTab === 'notice' && renderNoticeTab()}
-      {activeTab === 'config' && <AdminConfigTab />}
+      {localActiveTab === 'users' && !adminSelectedUser && renderUsersTab()}
+      {localActiveTab === 'users' && adminSelectedUser && renderUserDetail()}
+      {localActiveTab === 'channels' && renderChannelsTab()}
+      {localActiveTab === 'notice' && renderNoticeTab()}
+      {localActiveTab === 'config' && (
+        <div className="tab-content-wrapper">
+          <AdminConfigTab />
+        </div>
+      )}
     </div>
   );
 }

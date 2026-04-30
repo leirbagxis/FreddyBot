@@ -14,6 +14,7 @@ const (
 	MessageTypePhoto     MessageType = "photo"
 	MessageTypeVideo     MessageType = "video"
 	MessageTypeAnimation MessageType = "animation"
+	MessageTypeDocument  MessageType = "document"
 )
 
 var PermissionMap = map[MessageType]string{
@@ -21,6 +22,7 @@ var PermissionMap = map[MessageType]string{
 	MessageTypeAudio:     "audio",
 	MessageTypeVideo:     "video",
 	MessageTypePhoto:     "photo",
+	MessageTypeDocument:  "document",
 	MessageTypeSticker:   "sticker",
 	MessageTypeAnimation: "gif",
 }

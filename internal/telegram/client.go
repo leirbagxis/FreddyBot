@@ -25,21 +25,26 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
+	cache.GetRedisClient()
+
+	// 1. Criar container primeiro
+	// Passamos um bot temporário (nil) apenas para inicializar o container
+	app := container.NewAppContainer(db, nil)
+
 	opts := []bot.Option{
 		bot.WithMiddlewares(
 			middleware.SaveUserMiddleware(db),
-			middleware.CheckMaintenceMiddleware(db),
+			middleware.CheckMaintenceMiddleware(app),
 		),
 	}
-
-	cache.GetRedisClient()
 
 	b, err := bot.New(config.TelegramBotToken, opts...)
 	if err != nil {
 		panic(err)
 	}
 
-	app := container.NewAppContainer(db, b)
+	// 2. Atualizar o bot no container
+	app.Bot = b
 
 	botInfo, _ := b.GetMe(ctx)
 	botUsername := fmt.Sprintf("@%s", botInfo.Username)
