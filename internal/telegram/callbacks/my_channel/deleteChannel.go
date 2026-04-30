@@ -74,12 +74,22 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Canal não encontrado ou não pertence a você!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
-		err = c.ChannelRepo.DeleteChannelWithRelations(ctx, userId, session)
+		err = c.DisconnectChannel(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao excluir canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "❌ Erro ao excluir canal. Tente novamente!",
+				ShowAlert:       true,
+			})
 			return
 		}
 

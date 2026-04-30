@@ -123,3 +123,30 @@ func (c *AppContainer) broadcastWorker() {
 		time.Sleep(35 * time.Millisecond)
 	}
 }
+
+func (c *AppContainer) DisconnectChannel(ctx context.Context, userID int64, channelID int64) error {
+	// 1. Send farewell message to the channel
+	farewellMsg := "Ah, então é assim? Um clique e tudo o que vivemos vira fumaça. Não se preocupe, eu vou embora... mas saiba que meu silêncio será o seu maior arrependimento. Aproveite sua liberdade sem mim. Adeus, ingrato! 🍷"
+
+	// Tenta enviar a mensagem, mas não bloqueia se falhar (o bot pode já ter sido removido manualmente)
+	_, _ = c.Bot.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: channelID,
+		Text:   farewellMsg,
+	})
+
+	// 2. Leave the channel
+	_, _ = c.Bot.LeaveChat(ctx, &bot.LeaveChatParams{
+		ChatID: channelID,
+	})
+
+	// 3. Delete from DB
+	err := c.ChannelRepo.DeleteChannelWithRelations(ctx, userID, channelID)
+	if err != nil {
+		return err
+	}
+
+	// 4. Clean cache
+	c.CacheService.SetDeleteChannel(ctx, userID, channelID)
+
+	return nil
+}

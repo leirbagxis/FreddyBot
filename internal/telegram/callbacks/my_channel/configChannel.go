@@ -34,6 +34,11 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userID, channelId)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "❌ Este canal não está vinculado ao bot!",
+				ShowAlert:       true,
+			})
 			return
 		}
 

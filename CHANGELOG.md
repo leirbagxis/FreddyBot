@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Despedida Dramática**: O bot agora envia uma mensagem melodramática e sarcástica antes de sair automaticamente de um canal ao ser desconectado.
+- **Alertas de Callback**: Adicionada verificação de existência de canal em todos os handlers de callback do Telegram, exibindo um alerta (ShowAlert) caso o canal não esteja vinculado ou o usuário não tenha permissão.
+- **Testes Unitários**: Implementação inicial de suite de testes para o middleware de autorização e repositórios de banco de dados.
 - **Gerenciamento de Reações**: Adicionado toggle para ativar/desativar reações globalmente por canal na aba de Permissões.
 - **Novo Sistema de Toasts**: Redesign completo das notificações do dashboard com glassmorphism, barra de progresso e animações modernas.
 - **Validação de Emojis**: Implementada verificação rigorosa em tempo real para reações (dashboard e bot), impedindo o uso de letras e números.
@@ -29,6 +32,7 @@ All notable changes to this project will be documented in this file.
 - **Processamento de Canais**: Implementada verificação `via_bot` para que o bot ignore postagens enviadas por ele mesmo via modo inline, prevenindo loops de edição ou processamento duplicado.
 
 ### Fixed
+- **Contexto de Canal**: Corrigida falha no middleware `AuthorizeChannel` que impedia a injeção do `channelID` no contexto para usuários com cargo Admin/Owner, resolvendo o erro "channelID invalido no contexto" na desconexão de canais.
 - **Desconexão de Bot**: Corrigido erro de "channelID inválido" ao mover a rota para o grupo autorizado e padronizar para o padrão RESTful.
 - **Sincronização de UI**: Padronização de campos camelCase (ex: `forceJoin`) entre frontend e backend para garantir persistência visual dos toggles.
 - **Verificação de Membros**: Refinada a lógica de Force Join para incluir usuários com status `restricted` e melhorar feedback de erros.

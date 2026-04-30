@@ -52,7 +52,7 @@ func (c *ChannelController) DisconectChannel(ctx *gin.Context) {
 		return
 	}
 
-	err = c.container.ChannelRepo.DeleteChannelWithRelations(ctx, channel.OwnerID, channelID)
+	err = c.container.DisconnectChannel(ctx, channel.OwnerID, channelID)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
@@ -60,7 +60,6 @@ func (c *ChannelController) DisconectChannel(ctx *gin.Context) {
 		})
 		return
 	}
-	c.container.CacheService.SetDeleteChannel(ctx, channel.OwnerID, channel.ID)
 
 	ctx.Status(http.StatusNoContent)
 }

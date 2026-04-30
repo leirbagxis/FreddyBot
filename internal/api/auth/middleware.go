@@ -92,6 +92,8 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 		userID := ctxUserID.(int64)
 		role := ctxRole.(Role)
 
+		c.Set("channelID", channelId)
+
 		// Owner e Admin têm passe livre
 		if role == RoleOwner || role == RoleAdmin {
 			c.Next()
@@ -110,7 +112,6 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
-		c.Set("channelID", channelId)
 		c.Next()
 	}
 }

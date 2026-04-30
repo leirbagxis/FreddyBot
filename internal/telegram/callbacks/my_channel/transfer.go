@@ -32,6 +32,11 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Canal não encontrado ou não pertence a você!",
+				ShowAlert:       true,
+			})
 			return
 		}
 
@@ -75,6 +80,11 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			log.Printf("Erro ao buscar canal: %v", err)
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⌛ Canal não encontrado ou não pertence a você!",
+				ShowAlert:       true,
+			})
 			return
 		}
 

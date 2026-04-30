@@ -9,13 +9,13 @@
     
     <tg-emoji emoji-id="5226512880362332956">📖</tg-emoji> Consulte a aba <b>Como Usar</b> para aprender a configurar tudo rapidamente!"
   buttons:
-    - - text: "Meus Dados"
-        callback_data: "profile-info"
-        custom_emoji: "5334882760735598374"
+    - - text: "ℹ️Sobre"
+        callback_data: "about"
       - text: "🆘 Como Usar"
         callback_data: "help"
-    - - text: "ℹ️ Sobre"
-        callback_data: "about"
+    - - text: "Meu Perfil"
+        callback_data: "profile-info"
+        custom_emoji: "5334882760735598374"
 
 - name: profile-info
   type: callback
@@ -33,7 +33,7 @@
     - - text: "Meus Canais"
         callback_data: "profile-user-channels"
         custom_emoji: "5334882760735598374"
-      - text: "Início"
+    - - text: "Início"
         callback_data: "start"
         custom_emoji: "5465226866321268133"
     # - - text: "Assumir Controle"
