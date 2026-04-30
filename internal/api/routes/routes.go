@@ -22,6 +22,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	userController := controllers.NewUserController(c)
 	channelController := controllers.NewChannelController(c)
 	getALlUsers := admincontroller.NewUsersAdminController(c)
+	configController := admincontroller.NewConfigController(c)
 
 	// --- Rota de Login Unificada ---
 	api.POST("/login", authController.Login)
@@ -33,16 +34,17 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.GET("/me/channels", userController.GetUserChannelsController)
 		api.GET("/user/info/:userParams", userController.GetUserInfo)
 		api.POST("/channel/transfer", userController.TransferChannelController)
-		api.DELETE("/channel/disconect", channelController.DisconectChannel)
 
 		// Rotas específicas de Canal (Com verificação de autorização)
 		channelRoutes := api.Group("/channel/:channelId")
 		channelRoutes.Use(auth.AuthorizeChannel(c))
 		{
 			channelRoutes.GET("", handlers.GetChannelHandler(c))
+			channelRoutes.DELETE("", channelController.DisconectChannel)
 			channelRoutes.PUT("/caption", captionController.UpdateDefaultCaptionController)
 			channelRoutes.PUT("/newpackcaption", captionController.UpdateNewPackCaptionController)
 			channelRoutes.PUT("/reactions", captionController.UpdateReactionsController)
+			channelRoutes.PUT("/reactions/active", permissionsController.UpdateReactionsActiveController)
 			channelRoutes.PUT("/reactions/position", captionController.UpdateReactionPositionController)
 			channelRoutes.PUT("/caption/permissions", permissionsController.UpdateMessagePermissionController)
 			channelRoutes.PUT("/buttons/permissions", permissionsController.UpdateButtonsPermissionController)
@@ -72,5 +74,8 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		adminRoute.GET("/users", getALlUsers.GetAllUsersAdminController)
 		adminRoute.GET("/channels", channelController.GetAllChannelsController)
 		adminRoute.POST("/notice", getALlUsers.SendNoticeAdminController)
+
+		adminRoute.GET("/config", configController.GetConfig)
+		adminRoute.PUT("/config", configController.UpdateConfig)
 	}
 }

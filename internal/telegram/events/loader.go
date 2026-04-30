@@ -2,7 +2,6 @@ package events
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -54,7 +53,6 @@ func matchPostBuilder(c *container.AppContainer) bot.MatchFunc {
 }
 
 func matchMyChatMember(update *models.Update) bool {
-	fmt.Println("Checking: ", update.MyChatMember != nil)
 	return update.MyChatMember != nil
 }
 

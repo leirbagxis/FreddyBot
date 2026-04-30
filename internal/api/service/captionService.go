@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+	"unicode"
 
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
@@ -12,6 +14,15 @@ import (
 )
 
 type AppContainerLocal container.AppContainer
+
+func (app *AppContainerLocal) isEmoji(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
 
 func (app *AppContainerLocal) UpdateDefaultCaptionService(ctx context.Context, channelID int64, captionData types.CaptionDefaultUpdateRequest) (*types.CaptionUpdateResponse, error) {
 	if len(captionData.Caption) > 4096 {
@@ -72,6 +83,20 @@ func (app *AppContainerLocal) UpdateNewPackCaptionService(ctx context.Context, c
 }
 
 func (app *AppContainerLocal) UpdateReactionsService(ctx context.Context, channelID int64, reactionsData types.ReactionsUpdateRequest) (*types.CaptionUpdateResponse, error) {
+	// Validação de emojis
+	if reactionsData.Reactions != "" {
+		parts := strings.Split(reactionsData.Reactions, ",")
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if !app.isEmoji(p) {
+				return nil, errors.New("apenas emojis são permitidos como reações")
+			}
+		}
+	}
+
 	now := time.Now()
 	result := app.DB.Model(&models.Channel{}).
 		Where("id = ?", channelID).

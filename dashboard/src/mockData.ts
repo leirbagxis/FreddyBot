@@ -15,7 +15,7 @@ export const fallbackData: DashboardData = {
             messagePermission: {
                 messagePermissionId: "9e23c5b1-bc13-4553-bc27-ab858ad98a9b",
                 linkPreview: true, message: true, audio: true, video: true,
-                photo: true, sticker: true, gif: true,
+                photo: true, sticker: true, gif: true, reactions: true,
                 ownerCaptionId: "fc99267a-57a5-4875-9f90-11567b2cb976",
                 created_at: "2026-02-27T23:11:42.611695-03:00",
                 updated_at: "2026-02-27T23:11:42.611695-03:00",

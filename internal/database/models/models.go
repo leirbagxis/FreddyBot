@@ -5,6 +5,7 @@ import "time"
 type ServerConfig struct {
 	ID        uint      `gorm:"primaryKey" json:"id"`
 	Maintence bool      `gorm:"default:false" json:"maintence"`
+	ForceJoin bool      `gorm:"default:false" json:"forceJoin"`
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -56,6 +57,7 @@ type MessagePermission struct {
 	Photo               bool      `gorm:"default:true" json:"photo"`
 	Sticker             bool      `gorm:"default:true" json:"sticker"`
 	GIF                 bool      `gorm:"default:true" json:"gif"`
+	Reactions           bool      `gorm:"default:true" json:"reactions"`
 	OwnerCaptionID      string    `gorm:"unique" json:"ownerCaptionId"`
 	CreatedAt           time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time `gorm:"autoUpdateTime" json:"updated_at"`

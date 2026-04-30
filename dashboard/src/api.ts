@@ -90,6 +90,13 @@ export const updateReactions = async (channelId: number, reactions: string) => {
     });
 };
 
+export const updateReactionsActive = async (channelId: number, active: boolean) => {
+    return apiFetch(`/api/channel/${channelId}/reactions/active`, {
+        method: 'PUT',
+        body: JSON.stringify({ active }),
+    });
+};
+
 export const updateReactionPosition = async (channelId: number, reactionPosition: number) => {
     return apiFetch(`/api/channel/${channelId}/reactions/position`, {
         method: 'PUT',
@@ -106,6 +113,7 @@ export const updateMessagePermission = async (channelId: number, perms: Permissi
         photo: Boolean(perms.photo),
         sticker: Boolean(perms.sticker),
         gif: Boolean(perms.gif),
+        reactions: Boolean(perms.reactions),
     };
     return apiFetch(`/api/channel/${channelId}/caption/permissions`, {
         method: 'PUT',
@@ -194,11 +202,24 @@ export const sendAdminNotice = async (initData: string, payload: NoticeRequest) 
     });
 };
 
+export const fetchServerConfig = async () => {
+    return apiFetch(`/api/admin/config`, {
+        method: 'GET',
+    });
+};
+
+export const updateServerConfig = async (maintence: boolean, forceJoin: boolean) => {
+    return apiFetch(`/api/admin/config`, {
+        method: 'PUT',
+        body: JSON.stringify({ maintence, forceJoin }),
+    });
+};
+
 export const disconnectChannel = async (channelId: number) => {
     // Retorna a promessa Response inteira para podermos conferir o status 204
-    return fetch(`/api/channel/disconect`, {
+    // Agora usando a nova rota RESTful: DELETE /api/channel/:id
+    return fetch(`/api/channel/${channelId}`, {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ channelId }),
     });
 };

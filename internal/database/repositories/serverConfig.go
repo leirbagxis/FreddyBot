@@ -40,3 +40,26 @@ func (r *ServerConfig) ToggleMaintence(ctx context.Context) (bool, error) {
 
 	return config.Maintence, nil
 }
+
+func (r *ServerConfig) GetConfig(ctx context.Context) (*models.ServerConfig, error) {
+	var config models.ServerConfig
+	if err := r.db.WithContext(ctx).First(&config, 1).Error; err != nil {
+		return nil, err
+	}
+	return &config, nil
+}
+
+func (r *ServerConfig) UpdateConfig(ctx context.Context, maintenance, forceJoin bool) (*models.ServerConfig, error) {
+	var config models.ServerConfig
+	if err := r.db.WithContext(ctx).First(&config, 1).Error; err != nil {
+		return nil, err
+	}
+
+	config.Maintence = maintenance
+	config.ForceJoin = forceJoin
+
+	if err := r.db.WithContext(ctx).Save(&config).Error; err != nil {
+		return nil, err
+	}
+	return &config, nil
+}

@@ -24,7 +24,7 @@ import gsap from 'gsap';
 import {
   Users, Hash, Sun, Moon, ExternalLink, MousePointerClick,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
-  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft
+  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings
 } from 'lucide-react';
 
 const tabs: Tab[] = [
@@ -37,12 +37,14 @@ const tabs: Tab[] = [
 const adminTabs: Tab[] = [
   { id: 'users', label: 'Usuários', icon: <Users size={22} /> },
   { id: 'channels', label: 'Canais', icon: <Hash size={22} /> },
-  { id: 'notice', label: 'Mensagens', icon: <MessageSquare size={22} /> },
+  { id: 'notice', label: 'Broadcast', icon: <MessageSquare size={22} /> },
+  { id: 'config', label: 'Configurações', icon: <Settings size={22} /> },
 ];
 
 const permLabels: Record<string, string> = {
   message: 'Mensagem', audio: 'Áudio', video: 'Vídeo',
   photo: 'Foto', sticker: 'Sticker', gif: 'GIF', linkPreview: 'Link Preview',
+  reactions: 'Reações',
 };
 
 function getChannelIdFromUrl(): string | null {
@@ -64,7 +66,7 @@ function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('geral');
-  const [adminActiveTab, setAdminActiveTab] = useState<'users' | 'channels' | 'notice'>('users');
+  const [adminActiveTab, setAdminActiveTab] = useState<'users' | 'channels' | 'notice' | 'config'>('users');
   const [adminSelectedUserId, setAdminSelectedUserId] = useState<number | null>(null);
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [authState, setAuthState] = useState<AuthState>('idle');
@@ -894,6 +896,45 @@ function DashboardContent() {
           {/* ====== PERMISSÕES ====== */}
           {!isChannels && !isAdmin && activeTab === 'permissoes' && channel && (
             <div className="space-y-4 tab-content-wrapper-permissoes">
+              {/* Card de Reações Separado */}
+              <div className="card">
+                <div className="section-header">
+                  <div className="section-icon purple">
+                    <Zap size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[15px] font-semibold truncate">Configurações de Reações</h3>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
+                      {channel.defaultCaption.messagePermission.reactions ? 'Ativadas' : 'Desativadas'}
+                    </p>
+                  </div>
+                  <span className={`badge ${channel.defaultCaption.messagePermission.reactions ? 'badge-accent' : 'badge-ghost'}`}>
+                    {channel.defaultCaption.messagePermission.reactions ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  <div
+                    className={`perm-row ${channel.defaultCaption.messagePermission.reactions ? 'on' : ''}`}
+                    onClick={() => handleMsgPerm('reactions', !channel.defaultCaption.messagePermission.reactions)}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="flex-shrink-0"
+                        style={{
+                          color: channel.defaultCaption.messagePermission.reactions ? 'var(--accent)' : 'var(--hint)',
+                          opacity: channel.defaultCaption.messagePermission.reactions ? 1 : 0.4
+                        }}
+                      >
+                        <Zap size={16} />
+                      </span>
+                      <span className="text-[13px] font-medium">Ativar Reações em Posts</span>
+                    </div>
+                    <div className={`toggle ${channel.defaultCaption.messagePermission.reactions ? 'on' : ''}`} />
+                  </div>
+                </div>
+              </div>
+
               <PermissionsCard
                 title="Permissões de Mensagem"
                 icon={<MessageCircle size={18} />}

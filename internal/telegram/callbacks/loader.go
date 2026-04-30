@@ -23,6 +23,7 @@ import (
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "about", bot.MatchTypeExact, about.Handler())
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-info", bot.MatchTypeExact, profileinfo.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "profile-user-channels", bot.MatchTypeExact, mychannel.Handler(c))
+	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "check_subscription", bot.MatchTypeExact, start.CheckSubscriptionHandler(c))
 
 	// ## VOTE HANDLERS ## \\
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "vote:", bot.MatchTypePrefix, vote.Handler(c))

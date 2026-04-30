@@ -57,6 +57,7 @@ func initServerConfig(db *gorm.DB) error {
 	config := models.ServerConfig{
 		ID:        1,
 		Maintence: false,
+		ForceJoin: false,
 	}
 
 	if err := db.WithContext(context.Background()).FirstOrCreate(&config, models.ServerConfig{ID: 1}).Error; err != nil {

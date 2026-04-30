@@ -35,6 +35,7 @@ type PermissionCheckResult struct {
 	CanAddButtons     bool
 	CanEditButtons    bool
 	CanUseLinkPreview bool
+	CanAddReactions   bool
 	Reason            string
 }
 
@@ -89,6 +90,7 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 		CanAddButtons:     true,
 		CanEditButtons:    true,
 		CanUseLinkPreview: true,
+		CanAddReactions:   true,
 	}
 
 	if channel == nil {
@@ -101,6 +103,9 @@ func (mp *MessageProcessor) CheckPermissions(channel *dbmodels.Channel, messageT
 		mpPerm := channel.DefaultCaption.MessagePermission
 		if messageType == MessageTypeText && !mpPerm.LinkPreview {
 			result.CanUseLinkPreview = false
+		}
+		if !mpPerm.Reactions {
+			result.CanAddReactions = false
 		}
 		switch messageType {
 		case MessageTypeText:
@@ -237,7 +242,8 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 	}
 
 	// Adicionar reações (se houver) na posição correta
-	if channel != nil && channel.Reactions != "" {
+	perms := mp.CheckPermissions(channel, messageType)
+	if channel != nil && channel.Reactions != "" && perms.CanAddReactions {
 		reactions := strings.Split(channel.Reactions, ",")
 		var reactionRow []models.InlineKeyboardButton
 		for _, r := range reactions {

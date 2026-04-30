@@ -140,8 +140,12 @@ func (r *ChannelRepository) DeleteChannelByTwoId(ctx context.Context, userId, ch
 		return errors.New("channel not found or you don't have permission to delete it")
 	}
 
-	return nil
+	if r.cacheService != nil {
+		cacheKey := fmt.Sprintf("channel:%d", channelId)
+		_ = r.cacheService.DeleteSession(ctx, cacheKey)
+	}
 
+	return nil
 }
 
 func (r *ChannelRepository) CreateChannel(ctx context.Context, channel *models.Channel) error {
@@ -155,6 +159,7 @@ func (r *ChannelRepository) CreateChannelWithDefaults(ctx context.Context, chann
 		NewPackCaption: newPackCaption,
 		InviteURL:      inviteURL,
 		OwnerID:        ownerID,
+		ReactionPosition: 1,
 		DefaultCaption: &models.DefaultCaption{
 			CaptionID:      uuid.New().String(),
 			Caption:        caption,
@@ -279,6 +284,11 @@ func (r *ChannelRepository) DeleteChannelWithRelations(ctx context.Context, user
 			return fmt.Errorf("failed to delete channel: %w", err)
 		}
 
+		if r.cacheService != nil {
+			cacheKey := fmt.Sprintf("channel:%d", channelId)
+			_ = r.cacheService.DeleteSession(ctx, cacheKey)
+		}
+
 		return nil
 	})
 }
@@ -328,6 +338,11 @@ func (r *ChannelRepository) UpdateOwnerChannel(ctx context.Context, channelID, o
 
 	if err != nil {
 		return fmt.Errorf("Erro ao atualizar proprietario do canal: %w", err)
+	}
+
+	if r.cacheService != nil {
+		cacheKey := fmt.Sprintf("channel:%d", channelID)
+		_ = r.cacheService.DeleteSession(ctx, cacheKey)
 	}
 
 	return nil
@@ -400,6 +415,11 @@ func (r *ChannelRepository) UpdateChannelBasicInfo(ctx context.Context, channelI
 		return fmt.Errorf("Erro ao atualizar basic info do canal: %w", err)
 	}
 
+	if r.cacheService != nil {
+		cacheKey := fmt.Sprintf("channel:%d", channelID)
+		_ = r.cacheService.DeleteSession(ctx, cacheKey)
+	}
+
 	return nil
 }
 
@@ -456,6 +476,11 @@ func (r *ChannelRepository) UpdateChannelBasicInfoAndFirstButton(ctx context.Con
 	// Commit da transação
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("erro ao fazer commit da transação: %w", err)
+	}
+
+	if r.cacheService != nil {
+		cacheKey := fmt.Sprintf("channel:%d", channel.ID)
+		_ = r.cacheService.DeleteSession(ctx, cacheKey)
 	}
 
 	log.Printf("✅ Canal %d: informações básicas e primeiro botão atualizados no banco", channel.ID)

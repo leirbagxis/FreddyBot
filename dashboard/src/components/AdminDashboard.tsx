@@ -1,12 +1,13 @@
 import { useState, Dispatch, SetStateAction } from 'react';
 import { AdminDashboardData, User, Channel } from '../types';
 import { AdminNoticeTab } from './AdminNoticeTab';
+import { AdminConfigTab } from './AdminConfigTab';
 import { NoticeButton } from '../api';
-import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon } from 'lucide-react';
+import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings } from 'lucide-react';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
-  activeTab: 'users' | 'channels' | 'notice';
+  activeTab: 'users' | 'channels' | 'notice' | 'config';
   navigateToChannel: (id: number) => void;
   selectedUserId: number | null;
   onSelectUser: (id: number | null) => void;
@@ -282,6 +283,7 @@ export function AdminDashboard({
       {activeTab === 'users' && adminSelectedUser && renderUserDetail()}
       {activeTab === 'channels' && renderChannelsTab()}
       {activeTab === 'notice' && renderNoticeTab()}
+      {activeTab === 'config' && <AdminConfigTab />}
     </div>
   );
 }

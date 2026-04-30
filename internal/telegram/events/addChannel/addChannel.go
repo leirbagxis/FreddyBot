@@ -93,6 +93,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		if getChannel != nil {
+			fmt.Println(getChannel)
 			text, button := parser.GetMessage("toadd-exist-channel", data)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:      from.ID,

@@ -22,12 +22,31 @@ export function ReactionsCard({ reactions, onUpdate }: ReactionsCardProps) {
         }
     }, [reactions]);
 
+    const isEmoji = (str: string) => {
+        // Regex para detectar se a string contém APENAS emojis (incluindo variações de cor, etc)
+        const emojiRegex = /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$/;
+        return emojiRegex.test(str);
+    };
+
     const handleSlotChange = (index: number, value: string) => {
-        const newSlots = [...slots];
-        // Take only the first character if it's an emoji/text, or let it be for now
-        // Usually people might paste an emoji or type it.
-        newSlots[index] = value;
-        setSlots(newSlots);
+        const trimmed = value.trim();
+        if (trimmed === '') {
+            const newSlots = [...slots];
+            newSlots[index] = '';
+            setSlots(newSlots);
+            return;
+        }
+
+        // Se for um emoji válido, aceita. Caso contrário, ignora (ou pega só o emoji se colarem texto+emoji)
+        // Para simplificar, vamos validar se o que foi digitado/colado contém emoji
+        if (isEmoji(trimmed)) {
+            const newSlots = [...slots];
+            // Se colarem vários emojis, pegamos apenas o primeiro símbolo (que pode ser composto)
+            // Usando Array.from para lidar corretamente com surrogate pairs de emojis
+            const emojis = Array.from(trimmed);
+            newSlots[index] = emojis[0];
+            setSlots(newSlots);
+        }
     };
 
     const handleClearSlot = (index: number) => {

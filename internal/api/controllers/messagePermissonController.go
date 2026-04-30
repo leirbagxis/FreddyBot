@@ -99,3 +99,36 @@ func (ctrl *PermissionController) UpdateButtonsPermissionController(c *gin.Conte
 	c.JSON(http.StatusOK, result)
 
 }
+
+func (ctrl *PermissionController) UpdateReactionsActiveController(c *gin.Context) {
+	channelIDStr := c.Param("channelId")
+	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "channelId inválido"})
+		return
+	}
+
+	var body struct {
+		Active bool `json:"active"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Dados inválidos: " + err.Error(),
+		})
+		return
+	}
+
+	appService := (*service.AppContainerLocal)(ctrl.container)
+	result, err := appService.UpdateReactionsActiveService(c, channelID, body.Active)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+

@@ -10,7 +10,7 @@ all: build-ui run
 # Build do frontend (React/Vite)
 build-ui:
 	@echo "🚀 Iniciando build do Dashboard..."
-	cd $(DASHBOARD_DIR) && npm run build
+	cd $(DASHBOARD_DIR) && npm i && npm run build
 	@echo "✅ Build do Dashboard concluído!"
 
 # Executa o backend Go

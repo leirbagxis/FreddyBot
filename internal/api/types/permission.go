@@ -8,6 +8,7 @@ type UpdateMessagePermissionRequest struct {
 	Photo       *bool `json:"photo" binding:"required"`
 	Sticker     *bool `json:"sticker" binding:"required"`
 	GIF         *bool `json:"gif" binding:"required"`
+	Reactions   *bool `json:"reactions" binding:"required"`
 }
 
 type UpdateButtonsPermissionRequest struct {

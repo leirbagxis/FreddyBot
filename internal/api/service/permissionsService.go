@@ -48,3 +48,22 @@ func (app *AppContainerLocal) UpdateButtonsPermissionService(ctx context.Context
 		},
 	}, nil
 }
+
+func (app *AppContainerLocal) UpdateReactionsActiveService(ctx context.Context, channelID int64, active bool) (*types.UpdatePermissionsResponse, error) {
+	result := app.DB.Model(&models.MessagePermission{}).
+		Where("owner_caption_id = (SELECT caption_id FROM default_captions WHERE owner_channel_id = ?)", channelID).
+		Update("reactions", active)
+
+	if result.Error != nil {
+		return nil, fmt.Errorf("erro ao atualizar reacoes: %w", result.Error)
+	}
+
+	return &types.UpdatePermissionsResponse{
+		Success: true,
+		Message: "Status das reações atualizado com sucesso",
+		Data: map[string]interface{}{
+			"active":     active,
+			"updated_at": time.Now(),
+		},
+	}, nil
+}

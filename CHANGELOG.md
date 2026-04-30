@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Gerenciamento de Reações**: Adicionado toggle para ativar/desativar reações globalmente por canal na aba de Permissões.
+- **Novo Sistema de Toasts**: Redesign completo das notificações do dashboard com glassmorphism, barra de progresso e animações modernas.
+- **Validação de Emojis**: Implementada verificação rigorosa em tempo real para reações (dashboard e bot), impedindo o uso de letras e números.
+- **Aba de Configurações Admin**: Nova interface para gerenciar configurações globais do servidor.
+- **Modo Force Join**: Implementada obrigatoriedade de inscrição em canal oficial para uso do bot, com verificação em tempo real no comando `/start`.
+- **Modo Manutenção**: Adicionado toggle global para colocar o bot em manutenção via dashboard.
 - **Novo Sistema de Log Centralizado**: Implementação de um logger customizado em `pkg/logger` com suporte a cores e módulos (`[BOT]`, `[API]`, `[DB]`, `[ADMIN]`, `[SYS]`).
 - **Post Builder**: Adicionado botão "🚀 Compartilhar" na mensagem de confirmação de salvamento para facilitar o compartilhamento via modo inline.
 - **Otimização de Performance**:
@@ -23,6 +29,9 @@ All notable changes to this project will be documented in this file.
 - **Processamento de Canais**: Implementada verificação `via_bot` para que o bot ignore postagens enviadas por ele mesmo via modo inline, prevenindo loops de edição ou processamento duplicado.
 
 ### Fixed
+- **Desconexão de Bot**: Corrigido erro de "channelID inválido" ao mover a rota para o grupo autorizado e padronizar para o padrão RESTful.
+- **Sincronização de UI**: Padronização de campos camelCase (ex: `forceJoin`) entre frontend e backend para garantir persistência visual dos toggles.
+- **Verificação de Membros**: Refinada a lógica de Force Join para incluir usuários com status `restricted` e melhorar feedback de erros.
 - **Middlewares**:
   - `MaintenanceMiddleware`: Corrigida a lógica para permitir updates normalmente quando a manutenção está desativada, evitando o bloqueio de novos usuários ou consultas inline.
   - `AdminMiddleware`: Adicionada verificação de segurança para evitar pânico quando um usuário não existe na base de dados.

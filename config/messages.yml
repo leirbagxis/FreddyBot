@@ -36,9 +36,9 @@
       - text: "Início"
         callback_data: "start"
         custom_emoji: "5465226866321268133"
-    - - text: "Assumir Controle"
-        switch_inline_query_current_chat: "Claim "
-        custom_emoji: "5472308992514464048"
+    # - - text: "Assumir Controle"
+    #     switch_inline_query_current_chat: "Claim "
+    #     custom_emoji: "5472308992514464048"
 
 - name: help
   text: |

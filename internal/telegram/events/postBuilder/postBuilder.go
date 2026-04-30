@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"unicode"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -12,6 +13,15 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
 )
+
+func isEmoji(s string) bool {
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
 
 func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
@@ -101,6 +111,29 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 		state.Footer = formattedText
 		state.Step = ""
 	case "awaiting_reactions":
+		// Validação de emojis
+		parts := strings.Split(text, ",")
+		valid := true
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if !isEmoji(p) {
+				valid = false
+				break
+			}
+		}
+
+		if !valid {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      "❌ Apenas emojis são permitidos como reações. Tente novamente:",
+				ParseMode: models.ParseModeHTML,
+			})
+			return
+		}
+
 		state.Reactions = text
 		state.Step = ""
 	case "awaiting_button":

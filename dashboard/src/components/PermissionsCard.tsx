@@ -1,6 +1,6 @@
 import { Permission } from '../types';
 import {
-  MessageSquare, Headphones, Video, Image, Smile, Film, Link2
+  MessageSquare, Headphones, Video, Image, Smile, Film, Link2, Zap
 } from 'lucide-react';
 import { type ReactNode, useEffect } from 'react';
 import gsap from 'gsap';

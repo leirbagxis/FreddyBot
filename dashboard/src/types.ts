@@ -1,3 +1,11 @@
+export interface ServerConfig {
+  id: number;
+  maintence: boolean;
+  forceJoin: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Permission {
   messagePermissionId?: string;
   buttonsPermissionId?: string;
@@ -8,6 +16,7 @@ export interface Permission {
   photo: boolean;
   sticker: boolean;
   gif: boolean;
+  reactions?: boolean;
   ownerCaptionId: string;
   created_at: string;
   updated_at: string;

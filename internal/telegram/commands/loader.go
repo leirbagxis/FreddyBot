@@ -13,10 +13,10 @@ import (
 )
 
 func LoadCommandHandlers(b *bot.Bot, c *container.AppContainer) {
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, start.Handler())
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypeExact, start.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/help", bot.MatchTypeExact, help.Handler())
 	b.RegisterHandler(bot.HandlerTypeMessageText, "/suporte", bot.MatchTypePrefix, suporte.Handler())
-	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, start.Handler())
+	b.RegisterHandler(bot.HandlerTypeMessageText, "/start", bot.MatchTypePrefix, start.Handler(c))
 	//b.RegisterHandler(bot.HandlerTypeMessageText, "/tutorial", bot.MatchTypeExact, tutorial.Handler())
 
 	// ## ADMIM COMMANDS ### \\
