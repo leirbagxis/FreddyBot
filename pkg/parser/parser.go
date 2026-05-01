@@ -38,9 +38,34 @@ var (
 )
 
 func loadMessages() {
-	file, err := os.ReadFile("./config/messages.yml")
+	configPath := os.Getenv("MESSAGES_PATH")
+	if configPath == "" {
+		configPath = "./config/messages.yml"
+	}
+
+	var file []byte
+	var err error
+	var finalPath string
+
+	// Lista de caminhos para tentar encontrar o arquivo
+	pathsToTry := []string{
+		configPath,
+		"../config/messages.yml",
+		"../../config/messages.yml",
+		"./messages.yml",
+	}
+
+	for _, p := range pathsToTry {
+		file, err = os.ReadFile(p)
+		if err == nil {
+			finalPath = p
+			break
+		}
+	}
+
 	if err != nil {
-		panic(fmt.Sprintf("Erro ao carregar messages.yml: %v", err))
+		cwd, _ := os.Getwd()
+		panic(fmt.Sprintf("❌ Erro ao carregar messages.yml\nCWD: %s\nTentados: %v\nErro: %v", cwd, pathsToTry, err))
 	}
 
 	var raw []struct {
@@ -50,7 +75,7 @@ func loadMessages() {
 	}
 
 	if err := yaml.Unmarshal(file, &raw); err != nil {
-		panic(fmt.Sprintf("Erro ao parsear YAML: %v", err))
+		panic(fmt.Sprintf("Erro ao parsear YAML (%s): %v", finalPath, err))
 	}
 
 	messagesMap = make(map[string]*Message, len(raw))
@@ -66,7 +91,7 @@ func loadMessages() {
 		}
 	}
 
-	logger.Info("PARSER", "✅ Messages carregadas: %d", len(messagesMap))
+	logger.Info("PARSER", "✅ Messages carregadas: %d (via %s)", len(messagesMap), finalPath)
 }
 
 func detectPlaceholders(text string) []string {

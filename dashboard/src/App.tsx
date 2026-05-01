@@ -164,13 +164,14 @@ function DashboardContent() {
             channel: null as any,
             user: {
               id: userID,
-              firstName: tg?.initDataUnsafe?.user?.first_name || 'Usuário',
+              first_name: tg?.initDataUnsafe?.user?.first_name || 'Usuário',
               is_admin: false,
               is_blacklisted: false,
               isContribute: false,
               created_at: '',
               updated_at: '',
-              channels: response.channels || []
+              channels: response.channels || [],
+              username: tg?.initDataUnsafe?.user?.username || ''
             }
           });
         } else if (channelId) {
