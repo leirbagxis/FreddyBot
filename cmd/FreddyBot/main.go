@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
 	"os"
 	"os/signal"
 
 	"github.com/leirbagxis/FreddyBot/internal/api"
 	"github.com/leirbagxis/FreddyBot/internal/database"
 	"github.com/leirbagxis/FreddyBot/internal/telegram"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 // Send any text message to the bot after the bot has been started
@@ -24,12 +24,12 @@ func main() {
 
 	go func() {
 		if err := api.StartApi(db, webhookHandler, &b); err != nil {
-			log.Printf("Erro ao iniciar API: %v", err)
+			logger.Error("APP", "Erro ao iniciar API: %v", err)
 			stop()
 		}
 	}()
 
 	<-ctx.Done()
-	log.Println("🧹 Encerrando app com segurança...")
+	logger.Info("APP", "🧹 Encerrando app com segurança...")
 
 }

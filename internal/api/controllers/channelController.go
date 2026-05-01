@@ -1,11 +1,11 @@
 package controllers
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 type ChannelController struct {
@@ -43,8 +43,8 @@ func (c *ChannelController) DisconectChannel(ctx *gin.Context) {
 	}
 
 	channel, err := c.container.ChannelRepo.GetChannelByID(ctx, channelID)
-	fmt.Println(channel, err)
 	if err != nil {
+		logger.Error("API", "Erro ao encontrar canal %d: %v", channelID, err)
 		ctx.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
 			"message": "❌ Erro ao encontrar canal!",

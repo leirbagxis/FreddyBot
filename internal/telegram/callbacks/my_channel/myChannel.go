@@ -2,11 +2,11 @@ package mychannel
 
 import (
 	"context"
-	"log"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -59,7 +59,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		})
 
 		if err != nil {
-			log.Printf("Erro ao editar mensagem: %v", err)
+			logger.Error("BOT", "Erro ao editar mensagem: %v", err)
 		}
 	}
 }

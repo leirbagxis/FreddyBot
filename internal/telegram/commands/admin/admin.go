@@ -561,7 +561,6 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		// Verifica se canal já existe
 		existingChannel, _ := c.ChannelRepo.GetChannelByID(ctx, channelID)
-		fmt.Println(existingChannel)
 		if existingChannel != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -827,7 +826,6 @@ func SetAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 		}
 
 		isAdmin, err := app.UserRepo.UpdateUserAdmin(ctx, userID)
-		fmt.Println(isAdmin, err)
 
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
@@ -856,7 +854,7 @@ func SetAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 func LogRemoji(app *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		sla, _ := json.Marshal(update)
-		fmt.Println(string(sla))
+		logger.Info("DEBUG", "Update payload: %s", string(sla))
 	}
 }
 

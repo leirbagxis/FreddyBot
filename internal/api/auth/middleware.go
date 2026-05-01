@@ -26,14 +26,21 @@ func AuthMiddlewareJWT(v *container.AppContainer) gin.HandlerFunc {
 			if authHeader != "" && strings.HasPrefix(authHeader, "Bearer ") {
 				tokenStr = strings.TrimPrefix(authHeader, "Bearer ")
 			} else {
-				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Acesso não autorizado"})
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Acesso não autorizado"})
 				return
 			}
 		}
 
 		claims, err := ValidateToken(tokenStr)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Sessão expirada ou inválida"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Sessão expirada ou inválida"})
+			return
+		}
+
+		// Verificar Blacklist no banco (opcional, mas recomendado para bloqueio imediato)
+		user, err := v.UserRepo.GetUserById(c.Request.Context(), claims.UserID)
+		if err == nil && user != nil && user.IsBlacklisted {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "message": "Você está na blacklist e seu acesso foi bloqueado."})
 			return
 		}
 
@@ -49,7 +56,7 @@ func RequireRole(roles ...Role) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		userRole, exists := c.Get("role")
 		if !exists {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "Cargo não identificado"})
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Cargo não identificado"})
 			return
 		}
 
@@ -67,7 +74,7 @@ func RequireRole(roles ...Role) gin.HandlerFunc {
 			return
 		}
 
-		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Você não tem permissão para esta ação"})
+		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "message": "Você não tem permissão para esta ação"})
 	}
 }
 
@@ -82,7 +89,7 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 
 		channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "ID do canal inválido"})
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"success": false, "message": "ID do canal inválido"})
 			return
 		}
 
@@ -103,12 +110,12 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 		// Usuário comum: verificar se ele é o dono no banco
 		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), channelId)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"error": "Canal não encontrado"})
+			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"success": false, "message": "Canal não encontrado"})
 			return
 		}
 
 		if channel.OwnerID != userID {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "Você não tem permissão para gerenciar este canal"})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "message": "Você não tem permissão para gerenciar este canal"})
 			return
 		}
 

@@ -1,9 +1,7 @@
 package addchannel
-
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/go-telegram/bot"
@@ -12,6 +10,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -19,7 +18,7 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Erro ao adicionar-chatmember: %v", r)
+				logger.Error("BOT", "Panic ao adicionar-chatmember: %v", r)
 				//sendErrorMessage(ctx, b, update)
 			}
 		}()
@@ -54,7 +53,7 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		session, err := c.SessionManager.CreateChannelSession(ctx, chat.ID, from.ID, chat.Title)
 		if err != nil {
-			log.Printf("Erro ao criar sessão: %v", err)
+			logger.Error("BOT", "Erro ao criar sessão de canal: %v", err)
 			return
 		}
 		data["sessionKey"] = session.Key
@@ -73,7 +72,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		defer func() {
 			if r := recover(); r != nil {
-				log.Printf("Erro ao adicionar-forward: %v", r)
+				logger.Error("BOT", "Panic ao adicionar-forward: %v", r)
 				//sendErrorMessage(ctx, b, update)
 			}
 		}()
@@ -93,7 +92,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		if getChannel != nil {
-			fmt.Println(getChannel)
+			logger.Bot("📢 Canal já existe para forward: %d", forwardedChannelID)
 			text, button := parser.GetMessage("toadd-exist-channel", data)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:      from.ID,
@@ -109,7 +108,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		session, err := c.SessionManager.CreateChannelSession(ctx, forwardedChannelID, from.ID, forwardedChannelTitle)
 		if err != nil {
-			log.Printf("Erro ao criar sessão: %v", err)
+			logger.Error("BOT", "Erro ao criar sessão de canal via forward: %v", err)
 			return
 		}
 		data["sessionKey"] = session.Key
@@ -125,7 +124,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			},
 		})
 
-		fmt.Println(from, forwardedChannelID)
+		logger.Bot("📨 Novo forward de canal detectado: %d de %d", forwardedChannelID, from.ID)
 
 	}
 }
@@ -139,7 +138,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 		callbackData := update.CallbackQuery.Data
 		parts := strings.Split(callbackData, ":")
 		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+			logger.Warn("BOT", "Callback invalido: %s", callbackData)
 			return
 		}
 
@@ -157,7 +156,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			ChatID: getSession.ChannelID,
 		})
 		if err != nil {
-			log.Printf("Erro ao obter info do canal: %v", err)
+			logger.Error("BOT", "Erro ao obter info do canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "❌ Erro ao obter informações do canal!",
@@ -190,7 +189,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			getSession.OwnerID,
 		)
 		if err != nil {
-			log.Printf("Erro ao criar canal: %v", err)
+			logger.Error("BOT", "Erro ao criar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: callback.ID,
 				Text:            "❌ Erro ao criar canal!",
@@ -222,7 +221,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			ParseMode:   "HTML",
 		})
 		if err != nil {
-			log.Printf("Erro ao editar mensagem: %v", err)
+			logger.Error("BOT", "Erro ao editar mensagem: %v", err)
 			return
 		}
 
@@ -245,7 +244,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 		// Tentar adicionar reação (não crítico se falhar)
 		_, err = b.SetMessageReaction(ctx, reactionParams)
 		if err != nil {
-			log.Printf("Aviso: Não foi possível adicionar reação: %v", err)
+			logger.Warn("BOT", "Aviso: Não foi possível adicionar reação: %v", err)
 			// Não retornar erro, apenas logar
 		}
 
@@ -267,7 +266,7 @@ func AddNotHandler(c *container.AppContainer) bot.HandlerFunc {
 		callbackData := update.CallbackQuery.Data
 		parts := strings.Split(callbackData, ":")
 		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+			logger.Warn("BOT", "Callback invalido: %s", callbackData)
 			return
 		}
 

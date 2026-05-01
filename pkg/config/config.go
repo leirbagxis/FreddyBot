@@ -1,12 +1,12 @@
 package config
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"strconv"
 
 	"github.com/joho/godotenv"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 var (
@@ -24,10 +24,9 @@ var (
 func init() {
 	if os.Getenv("GO_ENV") != "production" {
 		if err := godotenv.Load(); err != nil {
-			log.Println("⚠️  .env não encontrado — usando variáveis de ambiente do container")
+			logger.Warn("CONFIG", "⚠️  .env não encontrado — usando variáveis de ambiente do container")
 		}
 	}
-	fmt.Println(os.Getenv("DATABASE_FILE"))
 
 	TelegramBotToken = mustGetEnv("TELEGRAM_BOT_TOKEN")
 	RedisAddr = mustGetEnv("REDIS_HOST")

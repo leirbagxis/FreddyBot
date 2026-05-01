@@ -2,9 +2,9 @@ package adminrepositories
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -27,10 +27,10 @@ func (r *AdminRepositories) GetAllUsersAdminRepository(ctx context.Context) ([]m
 		Find(&users)
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("erro ao listar usuários: %w", result.Error)
+		return nil, result.Error
 	}
 
-	fmt.Println("✅ Usuários listados com sucesso")
+	logger.Bot("✅ Usuários listados com sucesso no repositório Admin")
 
 	return users, nil
 }

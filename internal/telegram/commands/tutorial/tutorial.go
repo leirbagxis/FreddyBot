@@ -2,10 +2,10 @@ package tutorial
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 func Handler() bot.HandlerFunc {
@@ -17,8 +17,8 @@ func Handler() bot.HandlerFunc {
 			Name:              "📚 Tutoriais",
 			IconCustomEmojiID: "5334882760735598374",
 		})
-		fmt.Println(topic, err)
 		if err != nil {
+			logger.Error("BOT", "Erro ao criar tópico de tutorial: %v", err)
 			// Se o usuário não tiver tópicos habilitados pro bot, pode dar erro aqui.
 			_, _ = b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: chatID,

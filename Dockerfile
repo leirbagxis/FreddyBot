@@ -9,7 +9,8 @@ RUN go mod download
 
 COPY . .
 
-RUN go build -o server ./cmd/FreddyBot
+ARG GIT_HASH=unknown
+RUN go build -ldflags "-X 'github.com/leirbagxis/FreddyBot/internal/utils.Version=${GIT_HASH}'" -o server ./cmd/FreddyBot
 
 # Final image
 FROM debian:bookworm-slim

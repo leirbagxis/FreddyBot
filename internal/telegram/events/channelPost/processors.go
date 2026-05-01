@@ -725,10 +725,189 @@ func (mp *MessageProcessor) ProcessMediaMessage(ctx context.Context, channel *db
 
 	mp.CheckPermissions(channel, messageType)
 	if post.MediaGroupID != "" {
+		if messageType == MessageTypeDocument {
+			return mp.handleGroupedDocument(ctx, channel, post, buttons)
+		}
 		return mp.handleGroupedMedia(ctx, channel, post, buttons, false, messageType)
 	}
 
 	return mp.handleSingleMedia(ctx, channel, post, buttons, false, messageType)
+}
+
+func (mp *MessageProcessor) handleGroupedDocument(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button) error {
+	mediaGroupID := post.MediaGroupID
+	if mediaGroupID == "" || post.Document == nil {
+		return nil
+	}
+
+	value, _ := mediaGroups.LoadOrStore(mediaGroupID, &MediaGroup{
+		Messages:           make([]MediaMessage, 0),
+		Processed:          false,
+		MessageEditAllowed: true,
+		ChatID:             post.Chat.ID,
+	})
+	group := value.(*MediaGroup)
+
+	group.mu.Lock()
+	group.Messages = append(group.Messages, MediaMessage{
+		MessageID:       post.ID,
+		FileID:          post.Document.FileID,
+		HasCaption:      post.Caption != "",
+		Caption:         post.Caption,
+		CaptionEntities: convertMessageEntitiesToInterface(post.CaptionEntities),
+	})
+	// Reset/arma timer para consolidar após última peça chegar
+	if group.Timer != nil {
+		group.Timer.Stop()
+	}
+	timeout := time.Duration(900+len(group.Messages)*200) * time.Millisecond
+	if timeout > 2500*time.Millisecond {
+		timeout = 2500 * time.Millisecond
+	}
+	group.Timer = time.AfterFunc(timeout, func() {
+		mp.finishGroupedDocumentProcessing(channel, mediaGroupID, buttons)
+	})
+	group.mu.Unlock()
+
+	return nil
+}
+
+func (mp *MessageProcessor) finishGroupedDocumentProcessing(channel *dbmodels.Channel, groupID string, buttons []dbmodels.Button) {
+	value, ok := mediaGroups.Load(groupID)
+	if !ok {
+		return
+	}
+	group := value.(*MediaGroup)
+
+	// Evitar processamento duplicado
+	group.mu.Lock()
+	if group.Processed {
+		group.mu.Unlock()
+		return
+	}
+	group.Processed = true
+
+	// Snapshot e libera lock
+	messages := append([]MediaMessage(nil), group.Messages...)
+	chatID := group.ChatID
+	group.mu.Unlock()
+
+	// Verificar permissões específicas
+	perms := mp.CheckPermissions(channel, MessageTypeDocument)
+
+	// Se não pode nem editar nem adicionar botões, não faz nada
+	if !perms.CanEdit && !perms.CanAddButtons {
+		mediaGroups.Delete(groupID)
+		return
+	}
+
+	// 1) Determinar baseCaption do grupo
+	var baseCaption string
+	var baseEntities []interface{}
+	for _, m := range messages {
+		if m.HasCaption {
+			baseCaption = m.Caption
+			baseEntities = m.CaptionEntities
+			break
+		}
+	}
+	if baseCaption == "" && len(messages) > 0 {
+		baseCaption = messages[0].Caption
+		baseEntities = messages[0].CaptionEntities
+	}
+
+	// 2) Resolver dbCaption
+	var dbCaption string
+	var customCaption *dbmodels.CustomCaption
+	if perms.CanEdit {
+		formattedBase := processTextWithFormatting(baseCaption, convertInterfaceToEntities(baseEntities))
+		if h := extractHashtag(formattedBase); h != "" {
+			if cc := findCustomCaption(channel, h); cc != nil {
+				customCaption = cc
+				dbCaption = detectParseMode(cc.Caption)
+			}
+		}
+		if customCaption == nil && channel.DefaultCaption != nil {
+			dbCaption = detectParseMode(channel.DefaultCaption.Caption)
+		}
+	}
+
+	// 3) Preparar teclado
+	var kb *models.InlineKeyboardMarkup
+	if perms.CanAddButtons {
+		_, filteredButtons, allowedCustom := mp.ApplyPermissions(channel, MessageTypeDocument, customCaption, buttons)
+		kb = mp.CreateInlineKeyboard(filteredButtons, allowedCustom, channel, MessageTypeDocument)
+		if kb != nil && len(kb.InlineKeyboard) == 0 {
+			kb = nil
+		}
+	}
+
+	// 4) Reenvio item-a-item
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	for i, m := range messages {
+		cap := ""
+		if perms.CanEdit {
+			cap = dbCaption
+		}
+
+		send := &bot.SendDocumentParams{
+			ChatID:    chatID,
+			Document:  &models.InputFileString{Data: m.FileID},
+			Caption:   cap,
+			ParseMode: "HTML",
+		}
+		if kb != nil {
+			send.ReplyMarkup = kb
+		}
+
+		time.Sleep(time.Duration(200+i*150) * time.Millisecond)
+
+		var sendErr error
+		for attempt := 0; attempt < 3; attempt++ {
+			if attempt > 0 {
+				time.Sleep(time.Duration(280+attempt*320) * time.Millisecond)
+			}
+			_, sendErr = mp.bot.SendDocument(ctx, send)
+			if sendErr == nil {
+				break
+			}
+			if strings.Contains(strings.ToLower(sendErr.Error()), "too many requests") {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+		}
+		if sendErr != nil {
+			logger.Error("BOT", "❌ Falha ao reenviar documento do grupo %s (msg %d): %v", groupID, m.MessageID, sendErr)
+			continue
+		}
+
+		time.Sleep(200 * time.Millisecond)
+		_, delErr := mp.bot.DeleteMessage(ctx, &bot.DeleteMessageParams{
+			ChatID:    chatID,
+			MessageID: m.MessageID,
+		})
+		if delErr != nil {
+			logger.Error("BOT", "⚠️ Falha ao apagar documento original (grupo %s msg %d): %v", groupID, m.MessageID, delErr)
+		}
+	}
+
+	// 5) Enviar separator ao final
+	if channel.Separator != nil && channel.Separator.SeparatorID != "" {
+		time.Sleep(350 * time.Millisecond)
+		sepCtx, cancelSep := context.WithTimeout(context.Background(), 6*time.Second)
+		defer cancelSep()
+		_, err := mp.bot.SendSticker(sepCtx, &bot.SendStickerParams{
+			ChatID:  chatID,
+			Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
+		})
+		if err != nil {
+			logger.Error("BOT", "⚠️ Falha ao enviar separator pós-álbum %s: %v", groupID, err)
+		}
+	}
+
+	mediaGroups.Delete(groupID)
 }
 
 func (mp *MessageProcessor) handleSingleMedia(ctx context.Context, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, _ bool, messageType MessageType) error {

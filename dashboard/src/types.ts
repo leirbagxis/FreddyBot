@@ -62,6 +62,8 @@ export interface Channel {
 export interface User {
   id: number;
   firstName: string;
+  is_admin: boolean;
+  is_blacklisted: boolean;
   isContribute: boolean;
   channels: Channel[] | null;
   created_at: string;

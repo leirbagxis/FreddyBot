@@ -3,7 +3,6 @@ package claimchannel
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 
@@ -11,6 +10,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -84,7 +84,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		// Criar sessão temporária no Redis
 		session, err := c.SessionManager.CreateClaimSession(ctx, channelID, channel.OwnerID, from.ID)
 		if err != nil {
-			log.Println("❌ Erro ao criar cache:", err)
+			logger.Error("BOT", "Erro ao criar cache: %v", err)
 			return
 		}
 
@@ -121,7 +121,7 @@ func AcceptClaimHandler(c *container.AppContainer) bot.HandlerFunc {
 		callbackData := callback.Data
 		parts := strings.Split(callbackData, ":")
 		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+			logger.Warn("BOT", "Callback invalido: %s", callbackData)
 			return
 		}
 
@@ -137,7 +137,7 @@ func AcceptClaimHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByID(ctx, getSession.ChannelID)
 		if err != nil {
-			log.Printf("Erro ao obter info do canal: %v", err)
+			logger.Error("BOT", "Erro ao obter info do canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "❌ Erro ao obter informações do canal!",
@@ -150,7 +150,7 @@ func AcceptClaimHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		err = c.ChannelRepo.UpdateOwnerChannel(ctx, getSession.ChannelID, getSession.OwnerID, getSession.NewOwnerID)
 		if err != nil {
-			log.Printf("Erro ao transferir posse do canal: %v", err)
+			logger.Error("BOT", "Erro ao transferir posse do canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ Erro ao passar a posse para o novo usuário.",
@@ -198,6 +198,6 @@ func answerInline(ctx context.Context, b *bot.Bot, update *models.Update, result
 		CacheTime:     0,
 	})
 	if err != nil {
-		log.Println("❌ Erro ao responder inline_query:", err)
+		logger.Error("BOT", "Erro ao responder inline_query: %v", err)
 	}
 }

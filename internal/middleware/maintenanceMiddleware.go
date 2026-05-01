@@ -2,12 +2,12 @@ package middleware
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 func CheckMaintenceMiddleware(c *container.AppContainer) bot.Middleware {
@@ -21,7 +21,7 @@ func CheckMaintenceMiddleware(c *container.AppContainer) bot.Middleware {
 			// 1. Get maintenance status first
 			maintenance, err := c.ServerRepo.GetMaintence(ctx)
 			if err != nil {
-				fmt.Printf("erro ao pegar o maintence: %v\n", err)
+				logger.Error("MID", "Erro ao buscar status de manutenção: %v", err)
 				next(ctx, b, upt)
 				return
 			}

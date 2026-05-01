@@ -34,6 +34,7 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 	opts := []bot.Option{
 		bot.WithMiddlewares(
 			middleware.SaveUserMiddleware(db),
+			middleware.CheckBlacklistMiddleware(app),
 			middleware.CheckMaintenceMiddleware(app),
 		),
 	}

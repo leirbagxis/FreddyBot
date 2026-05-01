@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -11,6 +10,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 func VerifyJWTHandler() gin.HandlerFunc {
@@ -92,8 +92,8 @@ func GenerateJWTHandler(app *container.AppContainer) gin.HandlerFunc {
 		}
 
 		token, err := auth.GenerateToken(ownerID, role, channel.TokenVersion, 30*time.Second)
-		fmt.Println(token, err)
 		if err != nil {
+			logger.Error("API", "Erro ao gerar token para owner %d: %v", ownerID, err)
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"error":   "Erro ao gerar token",
 				"details": err,
@@ -101,6 +101,7 @@ func GenerateJWTHandler(app *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
+		logger.Bot("🔑 Token gerado com sucesso para owner %d (canal %d)", ownerID, channelIDInt)
 		c.JSON(http.StatusOK, gin.H{
 			"message":   "Token gerado com sucesso!",
 			"token":     token,

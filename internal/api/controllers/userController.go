@@ -3,7 +3,6 @@ package controllers
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -99,7 +99,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 
 	channel, err := c.container.ChannelRepo.GetChannelByTwoID(ctx, body.OldOwnerID, body.ChannelID)
 	if err != nil {
-		log.Printf("Erro ao buscar canal: %v", err)
+		logger.Error("API", "Erro ao buscar canal: %v", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "Canal não encontrado ou você não tem permissão para alterá-lo.",
@@ -107,7 +107,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 		return
 	}
 	if channel == nil {
-		log.Printf("Canal retornado é nil para channelId=%d e userId=%d", body.ChannelID, body.OldOwnerID)
+		logger.Error("API", "Canal retornado é nil para channelId=%d e userId=%d", body.ChannelID, body.OldOwnerID)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Erro interno: canal não encontrado.",
@@ -125,7 +125,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 
 	newOwner, err := c.container.Bot.GetChat(ctx, &bot.GetChatParams{ChatID: body.NewOwnerID})
 	if err != nil {
-		log.Println("Erro ao obter chat do novo dono:", err)
+		logger.Error("API", "Erro ao obter chat do novo dono: %v", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "O novo dono precisa iniciar o bot pelo menos uma vez. Peça para ele mandar uma mensagem no bot antes de transferir o canal.",
@@ -146,7 +146,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 		ChatID: body.ChannelID,
 	})
 	if err != nil {
-		log.Println("Erro ao buscar administradores do canal:", err)
+		logger.Error("API", "Erro ao buscar administradores do canal: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Erro ao consultar administradores do canal.",
@@ -179,7 +179,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 
 	err = c.container.ChannelRepo.UpdateOwnerChannel(ctx, body.ChannelID, body.OldOwnerID, body.NewOwnerID)
 	if err != nil {
-		log.Printf("Erro ao transferir posse do canal: %v", err)
+		logger.Error("API", "Erro ao transferir posse do canal: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "Erro ao passar a posse para o novo usuário.",
@@ -216,7 +216,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 
 	_, err = c.container.CacheService.DeleteAllUserSessionsBySuffix(ctx, body.OldOwnerID)
 	if err != nil {
-		log.Printf("Erro ao excluir all sessions: %v", err)
+		logger.Error("API", "Erro ao excluir all sessions: %v", err)
 		return
 	}
 

@@ -3,13 +3,13 @@ package mychannel
 import (
 	"context"
 	"fmt"
-	"log"
 	"strconv"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -20,7 +20,7 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao pegar sessão: %v", err)
+			logger.Error("BOT", "Erro ao pegar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -31,7 +31,7 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -46,7 +46,7 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 		err = c.CacheService.SetTransferChannel(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao criar sessão de transferencia: %v", err)
+			logger.Error("BOT", "Erro ao criar sessão de transferencia: %v", err)
 			return
 		}
 
@@ -68,7 +68,7 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetTransferChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao pegar sessão: %v", err)
+			logger.Error("BOT", "Erro ao pegar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -79,7 +79,7 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -90,7 +90,7 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		user, err := c.UserRepo.GetUserById(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao buscar usuario: %v", err)
+			logger.Error("BOT", "Erro ao buscar usuario: %v", err)
 			return
 		}
 
@@ -119,7 +119,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channelId, err := c.CacheService.GetTransferChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao buscar cache sticker: %v", err)
+			logger.Error("BOT", "Erro ao buscar cache sticker: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -130,7 +130,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -139,7 +139,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 		if channel == nil {
-			log.Printf("Canal retornado é nil para channelId=%d e userId=%d", channelId, userId)
+			logger.Error("BOT", "Canal retornado é nil para channelId=%d e userId=%d", channelId, userId)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ Erro interno: canal não encontrado.",
@@ -178,7 +178,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		newOwner, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: newOwnerID})
 		if err != nil {
-			log.Println("Erro ao obter chat do novo dono:", err)
+			logger.Error("BOT", "Erro ao obter chat do novo dono: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ O novo dono precisa iniciar o bot pelo menos uma vez. Peça para ele mandar uma mensagem no bot antes de transferir o canal.",
@@ -207,7 +207,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 			ChatID: channelId,
 		})
 		if err != nil {
-			log.Println("Erro ao buscar administradores do canal:", err)
+			logger.Error("BOT", "Erro ao buscar administradores do canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ Erro ao consultar administradores do canal.",
@@ -248,7 +248,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		err = c.ChannelRepo.UpdateOwnerChannel(ctx, channelId, userId, newOwnerID)
 		if err != nil {
-			log.Printf("Erro ao transferir posse do canal: %v", err)
+			logger.Error("BOT", "Erro ao transferir posse do canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ Erro ao passar a posse para o novo usuário.",
@@ -292,7 +292,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		_, err = c.CacheService.DeleteAllUserSessionsBySuffix(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao excluir all sessions: %v", err)
+			logger.Error("BOT", "Erro ao excluir all sessions: %v", err)
 			return
 		}
 

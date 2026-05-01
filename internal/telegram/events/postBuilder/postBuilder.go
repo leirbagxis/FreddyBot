@@ -3,7 +3,6 @@ package postbuilder
 import (
 	"context"
 	"fmt"
-	"log"
 	"strings"
 	"unicode"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 func isEmoji(s string) bool {
@@ -26,6 +26,12 @@ func isEmoji(s string) bool {
 func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		if update.Message == nil {
+			return
+		}
+
+		// Check Blacklist
+		user, err := c.UserRepo.GetUserById(ctx, update.Message.From.ID)
+		if err == nil && user != nil && user.IsBlacklisted {
 			return
 		}
 
@@ -75,7 +81,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			MediaFileID: mediaID,
 			Step:        "",
 		}
-		log.Printf("PostBuilder: Saving initial state: %+v for user %d", state, update.Message.From.ID)
+		logger.Bot("PostBuilder: Saving initial state for user %d", update.Message.From.ID)
 		c.CacheService.SetPostBuilderState(ctx, update.Message.From.ID, state)
 
 		b.SendMessage(ctx, &bot.SendMessageParams{
@@ -97,8 +103,6 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 	if len(update.Message.Entities) > 0 {
 		formattedText = channelpost.ProcessEntitiesOnly(text, update.Message.Entities)
 	}
-
-	log.Printf("PostBuilder: handleTextInput step=%s, text=%s", state.Step, text)
 
 	switch state.Step {
 	case "awaiting_title":
@@ -163,7 +167,6 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 		return
 	}
 
-	log.Printf("PostBuilder: handleTextInput updating state: %+v", state)
 	c.CacheService.SetPostBuilderState(ctx, update.Message.From.ID, *state)
 	showMenu(ctx, b, update.Message.Chat.ID, update.Message.From.ID, c, state)
 }
@@ -212,6 +215,17 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 		chatID := update.CallbackQuery.Message.Message.Chat.ID
 		data := update.CallbackQuery.Data
 
+		// Check Blacklist
+		user, err := c.UserRepo.GetUserById(ctx, userID)
+		if err == nil && user != nil && user.IsBlacklisted {
+			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "❌ Você está na blacklist.",
+				ShowAlert:       true,
+			})
+			return
+		}
+
 		state, _ := c.CacheService.GetPostBuilderState(ctx, userID)
 		if state == nil && data != "pb-cancel" {
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -224,8 +238,6 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 		b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 			CallbackQueryID: update.CallbackQuery.ID,
 		})
-
-		log.Printf("PostBuilder: CallbackHandler data=%s, userID=%d, state=%+v", data, userID, state)
 
 		switch data {
 		case "pb-start":
@@ -276,7 +288,7 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 		case "pb-save":
 			id, err := c.CacheService.SavePostBuilderSession(ctx, *state)
 			if err != nil {
-				log.Printf("PostBuilder: Error saving session: %v", err)
+				logger.Error("BOT", "PostBuilder: Error saving session: %v", err)
 				b.SendMessage(ctx, &bot.SendMessageParams{
 					ChatID: chatID,
 					Text:   "❌ Erro ao salvar postagem.",
@@ -351,8 +363,6 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 		kb = ikb
 	}
 
-	log.Printf("PostBuilder: sendFinalPost deleteState=%v, chatID=%d, mediaType=%s, mediaFileID=%s, captionLen=%d, buttons=%d", deleteState, chatID, state.MediaType, state.MediaFileID, len(caption), len(state.Buttons))
-
 	switch state.MediaType {
 	case "photo":
 		_, err := b.SendPhoto(ctx, &bot.SendPhotoParams{
@@ -363,7 +373,7 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 			ReplyMarkup: kb,
 		})
 		if err != nil {
-			log.Printf("PostBuilder: Error sending photo: %v", err)
+			logger.Error("BOT", "PostBuilder: Error sending photo: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: chatID,
 				Text:   fmt.Sprintf("❌ Erro ao enviar foto: %v", err),
@@ -378,7 +388,7 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 			ReplyMarkup: kb,
 		})
 		if err != nil {
-			log.Printf("PostBuilder: Error sending video: %v", err)
+			logger.Error("BOT", "PostBuilder: Error sending video: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: chatID,
 				Text:   fmt.Sprintf("❌ Erro ao enviar vídeo: %v", err),
@@ -393,7 +403,7 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 			ReplyMarkup: kb,
 		})
 		if err != nil {
-			log.Printf("PostBuilder: Error sending animation: %v", err)
+			logger.Error("BOT", "PostBuilder: Error sending animation: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: chatID,
 				Text:   fmt.Sprintf("❌ Erro ao enviar animação: %v", err),
@@ -408,7 +418,7 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 			ReplyMarkup: kb,
 		})
 		if err != nil {
-			log.Printf("PostBuilder: Error sending audio: %v", err)
+			logger.Error("BOT", "PostBuilder: Error sending audio: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: chatID,
 				Text:   fmt.Sprintf("❌ Erro ao enviar áudio: %v", err),
@@ -423,14 +433,14 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 			ReplyMarkup: kb,
 		})
 		if err != nil {
-			log.Printf("PostBuilder: Error sending document: %v", err)
+			logger.Error("BOT", "PostBuilder: Error sending document: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: chatID,
 				Text:   fmt.Sprintf("❌ Erro ao enviar documento: %v", err),
 			})
 		}
 	default:
-		log.Printf("PostBuilder: No media type matched, sending text only. Type: %s", state.MediaType)
+		logger.Warn("BOT", "PostBuilder: No media type matched, sending text only. Type: %s", state.MediaType)
 		b.SendMessage(ctx, &bot.SendMessageParams{
 			ChatID:      chatID,
 			Text:        caption,
@@ -462,7 +472,7 @@ func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		state, err := c.CacheService.GetPostBuilderSession(ctx, id)
 		if err != nil || state == nil {
-			log.Printf("PostBuilder: InlineQuery session %s not found", id)
+			logger.Warn("BOT", "PostBuilder: InlineQuery session %s not found", id)
 			_, _ = b.AnswerInlineQuery(ctx, &bot.AnswerInlineQueryParams{
 				InlineQueryID: update.InlineQuery.ID,
 				Results: []models.InlineQueryResult{
@@ -585,7 +595,7 @@ func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 			CacheTime:     0,
 		})
 		if err != nil {
-			log.Printf("PostBuilder: Error answering inline query: %v", err)
+			logger.Error("BOT", "PostBuilder: Error answering inline query: %v", err)
 		}
 	}
 }

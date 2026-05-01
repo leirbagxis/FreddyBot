@@ -1080,6 +1080,26 @@ svg:active {
   position: relative;
 }
 
+.admin-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 998;
+  background: transparent;
+  animation: fade-in 0.2s ease;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (max-width: 768px) {
+  .admin-overlay {
+    background: var(--overlay);
+    backdrop-filter: blur(2px);
+  }
+}
+
 .admin-sidebar {
   height: 100vh;
   background: var(--nav-bg);

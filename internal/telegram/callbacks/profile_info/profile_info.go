@@ -3,12 +3,12 @@ package profileinfo
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 	"gorm.io/gorm"
 )
@@ -26,7 +26,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 				})
 				return
 			}
-			log.Printf("Erro ao buscar usuário: %v", err)
+			logger.Error("BOT", "Erro ao buscar usuário: %v", err)
 			return
 		}
 
@@ -39,7 +39,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 				})
 				return
 			}
-			log.Printf("Erro ao buscar countChannel: %v", err)
+			logger.Error("BOT", "Erro ao buscar countChannel: %v", err)
 			return
 		}
 

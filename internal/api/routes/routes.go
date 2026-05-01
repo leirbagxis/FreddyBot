@@ -77,5 +77,8 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 		adminRoute.GET("/config", configController.GetConfig)
 		adminRoute.PUT("/config", configController.UpdateConfig)
+
+		adminRoute.POST("/users/:userId/admin", getALlUsers.UpdateUserAdminController)
+		adminRoute.POST("/users/:userId/blacklist", getALlUsers.UpdateUserBlacklistController)
 	}
 }

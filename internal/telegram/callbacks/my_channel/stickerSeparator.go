@@ -3,7 +3,6 @@ package mychannel
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -11,6 +10,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	separatorModels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -21,7 +21,7 @@ func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao pegar sessão: %v", err)
+			logger.Error("BOT", "Erro ao pegar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -32,7 +32,7 @@ func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -64,7 +64,7 @@ func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao pegar sessão: %v", err)
+			logger.Error("BOT", "Erro ao pegar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -75,7 +75,7 @@ func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -107,7 +107,7 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := update.Message.From.ID
 		channelId, err := c.CacheService.GetAwaitingStickerSeparator(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao buscar cache sticker: %v", err)
+			logger.Error("BOT", "Erro ao buscar cache sticker: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -118,7 +118,7 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			return
 		}
 
@@ -126,10 +126,9 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		file, err := b.GetFile(ctx, &bot.GetFileParams{FileID: stickerId})
 		if err != nil {
-			fmt.Println("erro ao obter sticker")
+			logger.Error("BOT", "erro ao obter sticker: %v", err)
 		}
 		stickerLink := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.TelegramBotToken, file.FilePath)
-		fmt.Println(stickerLink)
 
 		separator := &separatorModels.Separator{
 			OwnerChannelID: channelId,
@@ -180,7 +179,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao pegar sessão: %v", err)
+			logger.Error("BOT", "Erro ao pegar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -191,7 +190,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -210,11 +209,10 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			})
 			return
 		}
-		fmt.Println(separator, err)
 
 		err = c.SeparatorRepo.DeleteSeparatorByOwnerChannelId(ctx, session)
 		if err != nil {
-			log.Printf("Erro ao excluir separator: %v", err)
+			logger.Error("BOT", "Erro ao excluir separator: %v", err)
 			return
 		}
 

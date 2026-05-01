@@ -15,6 +15,20 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		userID := update.Message.From.ID
 
+		// 0. Verificar Blacklist
+		user, err := c.UserRepo.GetUserById(ctx, userID)
+		if err == nil && user != nil && user.IsBlacklisted {
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    update.Message.Chat.ID,
+				Text:      "🚫 <b>Acesso Bloqueado</b>\n\nVocê está na nossa blacklist e seus comandos estão bloqueados.\n\nCaso tenha dúvidas ou queira solicitar a remoção, acione o comando /ouvidoria.",
+				ParseMode: models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
+			})
+			return
+		}
+
 		// 1. Verificar se Force Join está ativado
 		configData, err := c.ServerRepo.GetConfig(ctx)
 		if err == nil && configData.ForceJoin {

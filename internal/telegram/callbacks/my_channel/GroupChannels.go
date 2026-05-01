@@ -2,13 +2,13 @@ package mychannel
 
 import (
 	"context"
-	"log"
 	"strconv"
 	"strings"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -19,19 +19,19 @@ func GroupChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		callbackData := update.CallbackQuery.Data
 		parts := strings.Split(callbackData, ":")
 		if len(parts) != 2 {
-			log.Println("Callback invalido:", callbackData)
+			logger.Warn("BOT", "Callback invalido: %s", callbackData)
 			return
 		}
 
 		channelIdString := parts[1]
 		channelId, err := strconv.ParseInt(channelIdString, 10, 64)
 		if err != nil {
-			log.Println("Error parsing channelId:", err)
+			logger.Error("BOT", "Error parsing channelId: %v", err)
 			return
 		}
 		_, err = c.ChannelRepo.GetChannelByTwoID(ctx, userID, channelId)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",

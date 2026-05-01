@@ -163,6 +163,12 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
+		// Verificar se o dono está na blacklist
+		if channel.Owner != nil && channel.Owner.IsBlacklisted {
+			logger.Bot("🚫 Canal %d ignorado: Dono (%d) está na blacklist", chat.ID, channel.OwnerID)
+			return
+		}
+
 		handled, err := processor.TryHandleNewPack(dbCtx, *channel, *post)
 		if err != nil {
 			logger.Error("BOT", "Erro no fluxo newpack canal %d: %v", chat.ID, err)

@@ -3,13 +3,13 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/go-telegram/bot"
 	tgbotModels "github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -40,7 +40,7 @@ func SaveUserMiddleware(db *gorm.DB) bot.Middleware {
 				go func(u *models.User) {
 					err := userRepo.UpsertUser(context.Background(), u)
 					if err != nil {
-						log.Printf("❌ Erro ao upsert do usuário: %v", err)
+						logger.Error("DB", "Erro ao upsert do usuário: %v", err)
 					}
 				}(&models.User{
 					UserId:    userId,

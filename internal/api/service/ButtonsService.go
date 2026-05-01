@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -40,7 +41,7 @@ func (app *AppContainerLocal) CreateButtonService(ctx context.Context, channelID
 		return nil, fmt.Errorf("erro ao criar botão: %w", err)
 	}
 
-	fmt.Printf("✅ Botão padrão criado com sucesso: %s\n", newButton.ButtonID)
+	logger.Bot("✅ Botão padrão criado com sucesso: %s (Canal: %d)", newButton.ButtonID, channelID)
 
 	return &types.ButtonCreateResponse{
 		Success: true,
@@ -66,7 +67,7 @@ func (app *AppContainerLocal) UpdateButtonService(ctx context.Context, channelID
 	if result.Error != nil {
 		return nil, fmt.Errorf("erro ao atualizar um botao padrão: %w", result.Error)
 	}
-	fmt.Printf("✅ Botão padrão atualizado com sucesso")
+	logger.Bot("✅ Botão padrão atualizado com sucesso: %s (Canal: %d)", buttonID, channelID)
 
 	return &types.ButtonResponse{
 		Success: true,
@@ -164,7 +165,7 @@ func (app *AppContainerLocal) UpdateButtonsLayoutService(ctx context.Context, ch
 		return nil, fmt.Errorf("erro ao atualizar layout dos botões: %w", err)
 	}
 
-	fmt.Println("✅ Layout dos botões atualizado com sucesso")
+	logger.Bot("✅ Layout dos botões atualizado com sucesso (Canal: %d)", channelID)
 
 	return &types.UpdateLayoutResponse{
 		Success: true,

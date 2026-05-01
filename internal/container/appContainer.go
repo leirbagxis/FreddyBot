@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/go-telegram/bot"
@@ -10,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
 	adminrepositories "github.com/leirbagxis/FreddyBot/internal/database/repositories/adminRepositories"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -129,7 +129,7 @@ func (c *AppContainer) broadcastWorker() {
 		}
 
 		if err != nil {
-			log.Printf("erro ao enviar para %d: %v\n", job.ChatID, err)
+			logger.Error("APP", "Erro ao enviar para %d: %v", job.ChatID, err)
 			continue
 		}
 

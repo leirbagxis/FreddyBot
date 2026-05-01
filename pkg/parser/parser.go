@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -65,7 +66,7 @@ func loadMessages() {
 		}
 	}
 
-	fmt.Println("✅ Messages carregadas:", len(messagesMap))
+	logger.Info("PARSER", "✅ Messages carregadas: %d", len(messagesMap))
 }
 
 func detectPlaceholders(text string) []string {

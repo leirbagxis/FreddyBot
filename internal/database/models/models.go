@@ -11,31 +11,33 @@ type ServerConfig struct {
 }
 
 type User struct {
-	UserId       int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
-	FirstName    string    `json:"first_name"`
-	Username     string    `json:"username"`
-	IsAdmin      bool      `gorm:"default:false" json:"is_admin"`
-	IsContribute bool      `gorm:"default:false" json:"isContribute"`
-	Channels     []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
-	CreatedAt    time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt    time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	UserId        int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
+	FirstName     string    `json:"first_name"`
+	Username      string    `json:"username"`
+	IsAdmin       bool      `gorm:"default:false" json:"is_admin"`
+	IsBlacklisted bool      `gorm:"default:false" json:"is_blacklisted"`
+	IsContribute  bool      `gorm:"default:false" json:"isContribute"`
+	Channels      []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
+	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type Channel struct {
-	ID             int64           `gorm:"primaryKey" json:"id"` // ID do Telegram
-	Title          string          `json:"title"`
-	NewPackCaption string          `json:"newPackCaption"`
-	InviteURL      string          `json:"inviteUrl"`
-	OwnerID        int64           `json:"ownerId"`
-	DefaultCaption *DefaultCaption `gorm:"foreignKey:OwnerChannelID" json:"defaultCaption,omitempty"`
-	Buttons        []Button        `gorm:"foreignKey:OwnerChannelID" json:"buttons"`
-	Separator      *Separator      `gorm:"foreignKey:OwnerChannelID" json:"separator,omitempty"`
-	CustomCaptions []CustomCaption `gorm:"foreignKey:OwnerChannelID" json:"customCaptions"`
+	ID               int64           `gorm:"primaryKey" json:"id"` // ID do Telegram
+	Title            string          `json:"title"`
+	NewPackCaption   string          `json:"newPackCaption"`
+	InviteURL        string          `json:"inviteUrl"`
+	OwnerID          int64           `json:"ownerId"`
+	Owner            *User           `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
+	DefaultCaption   *DefaultCaption `gorm:"foreignKey:OwnerChannelID" json:"defaultCaption,omitempty"`
+	Buttons          []Button        `gorm:"foreignKey:OwnerChannelID" json:"buttons"`
+	Separator        *Separator      `gorm:"foreignKey:OwnerChannelID" json:"separator,omitempty"`
+	CustomCaptions   []CustomCaption `gorm:"foreignKey:OwnerChannelID" json:"customCaptions"`
 	TokenVersion     int64           `gorm:"not null;default:1"`
 	Reactions        string          `json:"reactions"`
 	ReactionPosition int             `gorm:"default:0" json:"reactionPosition"`
 	CreatedAt        time.Time       `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
+	UpdatedAt        time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type DefaultCaption struct {

@@ -11,6 +11,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 type AppContainerLocal container.AppContainer
@@ -38,10 +39,10 @@ func (app *AppContainerLocal) UpdateDefaultCaptionService(ctx context.Context, c
 		})
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("erro ao atualizar legenda padrão: %w", result.Error)
+		return nil, result.Error
 	}
 
-	fmt.Println("✅ Legenda padrão atualizada com sucesso")
+	logger.Bot("✅ Legenda padrão atualizada com sucesso (Canal: %d)", channelID)
 
 	return &types.CaptionUpdateResponse{
 		Success: true,
@@ -67,10 +68,10 @@ func (app *AppContainerLocal) UpdateNewPackCaptionService(ctx context.Context, c
 		})
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("erro ao atualizar legenda padrão: %w", result.Error)
+		return nil, result.Error
 	}
 
-	fmt.Println("✅ NewPackCaption atualizada com sucesso")
+	logger.Bot("✅ NewPackCaption atualizada com sucesso (Canal: %d)", channelID)
 
 	return &types.CaptionUpdateResponse{
 		Success: true,

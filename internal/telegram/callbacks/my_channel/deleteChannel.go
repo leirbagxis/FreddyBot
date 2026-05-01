@@ -3,11 +3,11 @@ package mychannel
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -18,7 +18,7 @@ func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetSelectedChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao pegar sessão: %v", err)
+			logger.Error("BOT", "Erro ao pegar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -29,7 +29,7 @@ func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -62,7 +62,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		userId := cbks.From.ID
 		session, err := c.CacheService.GetDeleteChannel(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao criar sessão: %v", err)
+			logger.Error("BOT", "Erro ao criar sessão: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
@@ -73,7 +73,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao buscar canal: %v", err)
+			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "⌛ Canal não encontrado ou não pertence a você!",
@@ -84,7 +84,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		err = c.DisconnectChannel(ctx, userId, session)
 		if err != nil {
-			log.Printf("Erro ao excluir canal: %v", err)
+			logger.Error("BOT", "Erro ao excluir canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "❌ Erro ao excluir canal. Tente novamente!",
@@ -114,7 +114,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		_, err = c.CacheService.DeleteAllUserSessionsBySuffix(ctx, userId)
 		if err != nil {
-			log.Printf("Erro ao excluir all sessions: %v", err)
+			logger.Error("BOT", "Erro ao excluir all sessions: %v", err)
 			return
 		}
 	}

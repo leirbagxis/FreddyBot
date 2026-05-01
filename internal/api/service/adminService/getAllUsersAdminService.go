@@ -2,10 +2,10 @@ package adminservice
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/leirbagxis/FreddyBot/internal/api/service"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 type AdminService struct {
@@ -19,10 +19,10 @@ func (app *AdminService) GetAllUsersAdminService(ctx context.Context) ([]models.
 		Find(&users)
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("erro ao listar usuários: %w", result.Error)
+		return nil, result.Error
 	}
 
-	fmt.Println("✅ Usuários listados com sucesso")
+	logger.Bot("✅ Usuários listados com sucesso no Admin")
 
 	return users, nil
 }

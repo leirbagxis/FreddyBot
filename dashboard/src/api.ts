@@ -226,3 +226,15 @@ export const disconnectChannel = async (channelId: number) => {
         headers: { 'Content-Type': 'application/json' },
     });
 };
+
+export const updateUserAdmin = async (userId: number) => {
+    return apiFetch(`/api/admin/users/${userId}/admin`, {
+        method: 'POST',
+    });
+};
+
+export const updateUserBlacklist = async (userId: number) => {
+    return apiFetch(`/api/admin/users/${userId}/blacklist`, {
+        method: 'POST',
+    });
+};

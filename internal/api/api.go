@@ -96,7 +96,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
 	}
 
 	go func() {
-		logger.API("🌐 API REST rodando em http://localhost:%s", port)
+		logger.API("🌐 API REST rodando em http://localhost%s", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Error("API", "Erro ao iniciar servidor: %v", err)
 			os.Exit(1)

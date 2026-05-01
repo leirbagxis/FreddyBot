@@ -10,12 +10,17 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
 func Handler() bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		message := strings.TrimSpace(update.Message.Text[len("/suporte"):])
+		textInput := update.Message.Text
+		command := "/ouvidoria"
+		
+		message := strings.TrimSpace(textInput[len(command):])
+
 		if len(message) <= 0 {
 			text, button := parser.GetMessage("support-usage", map[string]string{})
 			b.SendMessage(ctx, &bot.SendMessageParams{
@@ -49,7 +54,7 @@ func Handler() bot.HandlerFunc {
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
-			fmt.Println("erro ao enviar mensagem pro admin:", err)
+			logger.Error("BOT", "Erro ao enviar mensagem de ouvidoria pro admin: %v", err)
 		}
 
 		text, button := parser.GetMessage("support-sent", data)
@@ -63,7 +68,7 @@ func Handler() bot.HandlerFunc {
 			},
 		})
 		if err != nil {
-			fmt.Println("erro ao enviar confirmação pro usuário:", err)
+			logger.Error("BOT", "Erro ao enviar confirmação de ouvidoria pro usuário %d: %v", update.Message.From.ID, err)
 		}
 	}
 }

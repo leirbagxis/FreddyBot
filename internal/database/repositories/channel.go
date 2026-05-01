@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -302,6 +302,7 @@ func (r *ChannelRepository) GetChannelWithRelations(ctx context.Context, channel
 		Joins("DefaultCaption.MessagePermission").
 		Joins("DefaultCaption.ButtonsPermission").
 		Joins("Separator").
+		Joins("Owner").
 		// Usar Preload para relações 1:N
 		Preload("Buttons").
 		Preload("CustomCaptions").
@@ -469,7 +470,7 @@ func (r *ChannelRepository) UpdateChannelBasicInfoAndFirstButton(ctx context.Con
 		}
 
 		if result.RowsAffected > 0 {
-			log.Printf("🔘 Primeiro botão do canal %d atualizado no banco", channel.ID)
+			logger.DB("🔘 Primeiro botão do canal %d atualizado no banco", channel.ID)
 		}
 	}
 
@@ -483,6 +484,6 @@ func (r *ChannelRepository) UpdateChannelBasicInfoAndFirstButton(ctx context.Con
 		_ = r.cacheService.DeleteSession(ctx, cacheKey)
 	}
 
-	log.Printf("✅ Canal %d: informações básicas e primeiro botão atualizados no banco", channel.ID)
+	logger.DB("✅ Canal %d: informações básicas e primeiro botão atualizados no banco", channel.ID)
 	return nil
 }

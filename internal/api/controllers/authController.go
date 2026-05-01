@@ -61,12 +61,18 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 
 	// 2. Determinar Role
 	role := auth.RoleUser
+	isBlacklisted := false
 	if req.UserID == config.OwnerID {
 		role = auth.RoleOwner
 	} else {
 		user, err := ac.container.UserRepo.GetUserById(ctx, req.UserID)
-		if err == nil && user != nil && user.IsAdmin {
-			role = auth.RoleAdmin
+		if err == nil && user != nil {
+			if user.IsAdmin {
+				role = auth.RoleAdmin
+			}
+			if user.IsBlacklisted {
+				isBlacklisted = true
+			}
 		}
 	}
 
@@ -89,8 +95,9 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 	})
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"role":    role,
-		"token":   token, // Retornamos o token tbm caso o cliente queira salvar fora do cookie
+		"success":       true,
+		"role":          role,
+		"token":         token, // Retornamos o token tbm caso o cliente queira salvar fora do cookie
+		"isBlacklisted": isBlacklisted,
 	})
 }

@@ -3,12 +3,12 @@ package logs
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	usermodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 func LogAdmin(ctx context.Context, b *bot.Bot, channel *usermodels.Channel) {
@@ -16,7 +16,7 @@ func LogAdmin(ctx context.Context, b *bot.Bot, channel *usermodels.Channel) {
 		ChatID: channel.OwnerID,
 	})
 	if err != nil {
-		log.Printf("Erro ao buscar informacoes do usuario para o log: %v", err)
+		logger.Error("ADMIN", "Erro ao buscar informacoes do usuario para o log: %v", err)
 	}
 
 	ownerName := user.FirstName

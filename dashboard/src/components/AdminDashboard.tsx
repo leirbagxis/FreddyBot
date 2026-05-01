@@ -2,8 +2,9 @@ import { useState, useMemo, useTransition, useEffect, Dispatch, SetStateAction }
 import { AdminDashboardData, User, Channel } from '../types';
 import { AdminNoticeTab } from './AdminNoticeTab';
 import { AdminConfigTab } from './AdminConfigTab';
-import { NoticeButton } from '../api';
-import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings } from 'lucide-react';
+import { NoticeButton, updateUserAdmin, updateUserBlacklist } from '../api';
+import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings, ShieldAlert, ShieldCheck, UserX, UserCheck } from 'lucide-react';
+import { useToast } from './Toast';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
@@ -45,9 +46,16 @@ export function AdminDashboard({
   const [visibleChannelsCount, setVisibleChannelsCount] = useState(40);
   const [visibleUsersCount, setVisibleUsersCount] = useState(40);
   const [channelSearch, setChannelSearch] = useState('');
+  const toast = useToast();
 
   const [localActiveTab, setLocalActiveTab] = useState(activeTab);
   const [isPending, startTransition] = useTransition();
+
+  const [localUsers, setLocalUsers] = useState<User[]>(adminData.users || []);
+
+  useEffect(() => {
+    setLocalUsers(adminData.users || []);
+  }, [adminData.users]);
 
   useEffect(() => {
     startTransition(() => {
@@ -55,7 +63,7 @@ export function AdminDashboard({
     });
   }, [activeTab]);
 
-  const usersList = adminData.users || [];
+  const usersList = localUsers;
   
   const filteredUsers = useMemo(() => {
     return usersList.filter(u => {
@@ -78,6 +86,30 @@ export function AdminDashboard({
 
   const setAdminSelectedUser = (user: User | null) => onSelectUser(user ? user.id : null);
 
+  const handleToggleAdmin = async (uid: number) => {
+    try {
+      const res = await updateUserAdmin(uid);
+      if (res.success) {
+        setLocalUsers(prev => prev.map(u => u.id === uid ? { ...u, is_admin: res.isAdmin } : u));
+        toast(res.isAdmin ? "Usuário promovido a Admin" : "Privilégios de Admin removidos", "success");
+      }
+    } catch (err: any) {
+      toast(err.message || "Erro ao atualizar status de admin", "error");
+    }
+  };
+
+  const handleToggleBlacklist = async (uid: number) => {
+    try {
+      const res = await updateUserBlacklist(uid);
+      if (res.success) {
+        setLocalUsers(prev => prev.map(u => u.id === uid ? { ...u, is_blacklisted: res.isBlacklisted } : u));
+        toast(res.isBlacklisted ? "Usuário adicionado à Blacklist" : "Usuário removido da Blacklist", res.isBlacklisted ? "error" : "success");
+      }
+    } catch (err: any) {
+      toast(err.message || "Erro ao atualizar status de blacklist", "error");
+    }
+  };
+
   const renderUserDetail = () => {
     if (!adminSelectedUser) return null;
     const name = adminSelectedUser.firstName || (adminSelectedUser as any).first_name || 'Sem nome';
@@ -99,6 +131,23 @@ export function AdminDashboard({
               <p className="text-xs truncate" style={{ color: 'var(--hint)' }}>ID: {adminSelectedUser.id}</p>
             </div>
           </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <button 
+            className={`btn ${adminSelectedUser.is_admin ? 'btn-secondary' : 'btn-primary'} w-full`}
+            onClick={() => handleToggleAdmin(adminSelectedUser.id)}
+          >
+            {adminSelectedUser.is_admin ? <ShieldAlert size={18} /> : <ShieldCheck size={18} />}
+            {adminSelectedUser.is_admin ? "Remover Admin" : "Tornar Admin"}
+          </button>
+          <button 
+            className={`btn ${adminSelectedUser.is_blacklisted ? 'btn-success' : 'btn-danger'} w-full`}
+            onClick={() => handleToggleBlacklist(adminSelectedUser.id)}
+          >
+            {adminSelectedUser.is_blacklisted ? <UserCheck size={18} /> : <UserX size={18} />}
+            {adminSelectedUser.is_blacklisted ? "Remover Blacklist" : "Add Blacklist"}
+          </button>
         </div>
 
         <div className="space-y-3">

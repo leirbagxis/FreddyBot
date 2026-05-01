@@ -4,7 +4,6 @@ package channelpost
 import (
 	"context"
 	"fmt"
-	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -13,6 +12,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 // Estado por canal: quando recebeu !newpack e está aguardando sticker
@@ -173,7 +173,7 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 		})
 		if err != nil {
 			// Não precisa falhar o fluxo inteiro; o texto já foi editado.
-			log.Printf("falha ao editar reply markup newpack: %v", err)
+			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
 		}
 
 		_, err = mp.bot.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
@@ -184,7 +184,7 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 
 		if err != nil {
 			// Não precisa falhar o fluxo inteiro; o texto já foi editado.
-			log.Printf("falha ao editar reply markup newpack: %v", err)
+			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
 		}
 
 		// (Opcional) enviar sticker separador, semelhante ao JS

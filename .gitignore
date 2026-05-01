@@ -39,3 +39,4 @@ main
 *.rdb
 *.sql
 *.DS_Store
+server

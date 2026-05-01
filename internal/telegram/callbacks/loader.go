@@ -1,7 +1,6 @@
 package callbacks
 
 import (
-	"fmt"
 	"strconv"
 	"strings"
 
@@ -55,7 +54,6 @@ import (
 }
 
 func matchAwaitingSticker(update *models.Update) bool {
-	fmt.Println("Checking AwaitSticker: ", update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Sticker != nil)
 	return update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Sticker != nil
 }
 

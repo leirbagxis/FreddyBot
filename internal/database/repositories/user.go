@@ -95,3 +95,30 @@ func (r *UserRepository) UpdateUserAdmin(ctx context.Context, userID int64) (boo
 
 	return newValue, nil
 }
+
+func (r *UserRepository) UpdateUserBlacklist(ctx context.Context, userID int64) (bool, error) {
+	var user models.User
+
+	err := r.db.WithContext(ctx).
+		Where("user_id = ?", userID).
+		First(&user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, errors.New("usuário não encontrado")
+		}
+		return false, fmt.Errorf("erro ao buscar usuário: %w", err)
+	}
+
+	newValue := !user.IsBlacklisted
+
+	err = r.db.WithContext(ctx).
+		Model(&user).
+		Updates(map[string]any{
+			"is_blacklisted": newValue,
+		}).Error
+	if err != nil {
+		return false, fmt.Errorf("erro ao atualizar status de blacklist do usuário: %w", err)
+	}
+
+	return newValue, nil
+}

@@ -2,12 +2,13 @@ package admincontroller
 
 import (
 	"context"
-	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 type UsersAdminController struct {
@@ -45,6 +46,46 @@ func (c *UsersAdminController) GetAllUsersAdminController(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"users":   users,
+	})
+}
+
+func (c *UsersAdminController) UpdateUserAdminController(ctx *gin.Context) {
+	userIDStr := ctx.Param("userId")
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "ID de usuário inválido"})
+		return
+	}
+
+	newValue, err := c.container.UserRepo.UpdateUserAdmin(ctx, userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"isAdmin": newValue,
+	})
+}
+
+func (c *UsersAdminController) UpdateUserBlacklistController(ctx *gin.Context) {
+	userIDStr := ctx.Param("userId")
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "ID de usuário inválido"})
+		return
+	}
+
+	newValue, err := c.container.UserRepo.UpdateUserBlacklist(ctx, userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success":       true,
+		"isBlacklisted": newValue,
 	})
 }
 
@@ -103,7 +144,7 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 	case "users":
 		users, err := c.container.AdminService.GetAllUsersAdminRepository(ctx)
 		if err != nil {
-			log.Println(err)
+			logger.Error("API", "Erro ao buscar usuários para broadcast: %v", err)
 			return
 		}
 
@@ -119,7 +160,7 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 	case "channels":
 		channels, err := c.container.ChannelRepo.GetAllChannels(ctx)
 		if err != nil {
-			log.Println(err)
+			logger.Error("API", "Erro ao buscar usuários para broadcast: %v", err)
 			return
 		}
 

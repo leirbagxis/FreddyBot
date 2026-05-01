@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -14,7 +15,7 @@ func Handler() bot.HandlerFunc {
 		user, _ := b.GetMe(ctx)
 		text, button := parser.GetMessage("about", map[string]string{
 			"ownerUser":  "@SuporteLegendas",
-			"botVersion": "beta 1.0.8",
+			"botVersion": utils.Version,
 			"botId":      fmt.Sprintf("%d", user.ID),
 		})
 

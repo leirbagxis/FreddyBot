@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -56,10 +57,10 @@ func (app *AppContainerLocal) CreateCustomCaptionButtonService(ctx context.Conte
 	}
 
 	if err := app.DB.WithContext(ctx).Create(&newCaption).Error; err != nil {
-		return nil, fmt.Errorf("erro ao criar custom caption: %w", err)
+		return nil, err
 	}
 
-	fmt.Printf("✅ Botão Customizado criado com sucesso: %s\n", newCaption.ButtonID)
+	logger.Bot("✅ Botão Customizado criado com sucesso: %s (Caption: %s)", newCaption.ButtonID, captionID)
 	return &types.CreateCustomCaptionResponse{
 		Success: true,
 		Message: "Button Custom Caption criada com sucesso",
@@ -89,9 +90,9 @@ func (app *AppContainerLocal) UpdateCustomCaptionButtonService(ctx context.Conte
 		})
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("erro ao atualizar um botao customizado: %w", result.Error)
+		return nil, result.Error
 	}
-	fmt.Printf("✅ Botão customizado atualizado com sucesso")
+	logger.Bot("✅ Botão customizado atualizado com sucesso: %s (Caption: %s)", buttonID, captionID)
 
 	return &types.CreateCustomCaptionResponse{
 		Success: true,

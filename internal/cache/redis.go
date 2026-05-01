@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -39,7 +40,7 @@ func GetRedisClient() *redis.Client {
 			panic(fmt.Sprintf("Failed to connect to Redis: %v", err))
 		}
 
-		fmt.Println("✅ Redis connected successfully")
+		logger.Bot("✅ Redis conectado com sucesso")
 
 	})
 	return redisClient

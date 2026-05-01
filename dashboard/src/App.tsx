@@ -124,6 +124,17 @@ function DashboardContent() {
     };
   }, [isSpecificChannel, handleBack]);
 
+  const handleBlacklist = useCallback(() => {
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.showConfirm("🚫 Você está na blacklist e seu acesso ao painel foi bloqueado. Em caso de dúvidas, acione a /ouvidoria no bot.", () => {
+        tg.close();
+      });
+    } else {
+      alert("🚫 Você está na blacklist e seu acesso ao painel foi bloqueado.");
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -137,6 +148,11 @@ function DashboardContent() {
         const authRes = await login(initData, userID);
         if (!authRes.success) throw new Error(authRes.message || 'Falha no login');
 
+        if (authRes.isBlacklisted) {
+          handleBlacklist();
+          return;
+        }
+
         setAuthState('authenticated');
 
         if (isAdminDashRoute()) {
@@ -149,6 +165,8 @@ function DashboardContent() {
             user: {
               id: userID,
               firstName: tg?.initDataUnsafe?.user?.first_name || 'Usuário',
+              is_admin: false,
+              is_blacklisted: false,
               isContribute: false,
               created_at: '',
               updated_at: '',
@@ -157,6 +175,10 @@ function DashboardContent() {
           });
         } else if (channelId) {
           const dashRes = await fetchDashboardData(channelId);
+          if (dashRes.user?.is_blacklisted) {
+            handleBlacklist();
+            return;
+          }
           setData(dashRes);
         }
 
@@ -632,16 +654,28 @@ function DashboardContent() {
   }, [activeTab, adminActiveTab, loading]);
 
   if (authState === 'error') {
+    let displayMessage = authError || 'Não foi possível autenticar. Tente novamente pelo Telegram.';
+    
+    // Tentar extrair mensagem amigável caso seja um JSON de erro da API
+    try {
+      if (displayMessage.startsWith('{')) {
+        const parsed = JSON.parse(displayMessage);
+        displayMessage = parsed.message || parsed.error || displayMessage;
+      }
+    } catch (e) {
+      // Se não for JSON, mantém a mensagem original
+    }
+
     return (
       <div className="app-layout">
         <div className="main-content" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', gap: 16, textAlign: 'center' }}>
-          <div style={{ width: 56, height: 56, borderRadius: 16, background: 'var(--danger-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <AlertTriangle size={28} style={{ color: 'var(--danger)' }} />
+          <div style={{ width: 64, height: 64, borderRadius: 20, background: 'var(--danger-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+            <AlertTriangle size={32} style={{ color: 'var(--danger)' }} />
           </div>
-          <h2 style={{ fontSize: 18, fontWeight: 700 }}>Erro de autenticação</h2>
-          <p style={{ fontSize: 14, color: 'var(--hint)', maxWidth: 300 }}>{authError || 'Não foi possível autenticar. Tente novamente pelo Telegram.'}</p>
-          <button className="btn btn-primary" onClick={() => window.location.reload()} style={{ marginTop: 8 }}>
-            Tentar novamente
+          <h2 style={{ fontSize: 20, fontWeight: 800 }}>Ops! Acesso negado</h2>
+          <p style={{ fontSize: 15, color: 'var(--hint)', maxWidth: 320, lineHeight: 1.6 }}>{displayMessage}</p>
+          <button className="btn btn-primary" onClick={() => window.location.href = '/me/channels'} style={{ marginTop: 12, minWidth: 200 }}>
+            <ArrowLeft size={18} /> Voltar para Meus Canais
           </button>
         </div>
       </div>
@@ -669,15 +703,23 @@ function DashboardContent() {
   return (
     <div className={`app-layout ${isAdmin ? 'admin-layout' : ''}`}>
       {isAdmin && adminData && (
-        <AdminSidebar
-          tabs={adminTabs}
-          activeTab={adminActiveTab}
-          onTabChange={(id) => {
-            setAdminActiveTab(id as any);
-            setIsSidebarOpen(false);
-          }}
-          isCollapsed={!isSidebarOpen}
-        />
+        <>
+          {isSidebarOpen && (
+            <div 
+              className="admin-overlay" 
+              onClick={() => setIsSidebarOpen(false)} 
+            />
+          )}
+          <AdminSidebar
+            tabs={adminTabs}
+            activeTab={adminActiveTab}
+            onTabChange={(id) => {
+              setAdminActiveTab(id as any);
+              setIsSidebarOpen(false);
+            }}
+            isCollapsed={!isSidebarOpen}
+          />
+        </>
       )}
       
       <div className={isAdmin ? 'app-main' : 'w-full flex flex-col min-h-screen'}>

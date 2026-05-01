@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
@@ -72,9 +73,9 @@ func (app *AppContainerLocal) UpdateCustomCaptionService(ctx context.Context, ch
 		})
 
 	if result.Error != nil {
-		return nil, fmt.Errorf("erro ao atualizar um legenda customizado: %w", result.Error)
+		return nil, result.Error
 	}
-	fmt.Printf("✅ Legenda customizado atualizado com sucesso")
+	logger.Bot("✅ Legenda customizada atualizada com sucesso: %s (Canal: %d)", captionID, channelID)
 
 	return &types.CreateCustomCaptionResponse{
 		Success: true,
