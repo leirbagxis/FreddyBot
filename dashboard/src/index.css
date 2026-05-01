@@ -709,40 +709,50 @@ svg:active {
   position: fixed; inset: 0;
   background: var(--overlay);
   z-index: 15000;
-  display: flex; align-items: flex-end; justify-content: center;
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
 }
-@media (min-width: 640px) { .overlay { align-items: center; } }
+
 .dialog {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 20px 20px 0 0;
-  padding: 20px;
-  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  border-radius: 20px;
+  padding: 24px;
   width: 100%;
-  animation: sheet-up 0.25s ease;
+  max-width: 400px;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: dialog-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--shadow-lg);
 }
+
+@keyframes dialog-in {
+  from { opacity: 0; transform: scale(0.95) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@media (max-width: 640px) {
+  .overlay { align-items: flex-end; padding: 0; }
+  .dialog {
+    border-radius: 20px 20px 0 0;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+    animation: sheet-up 0.25s ease;
+    max-height: 85vh;
+  }
+}
+
 @keyframes sheet-up {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
-@media (min-width: 640px) {
-  .dialog {
-    border-radius: 16px;
-    max-width: 400px;
-    animation: dialog-in 0.2s ease;
-  }
-  @keyframes dialog-in {
-    from { opacity: 0; transform: scale(0.96); }
-    to { opacity: 1; transform: scale(1); }
-  }
-}
+
 .dialog-handle {
   width: 36px; height: 4px;
   border-radius: 2px;
   background: var(--surface-hover);
   margin: 0 auto 16px;
 }
-@media (min-width: 640px) { .dialog-handle { display: none; } }
+@media (min-width: 641px) { .dialog-handle { display: none; } }
 
 /* ===== DRAG CLONE ===== */
 .drag-clone {

@@ -20,9 +20,10 @@ type BroadcastButton struct {
 }
 
 type BroadcastJob struct {
-	ChatID  int64
-	Text    string
-	Buttons []BroadcastButton
+	ChatID   int64
+	Text     string
+	ImageUrl string
+	Buttons  []BroadcastButton
 }
 
 type AppContainer struct {
@@ -81,14 +82,10 @@ func (c *AppContainer) startBroadcastWorkers(workerCount int) {
 
 func (c *AppContainer) broadcastWorker() {
 	for job := range c.BroadcastQueue {
-		params := &bot.SendMessageParams{
-			ChatID:    job.ChatID,
-			Text:      job.Text,
-			ParseMode: "HTML",
-		}
+		var keyboard [][]models.InlineKeyboardButton
+		var replyMarkup *models.InlineKeyboardMarkup
 
 		if len(job.Buttons) > 0 {
-			var keyboard [][]models.InlineKeyboardButton
 			for _, btn := range job.Buttons {
 				button := models.InlineKeyboardButton{
 					Text: btn.Text,
@@ -100,19 +97,36 @@ func (c *AppContainer) broadcastWorker() {
 					button.CallbackData = btn.Value
 				}
 
-				// Adiciona o botão em uma nova linha (layout vertical)
-				// Se quiser horizontal, teria que agrupar diferente
 				keyboard = append(keyboard, []models.InlineKeyboardButton{button})
 			}
-			params.ReplyMarkup = &models.InlineKeyboardMarkup{
+			replyMarkup = &models.InlineKeyboardMarkup{
 				InlineKeyboard: keyboard,
 			}
 		}
 
-		_, err := c.Bot.SendMessage(
-			context.Background(),
-			params,
-		)
+		var err error
+		if job.ImageUrl != "" {
+			params := &bot.SendPhotoParams{
+				ChatID:    job.ChatID,
+				Photo:     &models.InputFileString{Data: job.ImageUrl},
+				Caption:   job.Text,
+				ParseMode: "HTML",
+			}
+			if replyMarkup != nil {
+				params.ReplyMarkup = replyMarkup
+			}
+			_, err = c.Bot.SendPhoto(context.Background(), params)
+		} else {
+			params := &bot.SendMessageParams{
+				ChatID:    job.ChatID,
+				Text:      job.Text,
+				ParseMode: "HTML",
+			}
+			if replyMarkup != nil {
+				params.ReplyMarkup = replyMarkup
+			}
+			_, err = c.Bot.SendMessage(context.Background(), params)
+		}
 
 		if err != nil {
 			log.Printf("erro ao enviar para %d: %v\n", job.ChatID, err)

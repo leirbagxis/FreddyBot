@@ -78,6 +78,7 @@ function DashboardContent() {
 
   const [adminData, setAdminData] = useState<AdminDashboardData | null>(null);
   const [noticeMessage, setNoticeMessage] = useState('');
+  const [noticeImageUrl, setNoticeImageUrl] = useState('');
   const [noticeTarget, setNoticeTarget] = useState<'channels' | 'users' | 'all'>('all');
   const [noticeButtons, setNoticeButtons] = useState<NoticeButton[]>([]);
   const [isSendingNotice, setIsSendingNotice] = useState(false);
@@ -580,13 +581,15 @@ function DashboardContent() {
 
       const payload: NoticeRequest = {
         message: noticeMessage,
+        imageUrl: noticeImageUrl,
         target: noticeTarget,
         buttons: noticeButtons
       };
 
       await sendAdminNotice(initData, payload);
-      toast('Mensagem enviada com sucesso', 'success');
+      toast('Mensagem enviada com sucesso!', 'success');
       setNoticeMessage('');
+      setNoticeImageUrl('');
       setNoticeButtons([]);
     } catch (err: any) {
       toast(err.message || 'Erro ao enviar mensagem', 'error');
@@ -730,6 +733,8 @@ function DashboardContent() {
                 }}
                 noticeMessage={noticeMessage}
                 setNoticeMessage={setNoticeMessage}
+                noticeImageUrl={noticeImageUrl}
+                setNoticeImageUrl={setNoticeImageUrl}
                 noticeTarget={noticeTarget}
                 setNoticeTarget={setNoticeTarget}
                 noticeButtons={noticeButtons}

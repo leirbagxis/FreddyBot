@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 interface ConfirmModalProps {
     open: boolean;
@@ -15,7 +16,8 @@ export function ConfirmModal({
     open, onClose, onConfirm, title, message, confirmText, danger, alertOnly
 }: ConfirmModalProps) {
     if (!open) return null;
-    return (
+
+    const modalContent = (
         <div className="overlay" onClick={onClose}>
             <div className="dialog confirm-dialog" onClick={e => e.stopPropagation()}>
                 <div className="dialog-handle" />
@@ -40,4 +42,6 @@ export function ConfirmModal({
             </div>
         </div>
     );
+
+    return createPortal(modalContent, document.body);
 }

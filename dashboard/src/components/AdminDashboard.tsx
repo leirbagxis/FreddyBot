@@ -14,6 +14,8 @@ interface AdminDashboardProps {
   // Notice tab props
   noticeMessage: string;
   setNoticeMessage: Dispatch<SetStateAction<string>>;
+  noticeImageUrl: string;
+  setNoticeImageUrl: Dispatch<SetStateAction<string>>;
   noticeTarget: 'channels' | 'users' | 'all';
   setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all'>>;
   noticeButtons: NoticeButton[];
@@ -31,6 +33,7 @@ export function AdminDashboard({
   selectedUserId,
   onSelectUser,
   noticeMessage, setNoticeMessage,
+  noticeImageUrl, setNoticeImageUrl,
   noticeTarget, setNoticeTarget,
   noticeButtons, handleAddNoticeButton,
   updateNoticeButton, removeNoticeButton,
@@ -270,6 +273,8 @@ export function AdminDashboard({
         <AdminNoticeTab
           noticeMessage={noticeMessage}
           setNoticeMessage={setNoticeMessage}
+          noticeImageUrl={noticeImageUrl}
+          setNoticeImageUrl={setNoticeImageUrl}
           noticeTarget={noticeTarget}
           setNoticeTarget={setNoticeTarget}
           noticeButtons={noticeButtons}

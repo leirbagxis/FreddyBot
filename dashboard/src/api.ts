@@ -190,6 +190,7 @@ export interface NoticeButton {
 export interface NoticeRequest {
     message: string;
     target: 'channels' | 'users' | 'all';
+    imageUrl?: string;
     buttons: NoticeButton[];
 }
 

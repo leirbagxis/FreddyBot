@@ -61,7 +61,7 @@ export function DashboardInicioTab({
                         <Cpu size={14} className="text-black/20" />
                     </div>
                     <div className="text-right">
-                        <div className="text-[9px] font-bold tracking-widest opacity-40">FREDDY BOT</div>
+                        <div className="text-[9px] font-bold tracking-widest opacity-40">LEGENDAS BOT</div>
                         <div className="text-[9px] font-medium text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-full inline-block mt-1">ACCESS GRANTED</div>
                     </div>
                 </div>

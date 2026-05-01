@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 )
 
 type UsersAdminController struct {
@@ -20,9 +21,10 @@ func NewUsersAdminController(app *container.AppContainer) *UsersAdminController 
 }
 
 type NoticeRequest struct {
-	Message string `json:"message"`
-	Target  string `json:"target"`
-	Buttons []struct {
+	Message  string `json:"message"`
+	Target   string `json:"target"`
+	ImageUrl string `json:"imageUrl"`
+	Buttons  []struct {
 		Text  string `json:"text"`
 		Type  string `json:"type"`
 		Value string `json:"value"`
@@ -107,9 +109,10 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 
 		for _, user := range users {
 			c.container.BroadcastQueue <- container.BroadcastJob{
-				ChatID:  user.UserId,
-				Text:    notice.Message,
-				Buttons: buttons,
+				ChatID:   user.UserId,
+				Text:     utils.MarkdownToTelegramHTML(notice.Message),
+				ImageUrl: notice.ImageUrl,
+				Buttons:  buttons,
 			}
 		}
 
@@ -122,9 +125,10 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 
 		for _, channel := range channels {
 			c.container.BroadcastQueue <- container.BroadcastJob{
-				ChatID:  channel.ID,
-				Text:    notice.Message,
-				Buttons: buttons,
+				ChatID:   channel.ID,
+				Text:     utils.MarkdownToTelegramHTML(notice.Message),
+				ImageUrl: notice.ImageUrl,
+				Buttons:  buttons,
 			}
 		}
 
@@ -132,19 +136,29 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 		users, _ := c.container.AdminService.GetAllUsersAdminRepository(ctx)
 		channels, _ := c.container.ChannelRepo.GetAllChannels(ctx)
 
+		sentMap := make(map[int64]bool)
+
 		for _, user := range users {
-			c.container.BroadcastQueue <- container.BroadcastJob{
-				ChatID:  user.UserId,
-				Text:    notice.Message,
-				Buttons: buttons,
+			if !sentMap[user.UserId] {
+				c.container.BroadcastQueue <- container.BroadcastJob{
+					ChatID:   user.UserId,
+					Text:     utils.MarkdownToTelegramHTML(notice.Message),
+					ImageUrl: notice.ImageUrl,
+					Buttons:  buttons,
+				}
+				sentMap[user.UserId] = true
 			}
 		}
 
 		for _, channel := range channels {
-			c.container.BroadcastQueue <- container.BroadcastJob{
-				ChatID:  channel.ID,
-				Text:    notice.Message,
-				Buttons: buttons,
+			if !sentMap[channel.ID] {
+				c.container.BroadcastQueue <- container.BroadcastJob{
+					ChatID:   channel.ID,
+					Text:     utils.MarkdownToTelegramHTML(notice.Message),
+					ImageUrl: notice.ImageUrl,
+					Buttons:  buttons,
+				}
+				sentMap[channel.ID] = true
 			}
 		}
 	}
