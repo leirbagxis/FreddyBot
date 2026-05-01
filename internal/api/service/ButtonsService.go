@@ -178,13 +178,23 @@ func (app *AppContainerLocal) UpdateButtonsLayoutService(ctx context.Context, ch
 }
 
 func (app *AppContainerLocal) calculateNextButtonPosition(ctx context.Context, channelId int64) (*types.ButtonPosition, error) {
+	var channel models.Channel
+	err := app.DB.WithContext(ctx).Select("reaction_position").Where("id = ?", channelId).First(&channel).Error
+	if err != nil {
+		return nil, err
+	}
+
 	buttons, err := app.ChannelRepo.GetChannelButtons(ctx, channelId)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(buttons) == 0 {
-		return &types.ButtonPosition{X: 0, Y: 0}, nil
+		y := 0
+		if channel.ReactionPosition == 0 {
+			y = 1
+		}
+		return &types.ButtonPosition{X: 0, Y: y}, nil
 	}
 
 	// Encontrar última linha (maxY)
@@ -208,8 +218,13 @@ func (app *AppContainerLocal) calculateNextButtonPosition(ctx context.Context, c
 		return &types.ButtonPosition{X: buttonsInLastRow, Y: maxY}, nil
 	}
 
-	// Criar nova linha
-	return &types.ButtonPosition{X: 0, Y: maxY + 1}, nil
+	// Criar nova linha (pular a linha das reações se necessário)
+	nextY := maxY + 1
+	if nextY == channel.ReactionPosition {
+		nextY++
+	}
+
+	return &types.ButtonPosition{X: 0, Y: nextY}, nil
 }
 
 func validateButtonData(data types.ButtonCreateRequest) error {

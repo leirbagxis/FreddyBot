@@ -270,8 +270,23 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 			if row < 0 {
 				row = 0
 			}
-			// Se já existir botão na mesma linha (conflito), o botão ganha e a reação vai para a próxima disponível?
-			// De acordo com o dashboard, não deveria haver conflito.
+
+			// Evitar conflito: se a linha das reações já tiver botões, joga para a próxima linha disponível
+			hasConflict := false
+			maxBtnRow := -1
+			for _, b := range finalButtons {
+				if b.PositionY > maxBtnRow {
+					maxBtnRow = b.PositionY
+				}
+				if b.PositionY == row {
+					hasConflict = true
+				}
+			}
+
+			if hasConflict {
+				row = maxBtnRow + 1
+			}
+
 			rows[row] = append(rows[row], reactionRow...)
 		}
 	}

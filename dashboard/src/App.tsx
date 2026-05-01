@@ -180,6 +180,17 @@ function DashboardContent() {
             handleBlacklist();
             return;
           }
+
+          // Resolver conflito de posição entre botões e reações (se houver)
+          if (dashRes.channel && dashRes.channel.buttons) {
+            const { buttons, reactionPosition } = dashRes.channel;
+            const hasConflict = buttons.some(b => b.positionY === reactionPosition);
+            if (hasConflict) {
+              const maxBtnY = buttons.reduce((max, b) => Math.max(max, b.positionY), -1);
+              dashRes.channel.reactionPosition = maxBtnY + 1;
+            }
+          }
+
           setData(dashRes);
         }
 
@@ -459,13 +470,12 @@ function DashboardContent() {
       await updateReactions(cid, text);
       
       let newPos = data.channel.reactionPosition;
-      if (text.trim() !== '' && newPos === 0) {
-        const hasButtonsAtZero = data.channel.buttons.some(b => b.positionY === 0);
-        if (hasButtonsAtZero) {
-          const maxBtnY = data.channel.buttons.reduce((max, b) => Math.max(max, b.positionY), -1);
-          newPos = maxBtnY + 1;
-          await updateReactionPosition(cid, newPos);
-        }
+      const hasConflict = data.channel.buttons.some(b => b.positionY === newPos);
+      
+      if (text.trim() !== '' && (hasConflict || (newPos === 0 && data.channel.buttons.some(b => b.positionY === 0)))) {
+        const maxBtnY = data.channel.buttons.reduce((max, b) => Math.max(max, b.positionY), -1);
+        newPos = maxBtnY + 1;
+        await updateReactionPosition(cid, newPos);
       }
 
       setData(p => {

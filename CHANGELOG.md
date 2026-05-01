@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
-### Added
+### Fixed
+- **Correção de Sobreposição (Botões/Reações)**: Implementada lógica de cura automática para evitar que botões e reações ocupem a mesma linha.
+  - O Dashboard agora detecta e resolve conflitos de posição no carregamento dos dados.
+  - O bot agora valida dinamicamente a posição das reações ao gerar teclados inline, garantindo visibilidade mesmo em dados legados.
+  - O backend agora impede a criação de novos botões na linha reservada para reações.
 - **Suporte para Arquivos (Arquivos)**: O bot agora suporta a edição e inclusão de botões em postagens do tipo "Arquivo". Suporte adicionado em todas as camadas (Backend, Bot e Dashboard).
 - **Controle Granular de Arquivos**: Adicionadas permissões específicas para "Arquivos" na aba de permissões da Dashboard, permitindo ativar/desativar a edição de legenda e adição de botões para este tipo de mídia.
 - **Despedida Dramática**: O bot agora envia uma mensagem melodramática e sarcástica antes de sair automaticamente de um canal ao ser desconectado.
