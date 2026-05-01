@@ -32,6 +32,7 @@ All notable changes to this project will be documented in this file.
   - `make build`: Agora realiza o build completo (UI + Servidor) e **executa o binário** automaticamente.
   - `make dev`: Agora realiza o build da UI e **executa o bot via `go run`**, facilitando o desenvolvimento do backend.
   - Removido o alvo `run` que se tornou redundante e atualizada a ajuda (`make help`).
+- **Dockerfile Multi-stage Build**: Implementada construção em múltiplos estágios (Node.js para frontend e Go para backend), automatizando a geração dos arquivos estáticos da dashboard e reduzindo o tamanho da imagem final.
 - **Otimização do Makefile**:
   - O comando `make` agora realiza apenas o build por padrão (em vez de build e run), evitando bloqueios na CLI.
   - Adicionada detecção inteligente de dependências do frontend para evitar `npm install` desnecessários em cada build.
