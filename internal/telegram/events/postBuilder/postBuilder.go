@@ -144,8 +144,8 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 		lines := strings.Split(text, "\n")
 		if len(lines) < 2 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "❌ Formato inválido. Envie o <b>Nome</b> em uma linha e o <b>Link</b> na linha de baixo.",
+				ChatID:    update.Message.Chat.ID,
+				Text:      "❌ Formato inválido. Envie o <b>Nome</b> em uma linha e o <b>Link</b> na linha de baixo.",
 				ParseMode: models.ParseModeHTML,
 			})
 			return
@@ -246,40 +246,40 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 			state.Step = "awaiting_title"
 			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: chatID,
-				Text:   "📝 Envie o <b>Título</b> da postagem (suporta formatação):",
+				ChatID:    chatID,
+				Text:      "📝 Envie o <b>Título</b> da postagem (suporta formatação):",
 				ParseMode: models.ParseModeHTML,
 			})
 		case "pb-edit-body":
 			state.Step = "awaiting_body"
 			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: chatID,
-				Text:   "📄 Envie o <b>Corpo</b> da postagem (suporta formatação):",
+				ChatID:    chatID,
+				Text:      "📄 Envie o <b>Corpo</b> da postagem (suporta formatação):",
 				ParseMode: models.ParseModeHTML,
 			})
 		case "pb-edit-footer":
 			state.Step = "awaiting_footer"
 			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: chatID,
-				Text:   "👣 Envie o <b>Rodapé</b> da postagem (suporta formatação):",
+				ChatID:    chatID,
+				Text:      "👣 Envie o <b>Rodapé</b> da postagem (suporta formatação):",
 				ParseMode: models.ParseModeHTML,
 			})
 		case "pb-edit-reactions":
 			state.Step = "awaiting_reactions"
 			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: chatID,
-				Text:   "🎭 Envie as <b>Reações</b> separadas por vírgula (ex: 👍,👎,❤️):",
+				ChatID:    chatID,
+				Text:      "🎭 Envie as <b>Reações</b> separadas por vírgula (ex: 👍,👎,❤️):",
 				ParseMode: models.ParseModeHTML,
 			})
 		case "pb-add-button":
 			state.Step = "awaiting_button"
 			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: chatID,
-				Text:   "🔘 Envie os dados do botão no formato:\n\n<code>Nome do Botão\nhttps://link.com</code>",
+				ChatID:    chatID,
+				Text:      "🔘 Envie os dados do botão no formato:\n\n<code>Nome do Botão\nhttps://link.com</code>",
 				ParseMode: models.ParseModeHTML,
 			})
 		case "pb-preview":
@@ -342,7 +342,7 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 				{Text: btn.Text, URL: btn.URL},
 			})
 		}
-		
+
 		if state.Reactions != "" {
 			reactions := strings.Split(state.Reactions, ",")
 			var reactionRow []models.InlineKeyboardButton
@@ -359,7 +359,7 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 				ikb.InlineKeyboard = append(ikb.InlineKeyboard, reactionRow)
 			}
 		}
-		
+
 		kb = ikb
 	}
 

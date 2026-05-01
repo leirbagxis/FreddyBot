@@ -392,7 +392,7 @@ func NoticeCommandHandler(app *container.AppContainer) bot.HandlerFunc {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				logger.Error("ADMIN","Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
+				logger.Error("ADMIN", "Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
 				failedUsers = append(failedUsers, fmt.Sprintf("<code>%d</code> - %s", user.UserId, html.EscapeString(user.FirstName)))
 			} else {
 				sentCount++
@@ -448,7 +448,7 @@ func NoticeChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 				ReplyMarkup: button,
 			})
 			if err != nil {
-				logger.Error("ADMIN","Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
+				logger.Error("ADMIN", "Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
 				failedChannels = append(failedChannels, fmt.Sprintf("<code>%d</code> - %s", ch.ID, html.EscapeString(ch.Title)))
 			} else {
 				sentCount++
@@ -516,7 +516,7 @@ func SendMessageToIdHandler(app *container.AppContainer) bot.HandlerFunc {
 			ParseMode: models.ParseModeHTML,
 		})
 		if err != nil {
-			logger.Error("ADMIN","Erro ao enviar mensagem para %d: %v", targetID, err)
+			logger.Error("ADMIN", "Erro ao enviar mensagem para %d: %v", targetID, err)
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
 				Text:      fmt.Sprintf("❌ Falha ao enviar para <code>%d</code>: %v", targetID, err),
@@ -572,14 +572,14 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		// Pega informações do canal e do dono
 		channelInfo, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: channelID})
 		if err != nil {
-			logger.Error("ADMIN","Erro ao buscar canal: %v", err)
+			logger.Error("ADMIN", "Erro ao buscar canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao buscar informações do canal."})
 			return
 		}
 
 		ownerInfo, err := b.GetChat(ctx, &bot.GetChatParams{ChatID: ownerID})
 		if err != nil {
-			logger.Error("ADMIN","Erro ao buscar usuário: %v", err)
+			logger.Error("ADMIN", "Erro ao buscar usuário: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao buscar informações do usuário."})
 			return
 		}
@@ -611,7 +611,7 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		// Cria canal
 		channel, err := c.ChannelRepo.CreateChannelWithDefaults(ctx, channelID, channelInfo.Title, inviteURL, newPackCaption, defaultCaption, ownerID)
 		if err != nil {
-			logger.Error("ADMIN","Erro ao criar canal: %v", err)
+			logger.Error("ADMIN", "Erro ao criar canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao salvar canal."})
 			return
 		}
@@ -669,7 +669,7 @@ func NoticeUsersReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				logger.Error("ADMIN","Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
+				logger.Error("ADMIN", "Erro ao enviar aviso para %d - %s: %v", user.UserId, user.FirstName, err)
 				failedUsers = append(failedUsers, fmt.Sprintf("<code>%d</code> - %s", user.UserId, html.EscapeString(user.FirstName)))
 			} else {
 				sentCount++
@@ -739,7 +739,7 @@ func NoticeChannelsReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
-				logger.Error("ADMIN","Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
+				logger.Error("ADMIN", "Erro ao enviar aviso para canal %d - %s: %v", ch.ID, ch.Title, err)
 				failedChannels = append(failedChannels, fmt.Sprintf("<code>%d</code> - %s", ch.ID, html.EscapeString(ch.Title)))
 			} else {
 				sentCount++
@@ -873,8 +873,8 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 		}
 
 		statusMsg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: update.Message.Chat.ID,
-			Text:   fmt.Sprintf("🔍 Verificando <b>%d</b> canais... Isso pode levar um tempo.", len(channels)),
+			ChatID:    update.Message.Chat.ID,
+			Text:      fmt.Sprintf("🔍 Verificando <b>%d</b> canais... Isso pode levar um tempo.", len(channels)),
 			ParseMode: models.ParseModeHTML,
 			ReplyParameters: &models.ReplyParameters{
 				MessageID: update.Message.ID,
@@ -890,7 +890,7 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 			info string
 			err  error
 		}
-		
+
 		chQueue := make(chan *userModes.Channel, len(channels))
 		for i := range channels {
 			chQueue <- &channels[i]
@@ -930,7 +930,7 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 							html.EscapeString(ownerName),
 							ch.OwnerID,
 						)
-						
+
 						mu.Lock()
 						foundChannels = append(foundChannels, info)
 						count++
@@ -951,7 +951,7 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 		}
 
 		header := fmt.Sprintf("🤖 <b>Bot %s encontrado em %d canais:</b>\n\n", targetBotUser, count)
-		
+
 		// Enviar em blocos para evitar limite de caracteres do Telegram
 		msg := header
 		first := true
@@ -959,18 +959,18 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 			if len(msg)+len(info) > 3800 {
 				if first {
 					b.EditMessageText(ctx, &bot.EditMessageTextParams{
-						ChatID:    update.Message.Chat.ID,
-						MessageID: statusMsg.ID,
-						Text:      msg,
-						ParseMode: models.ParseModeHTML,
+						ChatID:             update.Message.Chat.ID,
+						MessageID:          statusMsg.ID,
+						Text:               msg,
+						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
 					first = false
 				} else {
 					b.SendMessage(ctx, &bot.SendMessageParams{
-						ChatID:    update.Message.Chat.ID,
-						Text:      msg,
-						ParseMode: models.ParseModeHTML,
+						ChatID:             update.Message.Chat.ID,
+						Text:               msg,
+						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
 				}
@@ -980,17 +980,17 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 			if i == len(foundChannels)-1 {
 				if first {
 					b.EditMessageText(ctx, &bot.EditMessageTextParams{
-						ChatID:    update.Message.Chat.ID,
-						MessageID: statusMsg.ID,
-						Text:      msg,
-						ParseMode: models.ParseModeHTML,
+						ChatID:             update.Message.Chat.ID,
+						MessageID:          statusMsg.ID,
+						Text:               msg,
+						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
 				} else {
 					b.SendMessage(ctx, &bot.SendMessageParams{
-						ChatID:    update.Message.Chat.ID,
-						Text:      msg,
-						ParseMode: models.ParseModeHTML,
+						ChatID:             update.Message.Chat.ID,
+						Text:               msg,
+						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
 				}

@@ -68,7 +68,7 @@
   text: |
     <b>ℹ️ Sobre o Bot</b>
     
-    <blockquote>📌 <b>Versão:</b> <i>{botVersion}</i>
+    <blockquote>📌 <b>Versão:</b> <i>{botVersion}</i></blockquote>
     
     <tg-emoji emoji-id="5445284980978621387">🚀</tg-emoji> Este bot foi criado para facilitar a adição de <b>legendas automáticas</b> em postagens de canais, tornando a gestão de conteúdo mais eficiente e dinâmica.
     

@@ -36,7 +36,7 @@ func TestDeleteChannelWithRelations(t *testing.T) {
 	// Create a channel with some relations
 	channelID := int64(123)
 	ownerID := int64(1)
-	
+
 	channel := &models.Channel{
 		ID:      channelID,
 		OwnerID: ownerID,

@@ -28,17 +28,22 @@ All notable changes to this project will be documented in this file.
   - Implementado Graceful Shutdown para desligamento seguro da API e conexões Redis.
 
 ### Changed
+- **Workflows do Makefile**:
+  - `make build`: Agora realiza o build completo (UI + Servidor) e **executa o binário** automaticamente.
+  - `make dev`: Agora realiza o build da UI e **executa o bot via `go run`**, facilitando o desenvolvimento do backend.
+  - Removido o alvo `run` que se tornou redundante e atualizada a ajuda (`make help`).
 - **Otimização do Makefile**:
   - O comando `make` agora realiza apenas o build por padrão (em vez de build e run), evitando bloqueios na CLI.
   - Adicionada detecção inteligente de dependências do frontend para evitar `npm install` desnecessários em cada build.
-  - Alvo `run` agora utiliza o binário compilado em vez de `go run`, acelerando o tempo de inicialização.
-  - Adicionado comando `make dev` para o fluxo de build seguido de execução.
 - **Otimização de Regex**: Pré-compilação de todas as expressões regulares globais (formatação de texto e detecção de Markdown/HTML) para reduzir uso de CPU.
 - **Refatoração do Comando /channels**: Melhoria na UX com resposta direta (reply) e edição da mensagem de status em tempo real.
 - **Ajustes de Infraestrutura**: Conversão do banco de dados legado de PostgreSQL para SQLite para facilitação do desenvolvimento local.
 - **Processamento de Canais**: Implementada verificação `via_bot` para que o bot ignore postagens enviadas por ele mesmo via modo inline, prevenindo loops de edição ou processamento duplicado.
 
 ### Fixed
+- **Comando "Sobre"**: Corrigido erro de "falta de ação" ao clicar no botão "Sobre" devido a uma tag `<blockquote>` não fechada no arquivo de mensagens.
+- **Lógica de Versão**: Melhorada a detecção da versão do bot para incluir um fallback automático para o comando `git rev-parse --short HEAD` caso o binário não tenha sido compilado com as flags de versão ou não contenha informações de VCS.
+- **Log de Erro de Callback**: Adicionado logging de erros ao handler do comando "Sobre" para facilitar o diagnóstico de falhas na API do Telegram.
 - **Log de Porta da API**: Corrigida a exibição da URL no log que apresentava dois pontos extras (ex: `http://localhost::7000`).
 - **Camada de UI (Z-Index)**: Corrigido problema onde o toast de confirmação e modais ficavam atrás do menu inferior (TabBar) e de outros elementos, garantindo visibilidade total em todas as resoluções.
 - **Payload de Permissões**: Corrigida falha no dashboard que impedia a ativação de novas permissões devido à falta do campo `document` no payload enviado para a API.
@@ -58,4 +63,3 @@ All notable changes to this project will be documented in this file.
 
 ### Added (Reconstrução Anterior)
 - **Suporte ao SQLite3**: Agora é possível alternar entre SQLite e PostgreSQL usando a variável de ambiente `APP_ENV`.
-...

@@ -14,9 +14,9 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/profile_info"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/start"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks/vote"
-	)
+)
 
-	func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername string) {
+func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername string) {
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "help", bot.MatchTypeExact, help.Handler(help.Deps{BotUsername: botUsername}))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "start", bot.MatchTypeExact, start.Handler())
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "about", bot.MatchTypeExact, about.Handler())

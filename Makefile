@@ -4,13 +4,15 @@ GO_MAIN=cmd/FreddyBot/main.go
 GIT_HASH=$(shell git rev-parse --short HEAD)
 LDFLAGS=-ldflags "-X 'github.com/leirbagxis/FreddyBot/internal/utils.Version=$(GIT_HASH)'"
 
-.PHONY: all build build-ui build-server run clean help
+.PHONY: all build build-ui build-server clean help
 
-# Comando padrão: Apenas build
+# Comando padrão: Build e Run
 all: build
 
-# Build completo (Frontend + Backend)
+# Build completo (Frontend + Backend) e executa o binário
 build: build-ui build-server
+	@echo "🤖 Iniciando o FreddyBot ($(GIT_HASH))..."
+	./server
 
 # Instala dependências do frontend (apenas se node_modules não existir)
 $(DASHBOARD_DIR)/node_modules:
@@ -29,13 +31,10 @@ build-server:
 	go build $(LDFLAGS) -o server $(GO_MAIN)
 	@echo "✅ Build do servidor concluído!"
 
-# Executa o bot usando o binário compilado
-run: build-server
-	@echo "🤖 Iniciando o FreddyBot ($(GIT_HASH))..."
-	./server
-
-# Atalho para build e run
-dev: build run
+# Executa o bot usando go run (após build do dashboard)
+dev: build-ui
+	@echo "🛠️ Iniciando o FreddyBot em modo desenvolvimento..."
+	go run $(LDFLAGS) $(GO_MAIN)
 
 # Limpa a pasta de build do dashboard e o binário
 clean:
@@ -49,8 +48,8 @@ help:
 	@echo ""
 	@echo "Comandos:"
 	@echo "  all          - Build total e inicia o bot (padrão)"
-	@echo "  build        - Build total (Frontend + Backend)"
+	@echo "  build        - Build total (UI + Server) e executa o binário"
+	@echo "  dev          - Build da UI e executa via 'go run'"
 	@echo "  build-ui     - Apenas faz o build do dashboard"
 	@echo "  build-server - Apenas constrói o binário do bot"
-	@echo "  run          - Inicia o bot Go (via go run)"
 	@echo "  clean        - Remove arquivos gerados (dist e binário)"

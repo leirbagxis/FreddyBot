@@ -237,7 +237,7 @@ func (mp *MessageProcessor) CreateInlineKeyboard(buttons []dbmodels.Button, cust
 
 	// Construção por linhas
 	rows := map[int][]models.InlineKeyboardButton{}
-	
+
 	// Adicionar botões
 	for _, b := range finalButtons {
 		if b.NameButton == "" || b.ButtonURL == "" {

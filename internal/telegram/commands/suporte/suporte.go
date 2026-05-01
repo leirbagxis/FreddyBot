@@ -18,7 +18,7 @@ func Handler() bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		textInput := update.Message.Text
 		command := "/ouvidoria"
-		
+
 		message := strings.TrimSpace(textInput[len(command):])
 
 		if len(message) <= 0 {

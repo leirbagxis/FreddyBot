@@ -54,7 +54,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
 		// Proteção contra caminhos curtos para evitar panic no slice
 		path := c.Request.URL.Path
 		const assetsPrefix = "/dashboard/assets/"
-		
+
 		if len(path) >= len(assetsPrefix) && path[:len(assetsPrefix)] == assetsPrefix {
 			c.AbortWithStatus(http.StatusNotFound)
 			return
@@ -69,12 +69,12 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
 	router.GET("/dashboard/:channelID/admin", dashboardHandler)
 	router.GET("/admin/dash", dashboardHandler)
 	router.GET("/me/channels", dashboardHandler)
-	
+
 	// Fallback para qualquer rota de dashboard não mapeada
 	router.NoRoute(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		logger.API("⚠️ Rota não encontrada: %s", path)
-		
+
 		// Se começar com /api ou /webhook e não foi encontrada, é 404 real
 		if (len(path) >= 4 && path[:4] == "/api") || (len(path) >= 8 && path[:8] == "/webhook") {
 			c.JSON(404, gin.H{"code": "ENDPOINT_NOT_FOUND", "message": "Endpoint de API não encontrado"})

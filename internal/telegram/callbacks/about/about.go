@@ -7,6 +7,7 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
 
@@ -19,12 +20,15 @@ func Handler() bot.HandlerFunc {
 			"botId":      fmt.Sprintf("%d", user.ID),
 		})
 
-		b.EditMessageText(ctx, &bot.EditMessageTextParams{
+		_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
 			ChatID:      update.CallbackQuery.Message.Message.Chat.ID,
 			Text:        text,
 			ReplyMarkup: button,
 			ParseMode:   "HTML",
 			MessageID:   update.CallbackQuery.Message.Message.ID,
 		})
+		if err != nil {
+			logger.Error("CALLBACK", "Error editing message: %v", err)
+		}
 	}
 }

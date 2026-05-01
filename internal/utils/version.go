@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"os/exec"
 	"runtime/debug"
+	"strings"
 )
 
 var (
@@ -31,6 +33,12 @@ func init() {
 					return
 				}
 			}
+		}
+
+		// Fallback to git command if debug info doesn't have it
+		cmd := exec.Command("git", "rev-parse", "--short", "HEAD")
+		if out, err := cmd.Output(); err == nil {
+			Version = strings.TrimSpace(string(out))
 		}
 	}
 }

@@ -131,4 +131,3 @@ func (ctrl *PermissionController) UpdateReactionsActiveController(c *gin.Context
 
 	c.JSON(http.StatusOK, result)
 }
-

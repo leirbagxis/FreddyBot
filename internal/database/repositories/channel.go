@@ -154,11 +154,11 @@ func (r *ChannelRepository) CreateChannel(ctx context.Context, channel *models.C
 
 func (r *ChannelRepository) CreateChannelWithDefaults(ctx context.Context, channelID int64, title, inviteURL, newPackCaption, caption string, ownerID int64) (*models.Channel, error) {
 	channel := &models.Channel{
-		ID:             channelID,
-		Title:          title,
-		NewPackCaption: newPackCaption,
-		InviteURL:      inviteURL,
-		OwnerID:        ownerID,
+		ID:               channelID,
+		Title:            title,
+		NewPackCaption:   newPackCaption,
+		InviteURL:        inviteURL,
+		OwnerID:          ownerID,
 		ReactionPosition: 1,
 		DefaultCaption: &models.DefaultCaption{
 			CaptionID:      uuid.New().String(),

@@ -24,7 +24,7 @@ func TestJWTSecurity(t *testing.T) {
 				Issuer:    issuer,
 			},
 		})
-		
+
 		// SigningMethodNone returns an empty string and no error with jwt.UnsafeAllowNoneSignatureType
 		tokenStr, _ := token.SignedString(jwt.UnsafeAllowNoneSignatureType)
 
@@ -49,7 +49,7 @@ func TestJWTSecurity(t *testing.T) {
 				Issuer:    issuer,
 			},
 		})
-		
+
 		tokenStr, _ := token.SignedString(secreteKey)
 
 		_, err := ValidateToken(tokenStr)
@@ -69,11 +69,11 @@ func TestJWTSecurity(t *testing.T) {
 
 	t.Run("Invalid Signature (Tampering)", func(t *testing.T) {
 		tokenStr, _ := GenerateToken(123, RoleUser, 1, time.Hour)
-		
+
 		// Tamper with the token (modify one character in the payload part)
 		// JWT is header.payload.signature
 		_, _, _ = jwt.NewParser().ParseUnverified(tokenStr, &Claims{})
-		
+
 		tamperedTokenStr := tokenStr[:len(tokenStr)-10] + "tampered" // just break the signature
 
 		_, err := ValidateToken(tamperedTokenStr)
@@ -85,7 +85,7 @@ func TestJWTSecurity(t *testing.T) {
 	t.Run("Information Leakage - Header", func(t *testing.T) {
 		tokenStr, _ := GenerateToken(123, RoleUser, 1, time.Hour)
 		token, _, _ := jwt.NewParser().ParseUnverified(tokenStr, jwt.MapClaims{})
-		
+
 		// Check if we are leaking sensitive info in the header
 		if _, ok := token.Header["secret"]; ok {
 			t.Errorf("sensitive info leaked in JWT header")

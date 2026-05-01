@@ -28,7 +28,7 @@ func (r *VoteRepository) ToggleVote(ctx context.Context, chatID int64, messageID
 		if err := r.db.WithContext(ctx).Delete(&existingVote).Error; err != nil {
 			return false, 0, err
 		}
-		
+
 		var count int64
 		r.db.WithContext(ctx).Model(&models.Vote{}).Where("chat_id = ? AND message_id = ? AND emoji = ?", chatID, messageID, emoji).Count(&count)
 		return false, count, nil

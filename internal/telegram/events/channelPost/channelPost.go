@@ -47,8 +47,8 @@ func init() {
 
 func NewMessageQueue() *MessageQueue {
 	mq := &MessageQueue{
-		queue:       make(chan QueueItem, 1000),
-		isRunning:   true,
+		queue:     make(chan QueueItem, 1000),
+		isRunning: true,
 	}
 	// Iniciar 5 workers para processamento paralelo
 	for i := 0; i < 5; i++ {

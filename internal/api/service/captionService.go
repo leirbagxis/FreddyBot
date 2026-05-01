@@ -149,4 +149,3 @@ func (app *AppContainerLocal) UpdateReactionPositionService(ctx context.Context,
 		},
 	}, nil
 }
-

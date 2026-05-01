@@ -11,7 +11,7 @@ import (
 
 func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	api := r.Group("/api")
-	
+
 	// Controladores
 	authController := controllers.NewAuthController(c)
 	captionController := controllers.NewCaptionController(c)
