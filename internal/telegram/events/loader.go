@@ -49,7 +49,7 @@ func matchPostBuilder(c *container.AppContainer) bot.MatchFunc {
 			return false
 		}
 		// Match if it has media
-		if update.Message.Photo != nil || update.Message.Video != nil || update.Message.Animation != nil || update.Message.Audio != nil || update.Message.Document != nil {
+		if update.Message.Photo != nil || update.Message.Video != nil || update.Message.Animation != nil || update.Message.Audio != nil || update.Message.Document != nil || update.Message.Sticker != nil {
 			return true
 		}
 		// Match if in active session for text input

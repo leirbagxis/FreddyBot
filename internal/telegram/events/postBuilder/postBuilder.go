@@ -3,6 +3,7 @@ package postbuilder
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -55,6 +56,9 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		} else if update.Message.Document != nil {
 			mediaID = update.Message.Document.FileID
 			mediaType = "document"
+		} else if update.Message.Sticker != nil {
+			mediaID = update.Message.Sticker.FileID
+			mediaType = "sticker"
 		}
 
 		if mediaID == "" {
@@ -99,10 +103,12 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *container.AppContainer, state *cache.PostBuilderState) {
 	text := update.Message.Text
-	// Get formatted text if available
-	formattedText := text
-	if len(update.Message.Entities) > 0 {
-		formattedText = channelpost.ProcessEntitiesOnly(text, update.Message.Entities)
+	// Processar texto com entidades (negrito, itálico, links) e markdown
+	formattedText := channelpost.ProcessTextWithFormatting(text, update.Message.Entities)
+
+	// Reset prompt ID if it exists (but don't delete)
+	if state.PromptMessageID != 0 {
+		state.PromptMessageID = 0
 	}
 
 	switch state.Step {
@@ -135,6 +141,9 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ Apenas emojis são permitidos como reações. Tente novamente:",
 				ParseMode: models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
 			})
 			return
 		}
@@ -148,6 +157,9 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 				ChatID:    update.Message.Chat.ID,
 				Text:      "❌ Formato inválido. Envie o <b>Nome</b> em uma linha e o <b>Link</b> na linha de baixo.",
 				ParseMode: models.ParseModeHTML,
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
 			})
 			return
 		}
@@ -158,6 +170,9 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
 				Text:   "❌ URL inválida. Deve começar com http:// ou https://. Tente novamente:",
+				ReplyParameters: &models.ReplyParameters{
+					MessageID: update.Message.ID,
+				},
 			})
 			return
 		}
@@ -168,11 +183,19 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 		return
 	}
 
+	// Always clear MenuMessageID when re-sending menu after input
+	state.MenuMessageID = 0
 	c.CacheService.SetPostBuilderState(ctx, update.Message.From.ID, *state)
-	showMenu(ctx, b, update.Message.Chat.ID, update.Message.From.ID, c, state)
+
+	if state.Step == "awaiting_button" {
+		showButtonManager(ctx, b, update.Message.Chat.ID, update.Message.From.ID, c, state)
+	} else {
+		// Enviar novo menu respondendo à mensagem do usuário
+		showMenu(ctx, b, update.Message.Chat.ID, update.Message.From.ID, c, state, update.Message.ID)
+	}
 }
 
-func showMenu(ctx context.Context, b *bot.Bot, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState) {
+func showMenu(ctx context.Context, b *bot.Bot, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState, replyToMessageID ...int) {
 	var sb strings.Builder
 	sb.WriteString("🛠️ <b>Post Builder - Menu</b>\n\n")
 	sb.WriteString(fmt.Sprintf("📝 <b>Título:</b> %s\n", state.Title))
@@ -193,7 +216,10 @@ func showMenu(ctx context.Context, b *bot.Bot, chatID, userID int64, c *containe
 				{Text: "🎭 Reações", CallbackData: "pb-edit-reactions"},
 			},
 			{
-				{Text: "🔘 Botão", CallbackData: "pb-add-button"},
+				{Text: "🔘 Botões", CallbackData: "pb-manage-buttons"},
+				{Text: "📥 Importar Canal", CallbackData: "pb-import-channel"},
+			},
+			{
 				{Text: "👁️ Preview", CallbackData: "pb-preview"},
 			},
 			{
@@ -203,12 +229,103 @@ func showMenu(ctx context.Context, b *bot.Bot, chatID, userID int64, c *containe
 		},
 	}
 
-	b.SendMessage(ctx, &bot.SendMessageParams{
+	// Se houver um ID para responder, ignoramos o Edit e enviamos uma nova mensagem
+	if len(replyToMessageID) > 0 && replyToMessageID[0] != 0 {
+		params := &bot.SendMessageParams{
+			ChatID:      chatID,
+			Text:        sb.String(),
+			ParseMode:   models.ParseModeHTML,
+			ReplyMarkup: kb,
+			ReplyParameters: &models.ReplyParameters{
+				MessageID: replyToMessageID[0],
+			},
+		}
+		msg, _ := b.SendMessage(ctx, params)
+		if msg != nil {
+			state.MenuMessageID = msg.ID
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
+		}
+		return
+	}
+
+	if state.MenuMessageID != 0 {
+		_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   state.MenuMessageID,
+			Text:        sb.String(),
+			ParseMode:   models.ParseModeHTML,
+			ReplyMarkup: kb,
+		})
+		if err == nil {
+			return
+		}
+	}
+
+	msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
 		Text:        sb.String(),
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: kb,
 	})
+
+	if msg != nil {
+		state.MenuMessageID = msg.ID
+		c.CacheService.SetPostBuilderState(ctx, userID, *state)
+	}
+}
+
+func showButtonManager(ctx context.Context, b *bot.Bot, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState) {
+	var sb strings.Builder
+	sb.WriteString("🔘 <b>Gerenciamento de Botões</b>\n\n")
+	if len(state.Buttons) == 0 {
+		sb.WriteString("<i>Nenhum botão adicionado ainda.</i>")
+	} else {
+		sb.WriteString("Clique em um botão para <b>excluí-lo</b>:")
+	}
+
+	var rows [][]models.InlineKeyboardButton
+
+	// Listar botões atuais para exclusão
+	for i, btn := range state.Buttons {
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: "❌ " + btn.Text, CallbackData: fmt.Sprintf("pb-del-button:%d", i)},
+		})
+	}
+
+	// Botões de ação
+	rows = append(rows, []models.InlineKeyboardButton{
+		{Text: "➕ Adicionar Novo Botão", CallbackData: "pb-add-button"},
+	})
+	rows = append(rows, []models.InlineKeyboardButton{
+		{Text: "🔙 Voltar ao Menu", CallbackData: "pb-start"},
+	})
+
+	kb := &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+
+	if state.MenuMessageID != 0 {
+		_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+			ChatID:      chatID,
+			MessageID:   state.MenuMessageID,
+			Text:        sb.String(),
+			ParseMode:   models.ParseModeHTML,
+			ReplyMarkup: kb,
+		})
+		if err == nil {
+			return
+		}
+	}
+
+	msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        sb.String(),
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: kb,
+	})
+
+	if msg != nil {
+		state.MenuMessageID = msg.ID
+		c.CacheService.SetPostBuilderState(ctx, userID, *state)
+	}
 }
 
 func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
@@ -229,7 +346,7 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		state, _ := c.CacheService.GetPostBuilderState(ctx, userID)
-		if state == nil && data != "pb-cancel" {
+		if state == nil && data != "pb-cancel" && !strings.HasPrefix(data, "pb-send-") {
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "Sessão expirada ou não encontrada.",
@@ -241,49 +358,177 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 			CallbackQueryID: update.CallbackQuery.ID,
 		})
 
+		// --- Handlers Dinâmicos (Prefixos) ---
+		if strings.HasPrefix(data, "pb-import-apply:") {
+			channelIDStr := strings.TrimPrefix(data, "pb-import-apply:")
+			channelID, _ := strconv.ParseInt(channelIDStr, 10, 64)
+
+			channel, err := c.ChannelService.GetChannelWithRelations(ctx, channelID)
+			if err != nil {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: chatID,
+					Text:   "❌ Erro ao obter dados do canal.",
+				})
+				return
+			}
+
+			// Mapear dados do canal para o state
+			if channel.DefaultCaption != nil {
+				state.Body = channel.DefaultCaption.Caption
+			}
+			state.Reactions = channel.Reactions
+
+			// Mapear botões
+			state.Buttons = make([]cache.PostBuilderButton, 0)
+			for _, btn := range channel.Buttons {
+				state.Buttons = append(state.Buttons, cache.PostBuilderButton{
+					Text: btn.NameButton,
+					URL:  btn.ButtonURL,
+				})
+			}
+
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:    chatID,
+				Text:      fmt.Sprintf("✅ Dados importados do canal <b>%s</b>!", channel.Title),
+				ParseMode: models.ParseModeHTML,
+			})
+			showMenu(ctx, b, chatID, userID, c, state)
+			return
+		}
+
+		if strings.HasPrefix(data, "pb-del-button:") {
+			indexStr := strings.TrimPrefix(data, "pb-del-button:")
+			index, _ := strconv.Atoi(indexStr)
+
+			if index >= 0 && index < len(state.Buttons) {
+				// Remover item do slice
+				state.Buttons = append(state.Buttons[:index], state.Buttons[index+1:]...)
+				c.CacheService.SetPostBuilderState(ctx, userID, *state)
+			}
+			showButtonManager(ctx, b, chatID, userID, c, state)
+			return
+		}
+
+		if strings.HasPrefix(data, "pb-send-to-channels:") {
+			sessionID := strings.TrimPrefix(data, "pb-send-to-channels:")
+			handleSendToChannels(ctx, b, chatID, userID, sessionID, c)
+			return
+		}
+
+		if strings.HasPrefix(data, "pb-send-apply:") {
+			parts := strings.Split(strings.TrimPrefix(data, "pb-send-apply:"), ":")
+			if len(parts) == 2 {
+				channelID, _ := strconv.ParseInt(parts[0], 10, 64)
+				sessionID := parts[1]
+				handleSendApply(ctx, b, chatID, userID, channelID, sessionID, c)
+			}
+			return
+		}
+
 		switch data {
 		case "pb-start":
 			showMenu(ctx, b, chatID, userID, c, state)
+		case "pb-manage-buttons":
+			showButtonManager(ctx, b, chatID, userID, c, state)
+		case "pb-import-channel":
+			channels, err := c.ChannelService.GetUserChannels(ctx, userID)
+			if err != nil || len(channels) == 0 {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID:    chatID,
+					Text:      "❌ Você não possui canais cadastrados ou ocorreu um erro.",
+					ParseMode: models.ParseModeHTML,
+				})
+				return
+			}
+
+			var rows [][]models.InlineKeyboardButton
+			for _, ch := range channels {
+				rows = append(rows, []models.InlineKeyboardButton{
+					{Text: "📣 " + ch.Title, CallbackData: fmt.Sprintf("pb-import-apply:%d", ch.ID)},
+				})
+			}
+			rows = append(rows, []models.InlineKeyboardButton{
+				{Text: "🔙 Voltar", CallbackData: "pb-start"},
+			})
+
+			kb := &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+			text := "📥 <b>Importar de Canal</b>\n\nEscolha o canal de onde deseja copiar a legenda padrão, reações e botões:"
+
+			if state.MenuMessageID != 0 {
+				_, err := b.EditMessageText(ctx, &bot.EditMessageTextParams{
+					ChatID:      chatID,
+					MessageID:   state.MenuMessageID,
+					Text:        text,
+					ParseMode:   models.ParseModeHTML,
+					ReplyMarkup: kb,
+				})
+				if err == nil {
+					return
+				}
+			}
+
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID:      chatID,
+				Text:        text,
+				ParseMode:   models.ParseModeHTML,
+				ReplyMarkup: kb,
+			})
 		case "pb-edit-title":
 			state.Step = "awaiting_title"
-			c.CacheService.SetPostBuilderState(ctx, userID, *state)
-			b.SendMessage(ctx, &bot.SendMessageParams{
+			msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
 				Text:      "📝 Envie o <b>Título</b> da postagem (suporta formatação):",
 				ParseMode: models.ParseModeHTML,
 			})
+			if msg != nil {
+				state.PromptMessageID = msg.ID
+			}
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 		case "pb-edit-body":
 			state.Step = "awaiting_body"
-			c.CacheService.SetPostBuilderState(ctx, userID, *state)
-			b.SendMessage(ctx, &bot.SendMessageParams{
+			msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
 				Text:      "📄 Envie o <b>Corpo</b> da postagem (suporta formatação):",
 				ParseMode: models.ParseModeHTML,
 			})
+			if msg != nil {
+				state.PromptMessageID = msg.ID
+			}
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 		case "pb-edit-footer":
 			state.Step = "awaiting_footer"
-			c.CacheService.SetPostBuilderState(ctx, userID, *state)
-			b.SendMessage(ctx, &bot.SendMessageParams{
+			msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
 				Text:      "👣 Envie o <b>Rodapé</b> da postagem (suporta formatação):",
 				ParseMode: models.ParseModeHTML,
 			})
+			if msg != nil {
+				state.PromptMessageID = msg.ID
+			}
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 		case "pb-edit-reactions":
 			state.Step = "awaiting_reactions"
-			c.CacheService.SetPostBuilderState(ctx, userID, *state)
-			b.SendMessage(ctx, &bot.SendMessageParams{
+			msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
 				Text:      "🎭 Envie as <b>Reações</b> separadas por vírgula (ex: 👍,👎,❤️):",
 				ParseMode: models.ParseModeHTML,
 			})
+			if msg != nil {
+				state.PromptMessageID = msg.ID
+			}
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 		case "pb-add-button":
 			state.Step = "awaiting_button"
-			c.CacheService.SetPostBuilderState(ctx, userID, *state)
-			b.SendMessage(ctx, &bot.SendMessageParams{
+			msg, _ := b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    chatID,
 				Text:      "🔘 Envie os dados do botão no formato:\n\n<code>Nome do Botão\nhttps://link.com</code>",
 				ParseMode: models.ParseModeHTML,
 			})
+			if msg != nil {
+				state.PromptMessageID = msg.ID
+			}
+			c.CacheService.SetPostBuilderState(ctx, userID, *state)
 		case "pb-preview":
 			sendFinalPost(ctx, b, chatID, userID, c, state, false)
 			showMenu(ctx, b, chatID, userID, c, state)
@@ -303,6 +548,9 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 				InlineKeyboard: [][]models.InlineKeyboardButton{
 					{
 						{Text: "🚀 Compartilhar", SwitchInlineQuery: "pb " + id},
+					},
+					{
+						{Text: "📢 Enviar para Canais", CallbackData: "pb-send-to-channels:" + id},
 					},
 				},
 			}
@@ -324,16 +572,61 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 	}
 }
 
+func handleSendToChannels(ctx context.Context, b *bot.Bot, chatID, userID int64, sessionID string, c *container.AppContainer) {
+	channels, err := c.ChannelService.GetUserChannels(ctx, userID)
+	if err != nil || len(channels) == 0 {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID:    chatID,
+			Text:      "❌ Você não possui canais cadastrados para envio direto.",
+			ParseMode: models.ParseModeHTML,
+		})
+		return
+	}
+
+	var rows [][]models.InlineKeyboardButton
+	for _, ch := range channels {
+		rows = append(rows, []models.InlineKeyboardButton{
+			{Text: "📣 " + ch.Title, CallbackData: fmt.Sprintf("pb-send-apply:%d:%s", ch.ID, sessionID)},
+		})
+	}
+
+	kb := &models.InlineKeyboardMarkup{InlineKeyboard: rows}
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID:      chatID,
+		Text:        "📢 <b>Enviar para Canal</b>\n\nSelecione o canal para o qual deseja enviar esta postagem:",
+		ParseMode:   models.ParseModeHTML,
+		ReplyMarkup: kb,
+	})
+}
+
+func handleSendApply(ctx context.Context, b *bot.Bot, chatID, userID int64, channelID int64, sessionID string, c *container.AppContainer) {
+	state, err := c.CacheService.GetPostBuilderSession(ctx, sessionID)
+	if err != nil || state == nil {
+		b.SendMessage(ctx, &bot.SendMessageParams{
+			ChatID: chatID,
+			Text:   "❌ Sessão de postagem não encontrada ou expirada.",
+		})
+		return
+	}
+
+	sendFinalPost(ctx, b, channelID, userID, c, state, false)
+
+	b.SendMessage(ctx, &bot.SendMessageParams{
+		ChatID: chatID,
+		Text:   "✅ Postagem enviada com sucesso para o canal!",
+	})
+}
+
 func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState, deleteState bool) {
 	var sb strings.Builder
 	if state.Title != "" {
-		sb.WriteString(state.Title + "\n\n")
+		sb.WriteString(channelpost.DetectParseMode(state.Title) + "\n\n")
 	}
 	if state.Body != "" {
-		sb.WriteString(state.Body + "\n\n")
+		sb.WriteString(channelpost.DetectParseMode(state.Body) + "\n\n")
 	}
 	if state.Footer != "" {
-		sb.WriteString(state.Footer)
+		sb.WriteString(channelpost.DetectParseMode(state.Footer))
 	}
 	caption := sb.String()
 
@@ -442,6 +735,19 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 				Text:   fmt.Sprintf("❌ Erro ao enviar documento: %v", err),
 			})
 		}
+	case "sticker":
+		_, err := b.SendSticker(ctx, &bot.SendStickerParams{
+			ChatID:      chatID,
+			Sticker:     &models.InputFileString{Data: state.MediaFileID},
+			ReplyMarkup: kb,
+		})
+		if err != nil {
+			logger.Error("BOT", "PostBuilder: Error sending sticker: %v", err)
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: chatID,
+				Text:   fmt.Sprintf("❌ Erro ao enviar sticker: %v", err),
+			})
+		}
 	default:
 		logger.Warn("BOT", "PostBuilder: No media type matched, sending text only. Type: %s", state.MediaType)
 		b.SendMessage(ctx, &bot.SendMessageParams{
@@ -521,13 +827,13 @@ func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		var sb strings.Builder
 		if state.Title != "" {
-			sb.WriteString(state.Title + "\n\n")
+			sb.WriteString(channelpost.DetectParseMode(state.Title) + "\n\n")
 		}
 		if state.Body != "" {
-			sb.WriteString(state.Body + "\n\n")
+			sb.WriteString(channelpost.DetectParseMode(state.Body) + "\n\n")
 		}
 		if state.Footer != "" {
-			sb.WriteString(state.Footer)
+			sb.WriteString(channelpost.DetectParseMode(state.Footer))
 		}
 		caption := sb.String()
 
@@ -606,6 +912,12 @@ func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 				Caption:        caption,
 				ParseMode:      models.ParseModeHTML,
 				ReplyMarkup:    kb,
+			}
+		case "sticker":
+			result = &models.InlineQueryResultCachedSticker{
+				ID:            id,
+				StickerFileID: state.MediaFileID,
+				ReplyMarkup:   kb,
 			}
 		default:
 			result = &models.InlineQueryResultArticle{

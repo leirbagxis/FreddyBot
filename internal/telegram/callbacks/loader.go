@@ -1,6 +1,7 @@
 package callbacks
 
 import (
+	"context"
 	"strconv"
 	"strings"
 
@@ -46,15 +47,22 @@ func LoadCallbacksHandlers(b *bot.Bot, c *container.AppContainer, botUsername st
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "gc-info:", bot.MatchTypePrefix, mychannel.GroupChannelHandler(c))
 
 	// CHECK MATCH
-	b.RegisterHandlerMatchFunc(matchAwaitingSticker, mychannel.SetStickerSeparatorHandler(c))
+	b.RegisterHandlerMatchFunc(matchAwaitingSticker(c), mychannel.SetStickerSeparatorHandler(c))
 	b.RegisterHandlerMatchFunc(matchAwaitingNewOwner, mychannel.SetTransferAccessHandler(c))
 
 	b.RegisterHandlerMatchFunc(matchAwaitClaimOwner, claimchannel.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "accept.claim:", bot.MatchTypePrefix, claimchannel.AcceptClaimHandler(c))
 }
 
-func matchAwaitingSticker(update *models.Update) bool {
-	return update.Message != nil && update.Message.From != nil && !update.Message.From.IsBot && update.Message.Sticker != nil
+func matchAwaitingSticker(c *container.AppContainer) bot.MatchFunc {
+	return func(update *models.Update) bool {
+		if update.Message == nil || update.Message.From == nil || update.Message.From.IsBot || update.Message.Sticker == nil {
+			return false
+		}
+		// Verificar se o usuário está realmente aguardando um sticker para separador
+		channelId, _ := c.CacheService.GetAwaitingStickerSeparator(context.Background(), update.Message.From.ID)
+		return channelId != 0
+	}
 }
 
 func matchAwaitingNewOwner(update *models.Update) bool {

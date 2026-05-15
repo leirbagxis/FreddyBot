@@ -51,6 +51,27 @@ Utilizar `RegisterHandlerMatchFunc` com uma função de match manual (`matchChos
 ### Motivo
 Contornar a limitação da biblioteca sem a necessidade de forks ou atualização imediata da dependência, mantendo a funcionalidade de mapeamento de mensagens inline.
 
-### Impacto
+### Impact
 - Substituição do registro padrão por match manual em `internal/telegram/events/loader.go`.
 - Código permanece compatível com versões futuras caso a constante seja adicionada.
+
+## Decisão: Conversão JIT de Markdown para HTML no PostBuilder
+### Data
+2026-05-15
+
+### Contexto
+O PostBuilder enfrentava problemas ao enviar mensagens via MarkdownV2 devido à rigidez do Telegram com caracteres reservados (como '.', '!', '-'), que causavam erros de "Bad Request". Além disso, formatações enviadas via interface do Telegram (entidades) eram perdidas se não processadas imediatamente.
+
+### Decisão tomada
+Padronizar o armazenamento do estado do PostBuilder em HTML. Toda entrada de texto (Título, Corpo, Rodapé) passa por `ProcessTextWithFormatting` no momento do recebimento, convertendo tanto Markdown explícito quanto Entidades do Telegram em HTML seguro.
+
+### Motivo
+- **Estabilidade:** O ParseMode HTML do Telegram é muito mais tolerante a caracteres especiais do que o MarkdownV2.
+- **Fidelidade:** Permite capturar exatamente o que o usuário formatou no app (negrito/itálico via UI) e o que digitou via Markdown.
+- **Simplicidade:** Evita a necessidade de rotinas complexas de escape para MarkdownV2 no lado do servidor.
+
+### Impacto
+- `handleTextInput` agora salva `formattedText` (HTML).
+- `InlineHandler` e `sendFinalPost` (Preview) utilizam `DetectParseMode` para garantir a integridade das tags antes do envio final.
+- Melhora na experiência do usuário ao importar canais (legendas já vêm em HTML).
+

@@ -108,13 +108,8 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		userId := update.Message.From.ID
-		channelId, err := c.CacheService.GetAwaitingStickerSeparator(ctx, userId)
-		if err != nil {
-			logger.Error("BOT", "Erro ao buscar cache sticker: %v", err)
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "⌛ Seção Expirada. Selecione o canal novamente!",
-			})
+		channelId, _ := c.CacheService.GetAwaitingStickerSeparator(ctx, userId)
+		if channelId == 0 {
 			return
 		}
 

@@ -139,7 +139,7 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 		editParams := bot.EditMessageTextParams{
 			ChatID:    channelID,
 			MessageID: state.MessageID,
-			Text:      detectParseMode(caption),
+			Text:      DetectParseMode(caption),
 			ParseMode: models.ParseModeHTML,
 		}
 

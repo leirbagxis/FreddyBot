@@ -18,12 +18,14 @@ type PostBuilderButton struct {
 }
 
 type PostBuilderState struct {
-	MediaType   string              `json:"media_type"`
-	MediaFileID string              `json:"media_file_id"`
-	Title       string              `json:"title"`
-	Body        string              `json:"body"`
-	Footer      string              `json:"footer"`
-	Reactions   string              `json:"reactions"`
-	Buttons     []PostBuilderButton `json:"buttons"`
-	Step        string              `json:"step"`
+	MediaType       string              `json:"media_type"`
+	MediaFileID     string              `json:"media_file_id"`
+	MenuMessageID   int                 `json:"menu_message_id"`
+	PromptMessageID int                 `json:"prompt_message_id"`
+	Title           string              `json:"title"`
+	Body            string              `json:"body"`
+	Footer          string              `json:"footer"`
+	Reactions       string              `json:"reactions"`
+	Buttons         []PostBuilderButton `json:"buttons"`
+	Step            string              `json:"step"`
 }

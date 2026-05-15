@@ -25,14 +25,10 @@ O bot passou por uma grande refatoração de performance e arquitetura, saindo d
 - **Worker Pool:** Aumentado para **20 workers** e fila de **5.000 mensagens** para suportar picos em 380+ canais.
 
 ### B. O Novo Motor: ChannelPost V2 (Pipeline)
-A lógica de postagem foi totalmente modularizada no pacote `internal/telegram/events/channelPost`.
-- **Arquitetura:** Dividida em 6 Estágios (`StagePreflight`, `StageSpecialFlows`, `StageMediaGrouping`, `StageTransform`, `StageDecorate`, `StageSend`).
-- **Sincronização de Metadados:** Implementado um sistema proativo (via eventos `MyChatMember`) e reativo (durante o post) para manter Nome e Link do canal sempre atualizados.
-- **Debounce de Verificação:** O bot agora só chama `GetChat` no Telegram 1 vez por hora por canal (ou quando detecta mudança visual), economizando API.
-- **Prioridade de Links:** Username público (@) agora tem prioridade absoluta sobre links privados.
-- **Lógica de Legenda:** 
-    - Texto: Adiciona legenda do banco embaixo.
-    - Mídia/Álbum: Substitui a legenda original inteiramente pela do banco (paridade com V1).
+...
+- **Post Builder (Funcionalidades):**
+    - **Importação de Canal:** Novo recurso para copiar instantaneamente Legenda, Reações e Botões de um canal existente.
+    - **Gerenciador de Botões:** Interface dedicada para listar e excluir botões individualmente durante a criação do post.
 
 ### C. Correções de Build e Limpeza Arquitetural
 - **Correção de Panic (Nil Pointer):** Resolvido erro de desreferenciamento de ponteiro nulo no `ToUserDTO` ao acessar o Dashboard. Adicionadas checagens de segurança no Mapper e corrigida a estratégia de carregamento (`Preload`) do Owner no repositório.

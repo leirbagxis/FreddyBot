@@ -13,32 +13,39 @@ import (
 
 // ✅ REGEX para conversão de Markdown para HTML
 var (
-	boldRegex          = regexp.MustCompile(`\*\*([^*]+)\*\*`)
-	italicRegex        = regexp.MustCompile(`\*([^*]+)\*`)
-	underlineRegex     = regexp.MustCompile(`__([^_]+)__`)
-	strikethroughRegex = regexp.MustCompile(`~~([^~]+)~~`)
-	codeRegex          = regexp.MustCompile("`([^`]+)`")
-	linkRegex          = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	spoilerRegex       = regexp.MustCompile(`\|\|([^|]+)\|\|`)
+	boldRegex          = regexp.MustCompile(`(?s)\*\*([^*]+)\*\*`)
+	italicRegex        = regexp.MustCompile(`(?s)\*([^*]+)\*`)
+	underlineRegex     = regexp.MustCompile(`(?s)__([^_]+)__`)
+	strikethroughRegex = regexp.MustCompile(`(?s)~~([^~]+)~~`)
+	codeRegex          = regexp.MustCompile("(?s)`([^`]+)`")
+	linkRegex          = regexp.MustCompile(`\[([^\]]+)\]\((https?://[^\s)]+)\)`)
+	spoilerRegex       = regexp.MustCompile(`(?s)\|\|([^|]+)\|\|`)
 	blockquoteRegex    = regexp.MustCompile(`(?m)^>\s*(.+)$`)
-	htmlTagDetector    = regexp.MustCompile(`(<[^>]+>)`)
-	markdownDetector   = regexp.MustCompile(`(?m)\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|` + "`[^`]+`" + `|\[.+\]\(.+\)|\|\|[^|]+\|\||^>\s*.+$`)
+	htmlTagDetector    = regexp.MustCompile(`(</?(?:b|i|u|s|code|pre|a|blockquote|tg-spoiler|tg-emoji)(?:\s+[^>]*?)?>)`)
+	markdownDetector   = regexp.MustCompile(`(?s)\*\*[^*]+\*\*|\*[^*]+\*|__[^_]+__|~~[^~]+~~|` + "`[^`]+`" + `|\[.+?\]\(https?://[^\s)]+\)|\|\|[^|]+\|\||^>\s*.+$`)
 	htmlDetector       = regexp.MustCompile(`(?i)<b>.*</b>|<i>.*</i>|<u>.*</u>|<s>.*</s>|<code>.*</code>|<pre>.*</pre>|<a href=.*>.*</a>|<blockquote>.*</blockquote>|<span class="tg-spoiler">.*</span>`)
 )
 
-// ✅ CORRIGIDO: processTextWithFormatting
-func processTextWithFormatting(text string, entities []models.MessageEntity) string {
+// ✅ CORRIGIDO: ProcessTextWithFormatting
+func ProcessTextWithFormatting(text string, entities []models.MessageEntity) string {
 	if text == "" {
 		return ""
 	}
 
-	// ✅ SE TEM ENTITIES, PROCESSAR APENAS ELAS (não aplicar markdown)
+	// ✅ 1. SE DETECTARMOS MARKDOWN EXPLÍCITO, CONVERTEMOS PARA HTML
+	// Convertemos no bot para garantir que o Telegram não dê erro de parse (Bad Request)
+	// por causa de caracteres reservados (como . ! -) que o Markdown do Telegram exige escapar.
+	if IsMarkdown(text) {
+		return DetectParseMode(text)
+	}
+
+	// ✅ 2. SE NÃO TEM MARKDOWN MAS TEM ENTITIES, PROCESSAR PARA HTML
 	if len(entities) > 0 {
 		return ProcessEntitiesOnly(text, entities)
 	}
 
-	// ✅ SE NÃO TEM ENTITIES, APLICAR FORMATAÇÃO MARKDOWN
-	return detectParseMode(text)
+	// ✅ 3. FALLBACK (Detecção automática de HTML ou texto puro escapado)
+	return DetectParseMode(text)
 }
 
 // ✅ CORRIGIDO: Processar entities para HTML
@@ -526,48 +533,98 @@ func convertMarkdownToHTML(text string) string {
 		return text
 	}
 
-	// Aplicar conversões na ordem correta
-	result := text
+	// 1. Escapar todo o texto primeiro para garantir segurança
+	result := html.EscapeString(text)
 
-	// 1. Blockquotes (deve ser primeiro para processar linhas inteiras)
-	result = blockquoteRegex.ReplaceAllString(result, "<blockquote>$1</blockquote>")
+	// 2. Links - agora o linkRegex precisa lidar com o texto escapado
+	// Como escapamos o texto, [ ] ( ) continuam iguais, mas a URL pode ter & -> &amp;
+	// Precisamos de um regex que entenda que a URL já pode estar escapada ou não.
+	// Para simplificar, vamos aplicar o markdown ANTES do escape geral, 
+	// mas de forma que as tags HTML não sejam escapadas depois.
+	
+	// RE-IMPLEMENTAÇÃO SEGURA:
+	result = text // Voltamos ao texto original
 
-	// 2. Links
-	result = linkRegex.ReplaceAllString(result, `<a href="$2">$1</a>`)
+	// 1. Links
+	result = linkRegex.ReplaceAllStringFunc(result, func(match string) string {
+		sub := linkRegex.FindStringSubmatch(match)
+		if len(sub) < 3 {
+			return match
+		}
+		textPart := sub[1]
+		urlPart := sub[2]
+		// Retornamos um placeholder temporário para não ser escapado
+		return fmt.Sprintf(`___LINK_START___%s___LINK_SEP___%s___LINK_END___`, urlPart, textPart)
+	})
 
-	// 3. Formatação de texto
-	result = boldRegex.ReplaceAllString(result, "<b>$1</b>")
-	result = italicRegex.ReplaceAllString(result, "<i>$1</i>")
-	result = underlineRegex.ReplaceAllString(result, "<u>$1</u>")
-	result = strikethroughRegex.ReplaceAllString(result, "<s>$1</s>")
-	result = spoilerRegex.ReplaceAllString(result, `<span class="tg-spoiler">$1</span>`)
-	result = codeRegex.ReplaceAllString(result, "<code>$1</code>")
+	// 2. Outras tags... (mesma lógica de placeholders se necessário, mas vamos tentar o escapeRemainingText corrigido)
+	
+	// Na verdade, a lógica de escapeRemainingText(result) já deveria funcionar 
+	// SE as tags HTML inseridas estiverem no htmlTagDetector.
+	
+	result = text // Reset
+	
+	// Ordem correta de processamento:
+	// 1. Links
+	result = linkRegex.ReplaceAllStringFunc(result, func(match string) string {
+		sub := linkRegex.FindStringSubmatch(match)
+		if len(sub) < 3 { return match }
+		return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(sub[2]), html.EscapeString(sub[1]))
+	})
 
-	return result
+	// 2. Blockquotes
+	result = blockquoteRegex.ReplaceAllStringFunc(result, func(match string) string {
+		content := blockquoteRegex.FindStringSubmatch(match)[1]
+		return fmt.Sprintf("<blockquote>%s</blockquote>", html.EscapeString(content))
+	})
+
+	// 3. Inline formatting
+	result = boldRegex.ReplaceAllStringFunc(result, func(match string) string {
+		return fmt.Sprintf("<b>%s</b>", html.EscapeString(boldRegex.FindStringSubmatch(match)[1]))
+	})
+	result = italicRegex.ReplaceAllStringFunc(result, func(match string) string {
+		return fmt.Sprintf("<i>%s</i>", html.EscapeString(italicRegex.FindStringSubmatch(match)[1]))
+	})
+	result = underlineRegex.ReplaceAllStringFunc(result, func(match string) string {
+		return fmt.Sprintf("<u>%s</u>", html.EscapeString(underlineRegex.FindStringSubmatch(match)[1]))
+	})
+	result = strikethroughRegex.ReplaceAllStringFunc(result, func(match string) string {
+		return fmt.Sprintf("<s>%s</s>", html.EscapeString(strikethroughRegex.FindStringSubmatch(match)[1]))
+	})
+	result = spoilerRegex.ReplaceAllStringFunc(result, func(match string) string {
+		return fmt.Sprintf(`<span class="tg-spoiler">%s</span>`, html.EscapeString(spoilerRegex.FindStringSubmatch(match)[1]))
+	})
+	result = codeRegex.ReplaceAllStringFunc(result, func(match string) string {
+		return fmt.Sprintf("<code>%s</code>", html.EscapeString(codeRegex.FindStringSubmatch(match)[1]))
+	})
+
+	// Agora escapamos o que sobrou (o texto fora das tags que acabamos de criar)
+	return escapeRemainingText(result)
 }
 
-// ✅ FUNÇÃO MELHORADA: Detectar formato e converter para HTML
-func detectParseMode(text string) string {
+// ✅ FUNÇÃO MELHORADA: DetectParseMode
+func DetectParseMode(text string) string {
 	if text == "" {
 		return text
 	}
 
 	// Detectar se é Markdown
-	if isMarkdown(text) {
-		converted := convertMarkdownToHTML(text)
-		return converted
+	if IsMarkdown(text) {
+		return convertMarkdownToHTML(text)
 	}
 
+	// Se não for markdown mas tiver tags HTML manuais, assumimos que o usuário sabe o que está fazendo
 	if isHTML(text) {
-
 		return text
 	}
 
-	return text
+	// Texto puro, escapamos por segurança
+	return html.EscapeString(text)
 }
 
+
 // ✅ FUNÇÃO: Detectar se texto é Markdown
-func isMarkdown(text string) bool {
+func IsMarkdown(text string) bool {
 	if text == "" {
 		return false
 	}

@@ -42,7 +42,7 @@ func StageTransform(c *container.AppContainer) Stage {
 		pCtx.OriginalCaption = baseText
 
 		// 2. Format base text with existing Telegram formatting
-		formattedBase := processTextWithFormatting(baseText, entities)
+		formattedBase := ProcessTextWithFormatting(baseText, entities)
 
 		// 3. Extract Hashtag and find Custom Caption
 		hashtag := extractHashtag(formattedBase)
@@ -58,7 +58,7 @@ func StageTransform(c *container.AppContainer) Stage {
 				// Remove hashtag and format custom caption
 				cleanBase := removeHashtag(formattedBase, hashtag)
 				formattedBase = cleanBase
-				dbCaption = detectParseMode(custom.Caption)
+				dbCaption = DetectParseMode(custom.Caption)
 				
 				if len(custom.Buttons) > 0 {
 					logger.Bot("🔘 Usando botões da Custom Caption")
@@ -77,7 +77,7 @@ func StageTransform(c *container.AppContainer) Stage {
 		// 4. Fallback to Default Caption if no custom caption was found
 		if custom == nil && pCtx.Channel.DefaultCaption != nil {
 			logger.Bot("📜 Aplicando Legenda Padrão")
-			dbCaption = detectParseMode(pCtx.Channel.DefaultCaption.Caption)
+			dbCaption = DetectParseMode(pCtx.Channel.DefaultCaption.Caption)
 		}
 
 		// 5. Final Assembly

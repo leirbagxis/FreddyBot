@@ -5,40 +5,23 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
-- **Otimização de Performance Extrema**:
-  - **Cache de Duas Camadas (L1/L2)**: Implementado cache em memória local (RAM via `go-cache`) atuando antes do Redis (L2). Reduz o tempo de leitura de configurações de canais para microssegundos.
-  - **Índices GORM Estratégicos**: Adicionados índices em campos críticos como `username`, `created_at`, `updated_at` e um índice composto em `position_x/y` para botões, acelerando buscas e ordenações tanto em SQLite quanto em PostgreSQL.
-- **Tratamento Global de Erros**: Novo middleware centralizado para captura e padronização de erros da API, garantindo respostas consistentes ao frontend.
-- **Camada DTO (Data Transfer Objects)**: Proteção completa dos modelos de banco de dados (`GORM structs`) através do uso de DTOs em todas as rotas da API, prevenindo o vazamento de campos internos.
+- **Post Builder (Novas Funcionalidades)**:
+  - **Suporte a Stickers**: Agora é possível criar postagens a partir de stickers, com suporte total a botões e reações (sem legenda, conforme limitação do Telegram).
+  - **Enviar para Canais**: Novo fluxo pós-salvamento que permite enviar a postagem diretamente para qualquer canal configurado pelo usuário no bot, sem depender exclusivamente do modo inline.
+  - **Importação de Canal**: Recurso para copiar legendas, reações e botões de canais já cadastrados diretamente para o PostBuilder.
+  - **Gerenciador de Botões**: Interface dedicada para visualização e exclusão individual de botões durante a montagem do post.
+- **Conversão JIT HTML**: Implementada conversão automática de Markdown e Entidades do Telegram para HTML no PostBuilder, garantindo maior fidelidade visual e estabilidade no envio.
 
 ### Fixed
-- **Correção de Panic Crítico (Nil Pointer)**: Resolvido erro de desreferenciamento de ponteiro nulo no `ToUserDTO` ao acessar o Dashboard. Adicionadas checagens de segurança robustas no mapeamento de dados.
-- **Garantia de Hidratação (Owner Relation)**: Corrigida a estratégia de carregamento (`Preload`) do Owner no repositório de canais, assegurando que os dados do proprietário estejam sempre disponíveis para a API.
-- **Correção de Sobreposição (Botões/Reações)**: Implementada lógica de cura automática para evitar que botões e reações ocupem a mesma linha.
-  - O Dashboard agora detecta e resolve conflitos de posição no carregamento dos dados.
-  - O bot agora valida dinamicamente a posição das reações ao gerar teclados inline, garantindo visibilidade mesmo em dados legados.
-  - O backend agora impede a criação de novos botões na linha reservada para reações.
-- **Suporte para Arquivos (Arquivos)**: O bot agora suporta a edição e inclusão de botões em postagens do tipo "Arquivo". Suporte adicionado em todas as camadas (Backend, Bot e Dashboard).
-- **Controle Granular de Arquivos**: Adicionadas permissões específicas para "Arquivos" na aba de permissões da Dashboard, permitindo ativar/desativar a edição de legenda e adição de botões para este tipo de mídia.
-- **Despedida Dramática**: O bot agora envia uma mensagem melodramática e sarcástica antes de sair automaticamente de um canal ao ser desconectado.
-- **Alertas de Callback**: Adicionada verificação de existência de canal em todos os handlers de callback do Telegram, exibindo um alerta (ShowAlert) caso o canal não esteja vinculado ou o usuário não tenha permissão.
-- **Testes Unitários**: Implementação inicial de suite de testes para o middleware de autorização e repositórios de banco de dados.
-- **Gerenciamento de Reações**: Adicionado toggle para ativar/desativar reações globalmente por canal na aba de Permissões.
-- **Novo Sistema de Toasts**: Redesign completo das notificações do dashboard com glassmorphism, barra de progresso e animações modernas.
-- **Validação de Emojis**: Implementada verificação rigorosa em tempo real para reações (dashboard e bot), impedindo o uso de letras e números.
-- **Aba de Configurações Admin**: Nova interface para gerenciar configurações globais do servidor.
-- **Modo Force Join**: Implementada obrigatoriedade de inscrição em canal oficial para uso do bot, com verificação em tempo real no comando `/start`.
-- **Modo Manutenção**: Adicionado toggle global para colocar o bot em manutenção via dashboard.
-- **Novo Sistema de Log Centralizado**: Implementação de um logger customizado em `pkg/logger` com suporte a cores e módulos (`[BOT]`, `[API]`, `[DB]`, `[ADMIN]`, `[SYS]`).
-- **Post Builder**: Adicionado botão "🚀 Compartilhar" na mensagem de confirmação de salvamento para facilitar o compartilhamento via modo inline.
-- **Otimização de Performance**:
-  - **Paralelismo no Bot**: Comando `/channels` agora verifica a administração de múltiplos canais simultaneamente usando um worker pool.
-  - **Fila de Mensagens Inteligente**: Aumentada a vazão para 5 workers paralelos com controle de rate limit por chat (cooldown de 500ms), otimizando o envio em massa para múltiplos canais.
-  - **Cache de Banco de Dados**: Integração com Redis no `ChannelRepository` (padrão Cache-Aside) e criação de buscas "light" para reduzir o overhead do banco.
-  - **Unificação de API**: Novo endpoint `/api/admin/overview` que consolida dados de usuários e canais em uma única requisição para o dashboard.
-- **Segurança e Estabilidade**:
-  - Adicionados Timeouts (`Read`, `Write`, `Idle`) ao servidor HTTP para prevenir vazamentos de conexões e ataques Slowloris.
-  - Implementado Graceful Shutdown para desligamento seguro da API e conexões Redis.
+- **Estabilidade do PostBuilder**: Corrigidos erros de "Bad Request" ao lidar com caracteres especiais em MarkdownV2 através da migração para ParseMode HTML.
+- **Persistência de Sessão**: Resolvido bug de "Sessão expirada" ao realizar ações após o salvamento da postagem.
+- **Layout de Teclado**: Otimização do posicionamento de botões de ação para melhor usabilidade em dispositivos móveis.
+- **Interceptação Global de Stickers**: Corrigido comportamento do bot ao receber stickers fora do contexto de comandos.
+
+### Changed
+- **Arquitetura PostBuilder**: Refatoração interna para maior modularidade e suporte a múltiplos tipos de mídia de forma consistente.
+- **Cache de Sessão**: Otimização do tempo de vida e estrutura de dados das sessões temporárias do PostBuilder no Redis.
+
 
 ### Changed
 - **Limpeza do Legado V1 (Motor V2 Puro)**: A estrutura legada `MessageProcessor` foi eliminada. Toda a sua lógica de despacho, formatação e metadados foi convertida em funções independentes e integradas nativamente aos estágios do Pipeline V2, tornando a arquitetura 100% modular.
