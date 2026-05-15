@@ -5,9 +5,10 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leirbagxis/FreddyBot/internal/api/service"
+	"github.com/leirbagxis/FreddyBot/internal/api/dto"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
 type ButtonsController struct {
@@ -22,147 +23,88 @@ func NewButtonsController(container *container.AppContainer) *ButtonsController 
 
 func (c *ButtonsController) CreateDefaultButtonController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var buttonData types.ButtonCreateRequest
 	if err := ctx.ShouldBindJSON(&buttonData); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.CreateButtonService(ctx, channelId, buttonData)
+	result, err := c.container.ButtonService.CreateButton(ctx, channelId, buttonData)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	if !result.Success {
-		ctx.JSON(http.StatusOK, result)
-		return
-	}
-
-	ctx.JSON(http.StatusOK, result)
-
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(dto.ToButtonDTO(result), "Botão criado com sucesso"))
 }
 
 func (c *ButtonsController) DeleteDefaultButtonController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 	buttonID := ctx.Param("buttonId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	err = appService.DeleteDefaulfButtonService(ctx, channelId, buttonID)
+	_, err = c.container.ButtonService.DeleteButton(ctx, channelId, buttonID)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, "")
-
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Botão deletado com sucesso"))
 }
 
 func (c *ButtonsController) UpdateDefaultButtonController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 	buttonID := ctx.Param("buttonId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var buttonData types.ButtonCreateRequest
 	if err := ctx.ShouldBindJSON(&buttonData); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.UpdateButtonService(ctx, channelId, buttonID, buttonData)
+	rowsAffected, err := c.container.ButtonService.UpdateButton(ctx, channelId, buttonID, buttonData)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	if !result.Success {
-		ctx.JSON(http.StatusOK, result)
-		return
-	}
-
-	ctx.JSON(http.StatusOK, result)
-
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Botão padrao atualizado com sucesso"))
 }
 
 func (c *ButtonsController) UpdateLayoutDefaultButtons(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var body types.UpdateLayoutRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.UpdateButtonsLayoutService(ctx, channelId, body)
+	total, err := c.container.ButtonService.UpdateButtonsLayout(ctx, channelId, body)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	if !result.Success {
-		ctx.JSON(http.StatusOK, result)
-		return
-	}
-
-	ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"total": total}, "Layout dos botões atualizado com sucesso"))
 }

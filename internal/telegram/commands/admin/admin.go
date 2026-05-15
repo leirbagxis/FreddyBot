@@ -25,37 +25,48 @@ import (
 
 func GetAllUsersHandler(app *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		users, err := app.UserRepo.GetAllUSers(ctx)
-		if err != nil {
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "Erro ao buscar usuários.",
-			})
-			return
-		}
 		const chunkSize = 50
-		total := len(users)
+		offset := 0
 
-		for i := 0; i < total; i += chunkSize {
-			end := i + chunkSize
-			if end > total {
-				end = total
+		for {
+			users, total, err := app.UserService.GetAllUsersPaginated(ctx, chunkSize, offset)
+			if err != nil {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "Erro ao buscar usuários.",
+				})
+				return
 			}
 
-			chunk := users[i:end]
-			msg := fmt.Sprintf("👥 Total de Usuários: <b>%d</b>\n<blockquote>Página %d</blockquote>\n",
-				total, (i/chunkSize)+1)
-
-			for _, u := range chunk {
-				msg += fmt.Sprintf("<a href='tg://user?id=%d'>%s</a> - %d\n", u.UserId, u.FirstName, u.UserId)
+			if len(users) == 0 {
+				if offset == 0 {
+					b.SendMessage(ctx, &bot.SendMessageParams{
+						ChatID: update.Message.Chat.ID,
+						Text:   "Nenhum usuário encontrado.",
+					})
+				}
+				break
 			}
 
-			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("👥 Total de Usuários: <b>%d</b>\n<blockquote>Página %d</blockquote>\n",
+				total, (offset/chunkSize)+1))
+
+			for _, u := range users {
+				sb.WriteString(fmt.Sprintf("<a href='tg://user?id=%d'>%s</a> - %d\n", u.UserId, u.FirstName, u.UserId))
+			}
+
+			_, err = b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
-				Text:      msg,
+				Text:      sb.String(),
 				ParseMode: models.ParseModeHTML,
 			})
 			if err != nil {
+				break
+			}
+
+			offset += chunkSize
+			if int64(offset) >= total {
 				break
 			}
 		}
@@ -64,41 +75,52 @@ func GetAllUsersHandler(app *container.AppContainer) bot.HandlerFunc {
 
 func GetAllChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		channels, err := app.ChannelRepo.GetAllChannels(ctx)
-		if err != nil {
-			b.SendMessage(ctx, &bot.SendMessageParams{
-				ChatID: update.Message.Chat.ID,
-				Text:   "Erro ao buscar canais.",
-			})
-			return
-		}
 		const chunkSize = 50
-		total := len(channels)
+		offset := 0
 		val := true
 
-		for i := 0; i < total; i += chunkSize {
-			end := i + chunkSize
-			if end > total {
-				end = total
+		for {
+			channels, total, err := app.ChannelService.GetAllChannelsPaginated(ctx, chunkSize, offset)
+			if err != nil {
+				b.SendMessage(ctx, &bot.SendMessageParams{
+					ChatID: update.Message.Chat.ID,
+					Text:   "Erro ao buscar canais.",
+				})
+				return
 			}
 
-			chunk := channels[i:end]
-			msg := fmt.Sprintf("📦 Total de Canais: <b>%d</b>\n<blockquote>Página %d</blockquote>\n",
-				total, (i/chunkSize)+1)
-
-			for _, c := range chunk {
-				msg += fmt.Sprintf(`<a href='%s'>%s</a> - <code>%d</code>`+"\n", c.InviteURL, c.Title, c.ID)
+			if len(channels) == 0 {
+				if offset == 0 {
+					b.SendMessage(ctx, &bot.SendMessageParams{
+						ChatID: update.Message.Chat.ID,
+						Text:   "Nenhum canal encontrado.",
+					})
+				}
+				break
 			}
 
-			_, err := b.SendMessage(ctx, &bot.SendMessageParams{
+			var sb strings.Builder
+			sb.WriteString(fmt.Sprintf("📦 Total de Canais: <b>%d</b>\n<blockquote>Página %d</blockquote>\n",
+				total, (offset/chunkSize)+1))
+
+			for _, c := range channels {
+				sb.WriteString(fmt.Sprintf(`<a href='%s'>%s</a> - <code>%d</code>`+"\n", c.InviteURL, c.Title, c.ID))
+			}
+
+			_, err = b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
-				Text:      msg,
+				Text:      sb.String(),
 				ParseMode: models.ParseModeHTML,
 				LinkPreviewOptions: &models.LinkPreviewOptions{
 					IsDisabled: &val,
 				},
 			})
 			if err != nil {
+				break
+			}
+
+			offset += chunkSize
+			if int64(offset) >= total {
 				break
 			}
 		}
@@ -151,7 +173,7 @@ func GetInfoChannelHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := app.ChannelRepo.GetChannelByID(ctx, channelID)
+		channel, err := app.ChannelService.GetChannelByID(ctx, channelID)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -160,7 +182,7 @@ func GetInfoChannelHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		owner, err := app.UserRepo.GetUserById(ctx, channel.OwnerID)
+		owner, err := app.UserService.GetUserByID(ctx, channel.OwnerID)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -204,7 +226,7 @@ func RegisterTransferHandler(app *container.AppContainer) bot.HandlerFunc {
 		channelID, _ := strconv.ParseInt(parts[0], 10, 64)
 		newOwnerID, _ := strconv.ParseInt(parts[1], 10, 64)
 
-		channel, err := app.ChannelRepo.GetChannelByID(ctx, channelID)
+		channel, err := app.ChannelService.GetChannelByID(ctx, channelID)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -222,7 +244,7 @@ func RegisterTransferHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		err = app.ChannelRepo.UpdateOwnerChannel(ctx, channelID, channel.OwnerID, newOwnerID)
+		err = app.ChannelService.UpdateOwnerChannel(ctx, channelID, channel.OwnerID, newOwnerID)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -260,7 +282,7 @@ func GetInfoUserHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		user, err := app.UserRepo.GetUserById(ctx, userID)
+		user, err := app.UserService.GetUserByID(ctx, userID)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -269,7 +291,7 @@ func GetInfoUserHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channels, _ := app.ChannelRepo.GetAllChannelsByUserID(ctx, user.UserId)
+		channels, _ := app.ChannelService.GetUserChannels(ctx, user.UserId)
 		header := fmt.Sprintf("👤 <b><a href='tg://user?id=%d'>%s</a></b> (<code>%d</code>)\n📦 Canais: <b>%d</b>\n\n",
 			user.UserId,
 			html.EscapeString(user.FirstName),
@@ -323,7 +345,7 @@ func RemoveChannelHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := app.ChannelRepo.GetChannelByID(ctx, channelID)
+		channel, err := app.ChannelService.GetChannelByID(ctx, channelID)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -332,7 +354,8 @@ func RemoveChannelHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		if err = app.ChannelRepo.DeleteChannelWithRelations(ctx, channel.OwnerID, channelID); err != nil {
+		if err = app.ChannelService.DisconnectChannel(ctx, channel.OwnerID, channelID); err != nil {
+
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
 				Text:   fmt.Sprintf("❌ Não foi possivel deletar o canal: %v", err),
@@ -373,7 +396,7 @@ func NoticeCommandHandler(app *container.AppContainer) bot.HandlerFunc {
 
 		noticeText := strings.TrimSpace(strings.Join(lines[1:], "\n"))
 
-		users, err := app.UserRepo.GetAllUSers(ctx)
+		users, err := app.UserService.GetAllUsers(ctx)
 		if err != nil || len(users) == 0 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -428,7 +451,7 @@ func NoticeChannelsHandler(app *container.AppContainer) bot.HandlerFunc {
 
 		text, button := parser.GetMessage("publi", data)
 
-		channels, err := app.ChannelRepo.GetAllChannels(ctx)
+		channels, err := app.ChannelService.GetAllChannels(ctx)
 		if err != nil || len(channels) == 0 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -560,7 +583,7 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Verifica se canal já existe
-		existingChannel, _ := c.ChannelRepo.GetChannelByID(ctx, channelID)
+		existingChannel, _ := c.ChannelService.GetChannelByID(ctx, channelID)
 		if existingChannel != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -585,7 +608,7 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Cria usuário caso não exista
-		_ = c.UserRepo.UpsertUser(ctx, &userModes.User{
+		_ = c.UserService.UpsertUser(ctx, &userModes.User{
 			UserId:    ownerID,
 			FirstName: utils.RemoveHTMLTags(ownerInfo.FirstName),
 		})
@@ -609,7 +632,7 @@ func AddChannelCommandHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Cria canal
-		channel, err := c.ChannelRepo.CreateChannelWithDefaults(ctx, channelID, channelInfo.Title, inviteURL, newPackCaption, defaultCaption, ownerID)
+		channel, err := c.ChannelService.CreateChannelWithDefaults(ctx, channelID, channelInfo.Title, inviteURL, newPackCaption, defaultCaption, ownerID)
 		if err != nil {
 			logger.Error("ADMIN", "Erro ao criar canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{ChatID: update.Message.Chat.ID, Text: "❌ Erro ao salvar canal."})
@@ -650,7 +673,7 @@ func NoticeUsersReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		users, err := app.UserRepo.GetAllUSers(ctx)
+		users, err := app.UserService.GetAllUsers(ctx)
 		if err != nil || len(users) == 0 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -720,7 +743,7 @@ func NoticeChannelsReplyHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channels, err := app.ChannelRepo.GetAllChannels(ctx)
+		channels, err := app.ChannelService.GetAllChannels(ctx)
 		if err != nil || len(channels) == 0 {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -771,7 +794,7 @@ func ToggleMaintenceHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		maintence, err := app.ServerRepo.ToggleMaintence(ctx)
+		maintenance, err := app.ServerService.ToggleMaintenance(ctx)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -782,7 +805,7 @@ func ToggleMaintenceHandler(app *container.AppContainer) bot.HandlerFunc {
 
 		var msg string
 
-		if maintence {
+		if maintenance {
 			msg = "⚠️ <b>Modo de manutenção ativado</b>\n\nO bot pode ficar temporariamente indisponível."
 		} else {
 			msg = "✅ <b>Modo de manutenção desativado</b>\n\nO bot voltou a funcionar normalmente."
@@ -825,7 +848,7 @@ func SetAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		isAdmin, err := app.UserRepo.UpdateUserAdmin(ctx, userID)
+		isAdmin, err := app.UserService.UpdateUserAdmin(ctx, userID)
 
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
@@ -863,7 +886,7 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 		const targetBotID = 5986082367
 		const targetBotUser = "@XavolaBot"
 
-		channels, err := app.ChannelRepo.GetAllChannels(ctx)
+		channels, err := app.ChannelService.GetAllChannels(ctx)
 		if err != nil {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID: update.Message.Chat.ID,
@@ -915,7 +938,7 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 					})
 
 					if err == nil && (member.Type == "administrator" || member.Type == "creator") {
-						owner, _ := app.UserRepo.GetUserById(ctx, ch.OwnerID)
+						owner, _ := app.UserService.GetUserByID(ctx, ch.OwnerID)
 						ownerName := "Desconhecido"
 						if owner != nil {
 							ownerName = owner.FirstName
@@ -953,15 +976,16 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 		header := fmt.Sprintf("🤖 <b>Bot %s encontrado em %d canais:</b>\n\n", targetBotUser, count)
 
 		// Enviar em blocos para evitar limite de caracteres do Telegram
-		msg := header
+		var sb strings.Builder
+		sb.WriteString(header)
 		first := true
 		for i, info := range foundChannels {
-			if len(msg)+len(info) > 3800 {
+			if sb.Len()+len(info) > 3800 {
 				if first {
 					b.EditMessageText(ctx, &bot.EditMessageTextParams{
 						ChatID:             update.Message.Chat.ID,
 						MessageID:          statusMsg.ID,
-						Text:               msg,
+						Text:               sb.String(),
 						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
@@ -969,27 +993,27 @@ func CheckBotAdminHandler(app *container.AppContainer) bot.HandlerFunc {
 				} else {
 					b.SendMessage(ctx, &bot.SendMessageParams{
 						ChatID:             update.Message.Chat.ID,
-						Text:               msg,
+						Text:               sb.String(),
 						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
 				}
-				msg = ""
+				sb.Reset()
 			}
-			msg += info + "────────────────────\n"
+			sb.WriteString(info + "────────────────────\n")
 			if i == len(foundChannels)-1 {
 				if first {
 					b.EditMessageText(ctx, &bot.EditMessageTextParams{
 						ChatID:             update.Message.Chat.ID,
 						MessageID:          statusMsg.ID,
-						Text:               msg,
+						Text:               sb.String(),
 						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})
 				} else {
 					b.SendMessage(ctx, &bot.SendMessageParams{
 						ChatID:             update.Message.Chat.ID,
-						Text:               msg,
+						Text:               sb.String(),
 						ParseMode:          models.ParseModeHTML,
 						LinkPreviewOptions: &models.LinkPreviewOptions{IsDisabled: bot.True()},
 					})

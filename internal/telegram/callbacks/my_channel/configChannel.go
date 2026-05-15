@@ -31,7 +31,7 @@ func ConfigHandler(c *container.AppContainer) bot.HandlerFunc {
 			logger.Error("BOT", "Error parsing channelId: %v", err)
 			return
 		}
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userID, channelId)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userID, channelId)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{

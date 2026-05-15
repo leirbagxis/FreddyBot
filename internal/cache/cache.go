@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -65,7 +66,79 @@ func (s *Service) GetSession(ctx context.Context, key string) (*ChannelPayload, 
 	return &payload, nil
 }
 
-func (s *Service) DeleteSession(ctx context.Context, key string) error {
+func (s *Service) Get(ctx context.Context, key string, dest interface{}) error {
+	// 1. Tenta L1 (Local)
+	if val, found := localCache.Get(key); found {
+		if data, ok := val.([]byte); ok {
+			return json.Unmarshal(data, dest)
+		}
+	}
+
+	client := GetRedisClient()
+
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err == redis.Nil {
+			return fmt.Errorf("cache miss")
+		}
+		return fmt.Errorf("failed to get from cache: %w", err)
+	}
+
+	// Salva no L1 para a próxima (serializado para manter consistência no Get genérico)
+	localCache.Set(key, []byte(data), 5*time.Minute)
+
+	err = json.Unmarshal([]byte(data), dest)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal value: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Service) GetChannel(ctx context.Context, channelID int64) (*models.Channel, error) {
+	key := fmt.Sprintf("channel:v2:%d", channelID)
+
+	// 1. Tenta L1
+	if val, found := localCache.Get(key); found {
+		if channel, ok := val.(*models.Channel); ok {
+			return channel, nil
+		}
+	}
+
+	// 2. Tenta L2 (Redis)
+	var channel models.Channel
+	err := s.Get(ctx, key, &channel)
+	if err == nil {
+		// Salva no L1 como objeto real para velocidade máxima
+		localCache.Set(key, &channel, 5*time.Minute)
+		return &channel, nil
+	}
+
+	return nil, err
+}
+
+func (s *Service) SetChannel(ctx context.Context, channel *models.Channel) error {
+	key := fmt.Sprintf("channel:v2:%d", channel.ID)
+	// Salva no L1
+	localCache.Set(key, channel, 5*time.Minute)
+	// Salva no L2 (Redis)
+	return s.Set(ctx, key, channel, 1*time.Hour)
+}
+
+func (s *Service) InvalidateChannel(ctx context.Context, channelID int64) error {
+	key := fmt.Sprintf("channel:v2:%d", channelID)
+	localCache.Delete(key)
+
+	client := GetRedisClient()
+	client.Del(ctx, key)
+
+	// Também limpa o debounce de atualização
+	updateKey := fmt.Sprintf("last_update:channel:%d", channelID)
+	return client.Del(ctx, updateKey).Err()
+}
+
+func (s *Service) Delete(ctx context.Context, key string) error {
+	localCache.Delete(key)
 	client := GetRedisClient()
 	return client.Del(ctx, key).Err()
 }
@@ -78,26 +151,10 @@ func (s *Service) Set(ctx context.Context, key string, value interface{}, expira
 		return fmt.Errorf("failed to marshal value: %w", err)
 	}
 
+	// Salva no L1 também para consistência
+	localCache.Set(key, data, expiration)
+
 	return client.Set(ctx, key, data, expiration).Err()
-}
-
-func (s *Service) Get(ctx context.Context, key string, dest interface{}) error {
-	client := GetRedisClient()
-
-	data, err := client.Get(ctx, key).Result()
-	if err != nil {
-		if err == redis.Nil {
-			return fmt.Errorf("cache miss")
-		}
-		return fmt.Errorf("failed to get from cache: %w", err)
-	}
-
-	err = json.Unmarshal([]byte(data), dest)
-	if err != nil {
-		return fmt.Errorf("failed to unmarshal value: %w", err)
-	}
-
-	return nil
 }
 
 // ### SELECTED CHANNEL ## \\
@@ -311,6 +368,25 @@ func generateShortID(length int) string {
 		b[i] = charset[num.Int64()]
 	}
 	return string(b)
+}
+
+// ### CHANNEL UPDATE DEBOUNCE ### \\
+
+func (s *Service) SetLastChannelUpdate(ctx context.Context, channelID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("last_update:channel:%d", channelID)
+	// Cache por 1 hora para evitar chamadas excessivas ao GetChat
+	return client.Set(ctx, key, time.Now().Unix(), 60*time.Minute).Err()
+}
+
+func (s *Service) ShouldUpdateChannel(ctx context.Context, channelID int64) bool {
+	client := GetRedisClient()
+	key := fmt.Sprintf("last_update:channel:%d", channelID)
+	exists, err := client.Exists(ctx, key).Result()
+	if err != nil {
+		return true // Na dúvida, atualiza
+	}
+	return exists == 0
 }
 
 // ### DELETE ALL SESSIONS ### \\\

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/go-telegram/bot"
@@ -30,7 +31,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Check Blacklist
-		user, err := c.UserRepo.GetUserById(ctx, update.Message.From.ID)
+		user, err := c.UserService.GetUserByID(ctx, update.Message.From.ID)
 		if err == nil && user != nil && user.IsBlacklisted {
 			return
 		}
@@ -172,13 +173,14 @@ func handleTextInput(ctx context.Context, b *bot.Bot, update *models.Update, c *
 }
 
 func showMenu(ctx context.Context, b *bot.Bot, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState) {
-	text := "🛠️ <b>Post Builder - Menu</b>\n\n"
-	text += fmt.Sprintf("📝 <b>Título:</b> %s\n", state.Title)
-	text += fmt.Sprintf("📄 <b>Corpo:</b> %s\n", state.Body)
-	text += fmt.Sprintf("👣 <b>Rodapé:</b> %s\n", state.Footer)
-	text += fmt.Sprintf("🎭 <b>Reações:</b> %s\n", state.Reactions)
-	text += fmt.Sprintf("🔘 <b>Botões:</b> %d\n\n", len(state.Buttons))
-	text += "Escolha o que deseja editar:"
+	var sb strings.Builder
+	sb.WriteString("🛠️ <b>Post Builder - Menu</b>\n\n")
+	sb.WriteString(fmt.Sprintf("📝 <b>Título:</b> %s\n", state.Title))
+	sb.WriteString(fmt.Sprintf("📄 <b>Corpo:</b> %s\n", state.Body))
+	sb.WriteString(fmt.Sprintf("👣 <b>Rodapé:</b> %s\n", state.Footer))
+	sb.WriteString(fmt.Sprintf("🎭 <b>Reações:</b> %s\n", state.Reactions))
+	sb.WriteString(fmt.Sprintf("🔘 <b>Botões:</b> %d\n\n", len(state.Buttons)))
+	sb.WriteString("Escolha o que deseja editar:")
 
 	kb := &models.InlineKeyboardMarkup{
 		InlineKeyboard: [][]models.InlineKeyboardButton{
@@ -203,7 +205,7 @@ func showMenu(ctx context.Context, b *bot.Bot, chatID, userID int64, c *containe
 
 	b.SendMessage(ctx, &bot.SendMessageParams{
 		ChatID:      chatID,
-		Text:        text,
+		Text:        sb.String(),
 		ParseMode:   models.ParseModeHTML,
 		ReplyMarkup: kb,
 	})
@@ -216,7 +218,7 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 		data := update.CallbackQuery.Data
 
 		// Check Blacklist
-		user, err := c.UserRepo.GetUserById(ctx, userID)
+		user, err := c.UserService.GetUserByID(ctx, userID)
 		if err == nil && user != nil && user.IsBlacklisted {
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
@@ -323,16 +325,17 @@ func CallbackHandler(c *container.AppContainer) bot.HandlerFunc {
 }
 
 func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState, deleteState bool) {
-	caption := ""
+	var sb strings.Builder
 	if state.Title != "" {
-		caption += state.Title + "\n\n"
+		sb.WriteString(state.Title + "\n\n")
 	}
 	if state.Body != "" {
-		caption += state.Body + "\n\n"
+		sb.WriteString(state.Body + "\n\n")
 	}
 	if state.Footer != "" {
-		caption += state.Footer
+		sb.WriteString(state.Footer)
 	}
+	caption := sb.String()
 
 	var kb models.ReplyMarkup
 	if len(state.Buttons) > 0 || state.Reactions != "" {
@@ -454,6 +457,33 @@ func sendFinalPost(ctx context.Context, b *bot.Bot, chatID, userID int64, c *con
 	}
 }
 
+func ChosenInlineResultHandler(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.ChosenInlineResult == nil {
+			return
+		}
+
+		sessionID := update.ChosenInlineResult.ResultID
+		inlineMessageID := update.ChosenInlineResult.InlineMessageID
+
+		logger.Bot("📥 ChosenInlineResult recebido: SessionID=%s, InlineMessageID=%s", sessionID, inlineMessageID)
+
+		if sessionID != "" && inlineMessageID != "" {
+			// Mapeia o inline_message_id para o sessionID da postagem
+			// Expira em 24h (mesmo tempo da sessão pb_session)
+			key := fmt.Sprintf("pb_inline_map:%s", inlineMessageID)
+			err := c.CacheService.Set(ctx, key, sessionID, 24*time.Hour)
+			if err != nil {
+				logger.Error("BOT", "❌ Erro ao salvar mapeamento inline no Redis: %v", err)
+			} else {
+				logger.Bot("🔗 Mapeamento salvo no Redis: %s -> %s", key, sessionID)
+			}
+		} else {
+			logger.Warn("BOT", "⚠️ ChosenInlineResult com dados incompletos: SessionID=%s, InlineMessageID=%s", sessionID, inlineMessageID)
+		}
+	}
+}
+
 func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		if update.InlineQuery == nil {
@@ -489,16 +519,17 @@ func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		caption := ""
+		var sb strings.Builder
 		if state.Title != "" {
-			caption += state.Title + "\n\n"
+			sb.WriteString(state.Title + "\n\n")
 		}
 		if state.Body != "" {
-			caption += state.Body + "\n\n"
+			sb.WriteString(state.Body + "\n\n")
 		}
 		if state.Footer != "" {
-			caption += state.Footer
+			sb.WriteString(state.Footer)
 		}
+		caption := sb.String()
 
 		// Garante que o caption não seja vazio para o caso de Article
 		displayCaption := caption
@@ -524,8 +555,7 @@ func InlineHandler(c *container.AppContainer) bot.HandlerFunc {
 						reactionRow = append(reactionRow, models.InlineKeyboardButton{
 							Text:         emoji,
 							CallbackData: "vote:" + emoji,
-						})
-					}
+						})					}
 				}
 				if len(reactionRow) > 0 {
 					kb.InlineKeyboard = append(kb.InlineKeyboard, reactionRow)

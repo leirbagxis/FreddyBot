@@ -37,16 +37,30 @@ func AuthMiddlewareJWT(v *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
-		// Verificar Blacklist no banco (opcional, mas recomendado para bloqueio imediato)
-		user, err := v.UserRepo.GetUserById(c.Request.Context(), claims.UserID)
-		if err == nil && user != nil && user.IsBlacklisted {
+		// Verificar Status Real no banco para garantir efeito imediato de Admin/Blacklist
+		user, err := v.UserService.GetUserByID(c.Request.Context(), claims.UserID)
+		if err != nil {
+			// Se o usuário não existir no banco, invalidamos o acesso
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Usuário não encontrado ou inativo"})
+			return
+		}
+
+		if user.IsBlacklisted {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"success": false, "message": "Você está na blacklist e seu acesso foi bloqueado."})
 			return
 		}
 
-		// Injetar dados no contexto para uso nos controllers
+		// Determinar Role atual baseada no Banco de Dados (sobrescreve o que está no Token)
+		role := RoleUser
+		if user.UserId == config.OwnerID {
+			role = RoleOwner
+		} else if user.IsAdmin {
+			role = RoleAdmin
+		}
+
+		// Injetar dados ATUALIZADOS no contexto para uso nos controllers
 		c.Set("userID", claims.UserID)
-		c.Set("role", claims.Role)
+		c.Set("role", role)
 		c.Next()
 	}
 }
@@ -108,7 +122,7 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 		}
 
 		// Usuário comum: verificar se ele é o dono no banco
-		channel, err := v.ChannelRepo.GetChannelByID(c.Request.Context(), channelId)
+		channel, err := v.ChannelService.GetChannelByID(c.Request.Context(), channelId)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusNotFound, gin.H{"success": false, "message": "Canal não encontrado"})
 			return

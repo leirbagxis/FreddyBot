@@ -31,7 +31,7 @@ func CheckBlacklistMiddleware(c *container.AppContainer) bot.Middleware {
 				return
 			}
 
-			user, err := c.UserRepo.GetUserById(ctx, userID)
+			user, err := c.UserService.GetUserByID(ctx, userID)
 			if err != nil || user == nil {
 				next(ctx, b, upt)
 				return
@@ -58,7 +58,8 @@ func CheckBlacklistMiddleware(c *container.AppContainer) bot.Middleware {
 				return
 			}
 
-			// Para outras mensagens, não faz nada ou manda a mensagem de erro (já tratada no /start)
+			// Para outras mensagens, podemos enviar um aviso silencioso ou apenas ignorar
 		}
 	}
 }
+

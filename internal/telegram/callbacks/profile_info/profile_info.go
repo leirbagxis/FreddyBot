@@ -17,7 +17,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		userID := update.CallbackQuery.From.ID
 
-		user, err := c.UserRepo.GetUserById(ctx, userID)
+		user, err := c.UserService.GetUserByID(ctx, userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				b.EditMessageText(ctx, &bot.EditMessageTextParams{
@@ -30,7 +30,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		countChannel, err := c.ChannelRepo.CountUserChannels(ctx, userID)
+		countChannel, err := c.ChannelService.CountUserChannels(ctx, userID)
 		if err != nil {
 			if err == gorm.ErrRecordNotFound {
 				b.EditMessageText(ctx, &bot.EditMessageTextParams{

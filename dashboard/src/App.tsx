@@ -160,6 +160,7 @@ function DashboardContent() {
           setAdminData(response);
         } else if (isChannelsRoute()) {
           const response = await fetchUserChannels();
+          const channelsData = Array.isArray(response?.data) ? response.data : (response?.data?.channels || response?.channels || []);
           setData({
             channel: null as any,
             user: {
@@ -170,12 +171,14 @@ function DashboardContent() {
               isContribute: false,
               created_at: '',
               updated_at: '',
-              channels: response.channels || [],
+              channels: channelsData,
               username: tg?.initDataUnsafe?.user?.username || ''
             }
           });
         } else if (channelId) {
-          const dashRes = await fetchDashboardData(channelId);
+          const response = await fetchDashboardData(channelId);
+          const dashRes = response?.data || response;
+          
           if (dashRes.user?.is_blacklisted) {
             handleBlacklist();
             return;

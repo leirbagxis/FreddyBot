@@ -2,12 +2,10 @@ package repositories
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"time"
 
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserRepository struct {
@@ -19,106 +17,70 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 }
 
 func (r *UserRepository) UpsertUser(ctx context.Context, user *models.User) error {
-	var existing models.User
-	err := r.db.WithContext(ctx).First(&existing, "user_id = ?", user.UserId).Error
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"first_name", "username", "updated_at"}),
+	}).Create(user).Error
+}
 
-	if err != nil && err != gorm.ErrRecordNotFound {
-		return err
+func (r *UserRepository) GetAllUsersPaginated(ctx context.Context, limit, offset int) ([]models.User, int64, error) {
+	var users []models.User
+	var total int64
+
+	db := r.db.WithContext(ctx).Model(&models.User{})
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	now := time.Now()
-
-	if err == gorm.ErrRecordNotFound {
-		user.CreatedAt = now
-		user.UpdatedAt = now
-		return r.db.WithContext(ctx).Create(user).Error
+	if err := db.Limit(limit).Offset(offset).Order("created_at DESC").Find(&users).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return r.db.WithContext(ctx).Model(&existing).Updates(map[string]interface{}{
-		"first_name": user.FirstName,
-		"updated_at": now,
-	}).Error
+	return users, total, nil
+}
+
+func (r *UserRepository) GetAllUsers(ctx context.Context) ([]models.User, error) {
+	var users []models.User
+	err := r.db.WithContext(ctx).Order("created_at DESC").Find(&users).Error
+	return users, err
+}
+
+func (r *UserRepository) GetAllUsersWithChannels(ctx context.Context) ([]models.User, error) {
+	var users []models.User
+	err := r.db.WithContext(ctx).Preload("Channels").Order("created_at DESC").Find(&users).Error
+	return users, err
 }
 
 func (r *UserRepository) GetUserById(ctx context.Context, userID int64) (*models.User, error) {
 	var user models.User
-	err := r.db.WithContext(ctx).First(&user, "user_id = ? ", userID).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
+	err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error
+	return &user, err
 }
 
 func (r *UserRepository) GetUserByUsername(ctx context.Context, username string) (*models.User, error) {
 	var user models.User
-	err := r.db.WithContext(ctx).First(&user, "username = ? ", username).Error
-	if err != nil {
-		return nil, err
-	}
-
-	return &user, nil
-}
-
-func (r *UserRepository) GetAllUSers(ctx context.Context) ([]models.User, error) {
-	var users []models.User
-	if err := r.db.WithContext(ctx).Find(&users).Order("updated_at ASC").Error; err != nil {
-		return nil, err
-	}
-
-	return users, nil
+	err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
+	return &user, err
 }
 
 func (r *UserRepository) UpdateUserAdmin(ctx context.Context, userID int64) (bool, error) {
 	var user models.User
-
-	err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		First(&user).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, errors.New("usuário não encontrado")
-		}
-		return false, fmt.Errorf("erro ao buscar usuário: %w", err)
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error; err != nil {
+		return false, err
 	}
 
 	newValue := !user.IsAdmin
-
-	err = r.db.WithContext(ctx).
-		Model(&user).
-		Updates(map[string]any{
-			"is_admin": newValue,
-		}).Error
-	if err != nil {
-		return false, fmt.Errorf("erro ao atualizar status de admin do usuário: %w", err)
-	}
-
-	return newValue, nil
+	err := r.db.WithContext(ctx).Model(&user).Update("is_admin", newValue).Error
+	return newValue, err
 }
 
 func (r *UserRepository) UpdateUserBlacklist(ctx context.Context, userID int64) (bool, error) {
 	var user models.User
-
-	err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		First(&user).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return false, errors.New("usuário não encontrado")
-		}
-		return false, fmt.Errorf("erro ao buscar usuário: %w", err)
+	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error; err != nil {
+		return false, err
 	}
 
 	newValue := !user.IsBlacklisted
-
-	err = r.db.WithContext(ctx).
-		Model(&user).
-		Updates(map[string]any{
-			"is_blacklisted": newValue,
-		}).Error
-	if err != nil {
-		return false, fmt.Errorf("erro ao atualizar status de blacklist do usuário: %w", err)
-	}
-
-	return newValue, nil
+	err := r.db.WithContext(ctx).Model(&user).Update("is_blacklisted", newValue).Error
+	return newValue, err
 }

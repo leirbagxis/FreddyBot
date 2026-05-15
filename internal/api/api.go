@@ -43,6 +43,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
 	}
 
 	// 1. Arquivos estáticos PRECISAM vir antes das rotas dinâmicas
+	router.Static("/assets", "./dashboard/dist/assets")
 	router.Static("/dashboard/assets", "./dashboard/dist/assets")
 	router.StaticFile("/dashboard/favicon.svg", "./dashboard/dist/favicon.svg")
 	router.StaticFile("/dashboard/icons.svg", "./dashboard/dist/icons.svg")
@@ -53,9 +54,11 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
 	dashboardHandler := func(c *gin.Context) {
 		// Proteção contra caminhos curtos para evitar panic no slice
 		path := c.Request.URL.Path
-		const assetsPrefix = "/dashboard/assets/"
-
-		if len(path) >= len(assetsPrefix) && path[:len(assetsPrefix)] == assetsPrefix {
+		
+		// Se for um asset que não foi encontrado pelo Static handler, retornamos 404 real
+		// em vez de servir o index.html (evita loops e erros de parsing no navegador)
+		if (len(path) >= 8 && path[:8] == "/assets/") || 
+		   (len(path) >= 18 && path[:18] == "/dashboard/assets/") {
 			c.AbortWithStatus(http.StatusNotFound)
 			return
 		}

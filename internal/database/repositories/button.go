@@ -2,11 +2,8 @@ package repositories
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
-	"github.com/leirbagxis/FreddyBot/pkg/parser"
 	"gorm.io/gorm"
 )
 
@@ -15,71 +12,54 @@ type ButtonRepository struct {
 }
 
 func NewButtonRepository(db *gorm.DB) *ButtonRepository {
-	return &ButtonRepository{
-		db: db,
-	}
-}
-
-func (r *ButtonRepository) GetUserChannelsAsButtons(ctx context.Context, userID int64) ([][]parser.Button, error) {
-	var channels []models.Channel
-	err := r.db.WithContext(ctx).Where("owner_id = ?", userID).Find(&channels).Error
-	if err != nil || len(channels) == 0 {
-		return nil, err
-	}
-
-	var buttons [][]parser.Button
-	for _, channel := range channels {
-		row := []parser.Button{
-			{
-				Text:         channel.Title,
-				CallbackData: fmt.Sprintf("config:%d", channel.ID),
-			},
-		}
-		buttons = append(buttons, row)
-	}
-
-	return buttons, nil
-
+	return &ButtonRepository{db: db}
 }
 
 func (r *ButtonRepository) CreateButton(ctx context.Context, button *models.Button) error {
-	if button == nil {
-		return fmt.Errorf("botão não pode ser nil")
-	}
-
-	err := r.db.WithContext(ctx).Create(button).Error
-	if err != nil {
-		return fmt.Errorf("erro ao criar botão: %w", err)
-	}
-
-	return nil
+	return r.db.WithContext(ctx).Create(button).Error
 }
 
-// func (r *ButtonRepository) GetFirstButton(ctx context.Context, channelID int64) (*models.Button, error) {
-// 	var button models.Button
-// 	err := r.db.WithContext(ctx).Where("owner_channel_id = ?", channelID).FirstOrCreate(&button).Error
-// 	if err != nil {
-// 		return nil, err
-// 	}
+func (r *ButtonRepository) UpdateButton(ctx context.Context, channelID int64, buttonID, name, url string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&models.Button{}).
+		Where("button_id = ? AND owner_channel_id = ?", buttonID, channelID).
+		Updates(map[string]interface{}{
+			"name_button": name,
+			"button_url":  url,
+		})
+	return result.RowsAffected, result.Error
+}
 
-// 	return &button, nil
-// }
+func (r *ButtonRepository) DeleteButton(ctx context.Context, channelID int64, buttonID string) (int64, error) {
+	result := r.db.WithContext(ctx).
+		Where("button_id = ? AND owner_channel_id = ?", buttonID, channelID).
+		Delete(&models.Button{})
+	return result.RowsAffected, result.Error
+}
 
-// Função para buscar o primeiro botão (mais antigo) de um canal
-func (r *ButtonRepository) GetFirstButton(ctx context.Context, channelID int64) (*models.Button, error) {
-	var button models.Button
-
-	err := r.db.WithContext(ctx).
-		Where("owner_channel_id = ?", channelID).
-		Order("created_at ASC"). // Ordenar por data de criação (mais antigo primeiro)
-		First(&button).Error
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, fmt.Errorf("nenhum botão encontrado para o canal %d", channelID)
+func (r *ButtonRepository) UpdateButtonsLayout(ctx context.Context, channelID int64, buttons []struct {
+	ID string
+	X  int
+	Y  int
+}, reactionPosition int) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		for _, b := range buttons {
+			if err := tx.Model(&models.Button{}).
+				Where("button_id = ? AND owner_channel_id = ?", b.ID, channelID).
+				Updates(map[string]interface{}{
+					"position_x": b.X,
+					"position_y": b.Y,
+				}).Error; err != nil {
+				return err
+			}
 		}
-		return nil, fmt.Errorf("erro ao buscar primeiro botão: %w", err)
-	}
+		return nil
+	})
+}
 
-	return &button, nil
+func (r *ButtonRepository) IsRowOccupiedByButtons(ctx context.Context, channelID int64, y int) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&models.Button{}).
+		Where("owner_channel_id = ? AND position_y = ?", channelID, y).
+		Count(&count).Error
+	return count > 0, err
 }

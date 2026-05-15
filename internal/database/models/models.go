@@ -13,12 +13,12 @@ type ServerConfig struct {
 type User struct {
 	UserId        int64     `gorm:"primaryKey" json:"id"` // ID do Telegram
 	FirstName     string    `json:"first_name"`
-	Username      string    `json:"username"`
+	Username      string    `gorm:"index" json:"username"`
 	IsAdmin       bool      `gorm:"default:false" json:"is_admin"`
 	IsBlacklisted bool      `gorm:"default:false" json:"is_blacklisted"`
 	IsContribute  bool      `gorm:"default:false" json:"isContribute"`
 	Channels      []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
-	CreatedAt     time.Time `gorm:"autoCreateTime" json:"created_at"`
+	CreatedAt     time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
@@ -27,25 +27,25 @@ type Channel struct {
 	Title            string          `json:"title"`
 	NewPackCaption   string          `json:"newPackCaption"`
 	InviteURL        string          `json:"inviteUrl"`
-	OwnerID          int64           `json:"ownerId"`
+	OwnerID          int64           `gorm:"index" json:"ownerId"`
 	Owner            *User           `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
-	DefaultCaption   *DefaultCaption `gorm:"foreignKey:OwnerChannelID" json:"defaultCaption,omitempty"`
-	Buttons          []Button        `gorm:"foreignKey:OwnerChannelID" json:"buttons"`
-	Separator        *Separator      `gorm:"foreignKey:OwnerChannelID" json:"separator,omitempty"`
-	CustomCaptions   []CustomCaption `gorm:"foreignKey:OwnerChannelID" json:"customCaptions"`
+	DefaultCaption   *DefaultCaption `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"defaultCaption,omitempty"`
+	Buttons          []Button        `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"buttons"`
+	Separator        *Separator      `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"separator,omitempty"`
+	CustomCaptions   []CustomCaption `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"customCaptions"`
 	TokenVersion     int64           `gorm:"not null;default:1"`
 	Reactions        string          `json:"reactions"`
 	ReactionPosition int             `gorm:"default:0" json:"reactionPosition"`
 	CreatedAt        time.Time       `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt        time.Time       `gorm:"autoUpdateTime" json:"updated_at"`
+	UpdatedAt        time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
 }
 
 type DefaultCaption struct {
 	CaptionID         string             `gorm:"type:text;primaryKey" json:"captionId"`
 	Caption           string             `json:"caption"`
-	MessagePermission *MessagePermission `gorm:"foreignKey:OwnerCaptionID" json:"messagePermission,omitempty"`
-	ButtonsPermission *ButtonsPermission `gorm:"foreignKey:OwnerCaptionID" json:"buttonsPermission,omitempty"`
-	OwnerChannelID    int64              `gorm:"unique" json:"ownerChannelId"`
+	MessagePermission *MessagePermission `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"messagePermission,omitempty"`
+	ButtonsPermission *ButtonsPermission `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"buttonsPermission,omitempty"`
+	OwnerChannelID    int64              `gorm:"unique;index" json:"ownerChannelId"`
 	CreatedAt         time.Time          `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt         time.Time          `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -61,7 +61,7 @@ type MessagePermission struct {
 	Sticker             bool      `gorm:"default:true" json:"sticker"`
 	GIF                 bool      `gorm:"default:true" json:"gif"`
 	Reactions           bool      `gorm:"default:true" json:"reactions"`
-	OwnerCaptionID      string    `gorm:"unique" json:"ownerCaptionId"`
+	OwnerCaptionID      string    `gorm:"unique;index" json:"ownerCaptionId"`
 	CreatedAt           time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -75,7 +75,7 @@ type ButtonsPermission struct {
 	Document            bool      `gorm:"default:true" json:"document"`
 	Sticker             bool      `gorm:"default:true" json:"sticker"`
 	GIF                 bool      `gorm:"default:true" json:"gif"`
-	OwnerCaptionID      string    `gorm:"unique" json:"ownerCaptionId"`
+	OwnerCaptionID      string    `gorm:"unique;index" json:"ownerCaptionId"`
 	CreatedAt           time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt           time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -84,9 +84,9 @@ type Button struct {
 	ButtonID       string    `gorm:"type:text;primaryKey" json:"buttonId"`
 	NameButton     string    `json:"nameButton"`
 	ButtonURL      string    `json:"buttonUrl"`
-	PositionX      int       `gorm:"default:0" json:"positionX"`
-	PositionY      int       `gorm:"default:0" json:"positionY"`
-	OwnerChannelID int64     `json:"ownerChannelId"`
+	PositionX      int       `gorm:"default:0;index:idx_button_pos" json:"positionX"`
+	PositionY      int       `gorm:"default:0;index:idx_button_pos" json:"positionY"`
+	OwnerChannelID int64     `gorm:"index" json:"ownerChannelId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -95,18 +95,18 @@ type Separator struct {
 	ID             string    `gorm:"type:text;primaryKey" json:"id"`
 	SeparatorID    string    `json:"separatorId"`
 	SeparatorURL   string    `json:"separatorUrl"`
-	OwnerChannelID int64     `gorm:"unique" json:"ownerChannelId"`
+	OwnerChannelID int64     `gorm:"unique;index" json:"ownerChannelId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type CustomCaption struct {
 	CaptionID      string                `gorm:"type:text;primaryKey" json:"captionId"`
-	Code           string                `json:"code"`
+	Code           string                `gorm:"index:idx_hashtag_lookup" json:"code"`
 	Caption        string                `json:"caption"`
 	LinkPreview    bool                  `json:"linkPreview"`
-	Buttons        []CustomCaptionButton `gorm:"foreignKey:OwnerCaptionID" json:"buttons"`
-	OwnerChannelID int64                 `json:"ownerChannelId"`
+	Buttons        []CustomCaptionButton `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"buttons"`
+	OwnerChannelID int64                 `gorm:"index;index:idx_hashtag_lookup" json:"ownerChannelId"`
 	CreatedAt      time.Time             `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time             `gorm:"autoUpdateTime" json:"updated_at"`
 }
@@ -117,20 +117,17 @@ type CustomCaptionButton struct {
 	ButtonURL      string    `json:"buttonUrl"`
 	PositionX      int       `gorm:"default:0" json:"positionX"`
 	PositionY      int       `gorm:"default:0" json:"positionY"`
-	OwnerCaptionID string    `json:"ownerCaptionId"`
+	OwnerCaptionID string    `gorm:"index" json:"ownerCaptionId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type Vote struct {
-	ID        uint   `gorm:"primaryKey" json:"id"`
-	ChatID    int64  `gorm:"index:idx_vote_user,unique" json:"chat_id"`
-	MessageID int    `gorm:"index:idx_vote_user,unique" json:"message_id"`
-	UserID    int64  `gorm:"index:idx_vote_user,unique" json:"user_id"`
-	Emoji     string `gorm:"index:idx_vote_user,unique" json:"emoji"`
-	CreatedAt time.Time
-}
-
-func (User) TableName() string {
-	return "users"
+	ID              uint   `gorm:"primaryKey" json:"id"`
+	ChatID          int64  `gorm:"index:idx_vote_user,unique;index:idx_vote_count" json:"chat_id"`
+	MessageID       int    `gorm:"index:idx_vote_user,unique;index:idx_vote_count" json:"message_id"`
+	InlineMessageID string `gorm:"index:idx_vote_user,unique;index:idx_vote_count" json:"inline_message_id"`
+	UserID          int64  `gorm:"index:idx_vote_user,unique" json:"user_id"`
+	Emoji           string `gorm:"index:idx_vote_count" json:"emoji"`
+	CreatedAt       time.Time
 }

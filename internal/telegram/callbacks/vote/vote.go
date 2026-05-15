@@ -25,18 +25,27 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		// Extrair o emoji do callback data
 		votedEmoji := strings.TrimPrefix(data, "vote:")
 
-		msg := update.CallbackQuery.Message
-		if msg.Message == nil {
-			logger.Warn("VOTE", "Recebido callback de voto sem mensagem ou mensagem inacessível: %v", update.CallbackQuery.ID)
-			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "Erro: Mensagem não encontrada.",
-			})
+		var chatID int64
+		var messageID int
+		var inlineMessageID string
+		var replyMarkup *models.InlineKeyboardMarkup
+
+		if update.CallbackQuery.Message.Message != nil {
+			msg := update.CallbackQuery.Message.Message
+			chatID = msg.Chat.ID
+			messageID = msg.ID
+			replyMarkup = msg.ReplyMarkup
+		} else {
+			inlineMessageID = update.CallbackQuery.InlineMessageID
+		}
+
+		if chatID == 0 && messageID == 0 && inlineMessageID == "" {
+			logger.Warn("VOTE", "Recebido callback de voto sem identificador de mensagem: %v", update.CallbackQuery.ID)
 			return
 		}
 
 		// 1. Registrar/Alternar voto no banco de dados
-		added, _, err := c.VoteRepo.ToggleVote(ctx, msg.Message.Chat.ID, msg.Message.ID, update.CallbackQuery.From.ID, votedEmoji)
+		added, _, err := c.VoteService.ToggleVote(ctx, chatID, messageID, inlineMessageID, update.CallbackQuery.From.ID, votedEmoji)
 		if err != nil {
 			logger.Error("VOTE", "Erro ao processar voto no banco: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -57,20 +66,72 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		})
 
 		// 2. Buscar contagens atualizadas para todos os emojis desta mensagem
-		counts, err := c.VoteRepo.GetVoteCounts(ctx, msg.Message.Chat.ID, msg.Message.ID)
+		counts, err := c.VoteService.GetVoteCounts(ctx, chatID, messageID, inlineMessageID)
 		if err != nil {
 			logger.Error("VOTE", "Erro ao buscar contagens: %v", err)
 			return
 		}
 
-		ikb := msg.Message.ReplyMarkup
+		// Se for mensagem normal, usamos o ReplyMarkup que veio nela.
+		// Se for inline, tentamos recuperar o sessionID mapeado para reconstruir o teclado.
+		ikb := replyMarkup
+		updated := false
+
+		if ikb == nil && inlineMessageID != "" {
+			var sessionID string
+			key := fmt.Sprintf("pb_inline_map:%s", inlineMessageID)
+			err := c.CacheService.Get(ctx, key, &sessionID)
+			if err != nil || sessionID == "" {
+				logger.Warn("VOTE", "❌ Mapeamento inline não encontrado no Redis. Chave: %s, Erro: %v", key, err)
+			} else {
+				state, _ := c.CacheService.GetPostBuilderSession(ctx, sessionID)
+				if state != nil {
+					ikb = &models.InlineKeyboardMarkup{}
+					// Botões de URL
+					for _, btn := range state.Buttons {
+						ikb.InlineKeyboard = append(ikb.InlineKeyboard, []models.InlineKeyboardButton{
+							{Text: btn.Text, URL: btn.URL},
+						})
+					}
+					// Reações (já reconstrói com a contagem atual)
+					if state.Reactions != "" {
+						reactions := strings.Split(state.Reactions, ",")
+						var reactionRow []models.InlineKeyboardButton
+						for _, r := range reactions {
+							emoji := strings.TrimSpace(r)
+							if emoji == "" {
+								continue
+							}
+
+							count := counts[emoji]
+							text := emoji
+							if count > 0 {
+								text = fmt.Sprintf("%s %d", emoji, count)
+							}
+
+							reactionRow = append(reactionRow, models.InlineKeyboardButton{
+								Text:         text,
+								CallbackData: "vote:" + emoji,
+							})
+						}
+						if len(reactionRow) > 0 {
+							ikb.InlineKeyboard = append(ikb.InlineKeyboard, reactionRow)
+						}
+					}
+					logger.Bot("✅ Teclado inline reconstruído para sessão %s", sessionID)
+					updated = true // Força atualização pois o teclado original do Telegram não tem contagem
+				}
+			}
+		}
+
 		if ikb == nil {
-			logger.Warn("VOTE", "Mensagem sem teclado inline: %d", msg.Message.ID)
+			if inlineMessageID == "" {
+				logger.Warn("VOTE", "Mensagem sem teclado inline: %d", messageID)
+			}
 			return
 		}
 
-		// 3. Atualizar todos os botões de voto com as contagens reais do banco
-		updated := false
+		// Atualizar o teclado (seja o original ou o reconstruído)
 		for i, row := range ikb.InlineKeyboard {
 			for j, btn := range row {
 				if strings.HasPrefix(btn.CallbackData, "vote:") {
@@ -93,19 +154,25 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		if updated {
-			// Editar a mensagem original com o teclado atualizado
-			_, err := b.EditMessageReplyMarkup(ctx, &bot.EditMessageReplyMarkupParams{
-				ChatID:      msg.Message.Chat.ID,
-				MessageID:   msg.Message.ID,
+			editParams := &bot.EditMessageReplyMarkupParams{
 				ReplyMarkup: ikb,
-			})
+			}
+			if inlineMessageID != "" {
+				editParams.InlineMessageID = inlineMessageID
+			} else {
+				editParams.ChatID = chatID
+				editParams.MessageID = messageID
+			}
+
+			_, err := b.EditMessageReplyMarkup(ctx, editParams)
 			if err != nil {
-				// Ignorar erro "message is not modified" que pode ocorrer em condições de corrida
-				if !strings.Contains(err.Error(), "message is not modified") {
+				errStr := err.Error()
+				isNotModified := strings.Contains(errStr, "message is not modified")
+				isUnmarshalBool := strings.Contains(errStr, "cannot unmarshal bool")
+
+				if !isNotModified && !isUnmarshalBool {
 					logger.Error("VOTE", "Erro ao editar teclado: %v", err)
 				}
-			} else {
-				logger.Bot("Voto atualizado para %s na mensagem %d (Chat: %d)", votedEmoji, msg.Message.ID, msg.Message.Chat.ID)
 			}
 		}
 	}

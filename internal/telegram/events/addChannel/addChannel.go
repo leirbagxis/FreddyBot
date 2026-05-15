@@ -9,6 +9,7 @@ import (
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -32,7 +33,7 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		getChannel, _ := c.ChannelRepo.GetChannelByID(ctx, chat.ID)
+		getChannel, _ := c.ChannelService.GetChannelByID(ctx, chat.ID)
 
 		data := map[string]string{
 			"channelName": utils.RemoveHTMLTags(chat.Title),
@@ -69,6 +70,39 @@ func AskAddChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	}
 }
 
+func UpdateChannelInfoHandler(c *container.AppContainer) bot.HandlerFunc {
+	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.MyChatMember == nil {
+			return
+		}
+
+		chat := update.MyChatMember.Chat
+		// Só nos interessam canais
+		if chat.Type != models.ChatTypeChannel {
+			return
+		}
+
+		// Se o bot foi removido ou algo do tipo, o handler de Adicionar já cuida ou o bot ignora.
+		// Aqui focamos apenas em atualizações de dados.
+		channel, _ := c.ChannelService.GetChannelWithRelations(ctx, chat.ID)
+		if channel == nil {
+			return
+		}
+
+		updatedChannel, hasChanges := channelpost.UpdateChannelBasicInfo(ctx, b, chat.ID, channel, &chat)
+
+		if hasChanges {
+			if err := c.ChannelService.UpdateChannelBasicInfoAndFirstButton(ctx, updatedChannel); err != nil {
+				logger.Error("BOT", "❌ Erro ao atualizar info via MyChatMember no canal %d: %v", chat.ID, err)
+			} else {
+				logger.Bot("✅ Canal %d: Dados atualizados via evento MyChatMember", chat.ID)
+				// Limpa o cache de debounce para não repetir a verificação no próximo post
+				_ = c.CacheService.SetLastChannelUpdate(ctx, chat.ID)
+			}
+		}
+	}
+}
+
 func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		defer func() {
@@ -83,7 +117,7 @@ func AskForwadedChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 		forwardedChannelID := update.Message.ForwardOrigin.MessageOriginChannel.Chat.ID
 		forwardedChannelTitle := update.Message.ForwardOrigin.MessageOriginChannel.Chat.Title
 
-		getChannel, _ := c.ChannelRepo.GetChannelByID(ctx, forwardedChannelID)
+		getChannel, _ := c.ChannelService.GetChannelByID(ctx, forwardedChannelID)
 
 		data := map[string]string{
 			"channelName": utils.RemoveHTMLTags(forwardedChannelTitle),
@@ -180,7 +214,7 @@ func AddYesHandler(c *container.AppContainer) bot.HandlerFunc {
 			"botUsername": botInfo.Username,
 		})
 
-		channel, err := c.ChannelRepo.CreateChannelWithDefaults(
+		channel, err := c.ChannelService.CreateChannelWithDefaults(
 			ctx,
 			getSession.ChannelID,
 			getSession.Title,

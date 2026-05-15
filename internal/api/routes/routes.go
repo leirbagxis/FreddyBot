@@ -6,10 +6,14 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/controllers"
 	admincontroller "github.com/leirbagxis/FreddyBot/internal/api/controllers/adminController"
 	"github.com/leirbagxis/FreddyBot/internal/api/handlers"
+	"github.com/leirbagxis/FreddyBot/internal/api/middleware"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 )
 
 func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
+	r.Use(gin.Recovery())
+	r.Use(middleware.ErrorHandler())
+
 	api := r.Group("/api")
 
 	// Controladores
@@ -18,7 +22,6 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	ButtonsController := controllers.NewButtonsController(c)
 	permissionsController := controllers.NewPermissionController(c)
 	customCaptionController := controllers.NewCustomCaptionController(c)
-	separatorController := controllers.NewSeparatorController(c)
 	userController := controllers.NewUserController(c)
 	channelController := controllers.NewChannelController(c)
 	getALlUsers := admincontroller.NewUsersAdminController(c)
@@ -39,7 +42,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		channelRoutes := api.Group("/channel/:channelId")
 		channelRoutes.Use(auth.AuthorizeChannel(c))
 		{
-			channelRoutes.GET("", handlers.GetChannelHandler(c))
+			channelRoutes.GET("", channelController.GetChannelByIDController)
 			channelRoutes.DELETE("", channelController.DisconectChannel)
 			channelRoutes.PUT("/caption", captionController.UpdateDefaultCaptionController)
 			channelRoutes.PUT("/newpackcaption", captionController.UpdateNewPackCaptionController)
@@ -62,7 +65,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 			channelRoutes.DELETE("/custom-captions/:captionId", customCaptionController.DeleteCustomCaptionController)
 			channelRoutes.DELETE("/custom-captions/:captionId/buttons/:buttonId", customCaptionController.DeleteCustomCaptionButtonController)
 
-			channelRoutes.GET("/separator/:separatorId", separatorController.GetSeparator)
+			channelRoutes.GET("/separator/:separatorId", channelController.GetSeparator)
 		}
 	}
 

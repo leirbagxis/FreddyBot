@@ -27,7 +27,7 @@ func AskDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -71,7 +71,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -82,7 +82,7 @@ func ConfirmDeleteChannelHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		err = c.DisconnectChannel(ctx, userId, session)
+		err = c.ChannelService.DisconnectChannel(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao excluir canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{

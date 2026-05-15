@@ -3,6 +3,8 @@ package channelpost
 import (
 	"sync"
 	"time"
+
+	"github.com/go-telegram/bot/models"
 )
 
 type MessageType string
@@ -16,6 +18,42 @@ const (
 	MessageTypeAnimation MessageType = "animation"
 	MessageTypeDocument  MessageType = "document"
 )
+
+var (
+	globalPermissionManager *PermissionManager
+	globalMediaGroupManager *MediaGroupManager
+	onceManagers            sync.Once
+
+	removeHashRegexCache = sync.Map{}
+	customCaptionCache   = sync.Map{}
+)
+
+func getManagers() (*PermissionManager, *MediaGroupManager) {
+	onceManagers.Do(func() {
+		globalPermissionManager = NewPermissionManager()
+		globalMediaGroupManager = NewMediaGroupManager()
+	})
+	return globalPermissionManager, globalMediaGroupManager
+}
+
+func GetPermissionManager() *PermissionManager {
+	pm, _ := getManagers()
+	return pm
+}
+
+func GetMediaGroupManager() *MediaGroupManager {
+	_, mgm := getManagers()
+	return mgm
+}
+
+type PermissionCheckResult struct {
+	CanEdit           bool
+	CanAddButtons     bool
+	CanEditButtons    bool
+	CanUseLinkPreview bool
+	CanAddReactions   bool
+	Reason            string
+}
 
 var PermissionMap = map[MessageType]string{
 	MessageTypeText:      "message",
@@ -35,13 +73,12 @@ const (
 	CacheTTL          = 5 * time.Minute
 )
 
-// ✅ Estruturas thread-safe
-type MediaGroupInfo struct {
+type MediaGroup struct {
 	Messages           []MediaMessage
 	Processed          bool
-	MessageEditAllowed bool
-	FirstMessageID     int // ✅ NOVO CAMPO
 	Timer              *time.Timer
+	MessageEditAllowed bool
+	ChatID             int64
 	mu                 sync.Mutex
 }
 
@@ -50,7 +87,7 @@ type MediaMessage struct {
 	FileID          string
 	HasCaption      bool
 	Caption         string
-	CaptionEntities []interface{}
+	CaptionEntities []models.MessageEntity
 }
 
 type ProcessedGroup struct {
@@ -59,7 +96,7 @@ type ProcessedGroup struct {
 
 // ✅ Manager thread-safe para media groups
 type MediaGroupManager struct {
-	groups          sync.Map // string -> *MediaGroupInfo
+	groups          sync.Map // string -> *MediaGroup
 	processedGroups sync.Map // string -> ProcessedGroup
 	newPackChannels sync.Map // int64 -> bool
 }
@@ -88,14 +125,14 @@ func (mgm *MediaGroupManager) cleanupRoutine() {
 	}
 }
 
-func (mgm *MediaGroupManager) GetMediaGroup(groupID string) (*MediaGroupInfo, bool) {
+func (mgm *MediaGroupManager) GetMediaGroup(groupID string) (*MediaGroup, bool) {
 	if value, ok := mgm.groups.Load(groupID); ok {
-		return value.(*MediaGroupInfo), true
+		return value.(*MediaGroup), true
 	}
 	return nil, false
 }
 
-func (mgm *MediaGroupManager) SetMediaGroup(groupID string, group *MediaGroupInfo) {
+func (mgm *MediaGroupManager) SetMediaGroup(groupID string, group *MediaGroup) {
 	mgm.groups.Store(groupID, group)
 }
 

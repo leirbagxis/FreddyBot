@@ -61,7 +61,8 @@ export const fetchUserChannels = async (): Promise<ChannelsResponse> => {
 };
 
 export const fetchAdminDashboard = async (): Promise<AdminDashboardData> => {
-    const data = await apiFetch(`/api/admin/overview`);
+    const response = await apiFetch(`/api/admin/overview`);
+    const data = response?.data || {};
     return { 
         success: true, // Assuming success if apiFetch didn't throw
         users: data.users || [], 

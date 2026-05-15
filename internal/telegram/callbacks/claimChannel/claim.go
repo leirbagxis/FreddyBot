@@ -47,7 +47,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Consulta no banco — pode já existir ou não
-		channel, _ := c.ChannelRepo.GetChannelByID(ctx, channelID)
+		channel, _ := c.ChannelService.GetChannelByID(ctx, channelID)
 
 		// Verifica se o usuário é o criador do canal no Telegram
 		admins, err := b.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
@@ -74,7 +74,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 
 		// Criador confirmado. Agora preparamos a mensagem de controle.
 
-		ownerUser, err := c.UserRepo.GetUserById(ctx, channel.OwnerID)
+		ownerUser, err := c.UserService.GetUserByID(ctx, channel.OwnerID)
 		if err != nil {
 			article := buildErrorArticle(from.ID, "user_error", "❌ Erro ao buscar proprietário", "Erro ao buscar usuário proprietário.")
 			answerInline(ctx, b, update, []models.InlineQueryResult{article})
@@ -135,7 +135,7 @@ func AcceptClaimHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByID(ctx, getSession.ChannelID)
+		channel, err := c.ChannelService.GetChannelByID(ctx, getSession.ChannelID)
 		if err != nil {
 			logger.Error("BOT", "Erro ao obter info do canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -148,7 +148,7 @@ func AcceptClaimHandler(c *container.AppContainer) bot.HandlerFunc {
 
 		c.SessionManager.DeleteChannelSession(ctx, parts[1])
 
-		err = c.ChannelRepo.UpdateOwnerChannel(ctx, getSession.ChannelID, getSession.OwnerID, getSession.NewOwnerID)
+		err = c.ChannelService.UpdateOwnerChannel(ctx, getSession.ChannelID, getSession.OwnerID, getSession.NewOwnerID)
 		if err != nil {
 			logger.Error("BOT", "Erro ao transferir posse do canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{

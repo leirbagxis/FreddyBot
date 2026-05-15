@@ -4,7 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Otimização de Performance Extrema**:
+  - **Cache de Duas Camadas (L1/L2)**: Implementado cache em memória local (RAM via `go-cache`) atuando antes do Redis (L2). Reduz o tempo de leitura de configurações de canais para microssegundos.
+  - **Índices GORM Estratégicos**: Adicionados índices em campos críticos como `username`, `created_at`, `updated_at` e um índice composto em `position_x/y` para botões, acelerando buscas e ordenações tanto em SQLite quanto em PostgreSQL.
+- **Tratamento Global de Erros**: Novo middleware centralizado para captura e padronização de erros da API, garantindo respostas consistentes ao frontend.
+- **Camada DTO (Data Transfer Objects)**: Proteção completa dos modelos de banco de dados (`GORM structs`) através do uso de DTOs em todas as rotas da API, prevenindo o vazamento de campos internos.
+
 ### Fixed
+- **Correção de Panic Crítico (Nil Pointer)**: Resolvido erro de desreferenciamento de ponteiro nulo no `ToUserDTO` ao acessar o Dashboard. Adicionadas checagens de segurança robustas no mapeamento de dados.
+- **Garantia de Hidratação (Owner Relation)**: Corrigida a estratégia de carregamento (`Preload`) do Owner no repositório de canais, assegurando que os dados do proprietário estejam sempre disponíveis para a API.
 - **Correção de Sobreposição (Botões/Reações)**: Implementada lógica de cura automática para evitar que botões e reações ocupem a mesma linha.
   - O Dashboard agora detecta e resolve conflitos de posição no carregamento dos dados.
   - O bot agora valida dinamicamente a posição das reações ao gerar teclados inline, garantindo visibilidade mesmo em dados legados.
@@ -32,6 +41,8 @@ All notable changes to this project will be documented in this file.
   - Implementado Graceful Shutdown para desligamento seguro da API e conexões Redis.
 
 ### Changed
+- **Limpeza do Legado V1 (Motor V2 Puro)**: A estrutura legada `MessageProcessor` foi eliminada. Toda a sua lógica de despacho, formatação e metadados foi convertida em funções independentes e integradas nativamente aos estágios do Pipeline V2, tornando a arquitetura 100% modular.
+- **Segurança (.gitignore)**: Atualização massiva das regras de ignorância para proteger arquivos sensíveis (`.env`), bancos de dados temporários e diretórios de ferramentas de automação.
 - **Workflows do Makefile**:
   - `make build`: Agora realiza o build completo (UI + Servidor) e **executa o binário** automaticamente.
   - `make dev`: Agora realiza o build da UI e **executa o bot via `go run`**, facilitando o desenvolvimento do backend.

@@ -2,6 +2,7 @@ package mychannel
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
@@ -14,8 +15,8 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
 		userID := update.CallbackQuery.From.ID
 
-		channelsButtons, err := c.ButtonRepo.GetUserChannelsAsButtons(ctx, userID)
-		if err != nil || len(channelsButtons) == 0 {
+		channels, err := c.ChannelService.GetUserChannels(ctx, userID)
+		if err != nil || len(channels) == 0 {
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "❌ Você ainda não possui nenhum canal vinculado.",
@@ -29,8 +30,13 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		var finalButtons [][]parser.Button
 
 		// Adiciona os botões dinâmicos
-		for _, row := range channelsButtons {
-			finalButtons = append(finalButtons, row)
+		for _, channel := range channels {
+			finalButtons = append(finalButtons, []parser.Button{
+				{
+					Text:         channel.Title,
+					CallbackData: fmt.Sprintf("config:%d", channel.ID),
+				},
+			})
 		}
 
 		if homeButtons != nil {

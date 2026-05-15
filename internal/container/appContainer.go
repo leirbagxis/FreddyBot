@@ -7,8 +7,8 @@ import (
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
+	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
-	adminrepositories "github.com/leirbagxis/FreddyBot/internal/database/repositories/adminRepositories"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
@@ -32,42 +32,54 @@ type AppContainer struct {
 
 	BroadcastQueue chan BroadcastJob
 
-	ServerRepo *repositories.ServerConfig
-
-	UserRepo      *repositories.UserRepository
-	ChannelRepo   *repositories.ChannelRepository
-	ButtonRepo    *repositories.ButtonRepository
-	SeparatorRepo *repositories.SeparatorRepository
-	VoteRepo      *repositories.VoteRepository
+	// ## SERVICES ## \\
+	UserService          *services.UserService
+	ChannelService       *services.ChannelService
+	ButtonService        *services.ButtonService
+	CaptionService       *services.CaptionService
+	PermissionsService   *services.PermissionsService
+	CustomCaptionService *services.CustomCaptionService
+	SeparatorService     *services.SeparatorService
+	VoteService          *services.VoteService
+	ServerService        *services.ServerService
 
 	// ## CACHE ## \\
 	CacheService   *cache.Service
 	SessionManager *cache.SessionManager
-
-	// ### ADMIN ### \\
-	AdminService *adminrepositories.AdminRepositories
 }
 
 func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
 	cacheService := cache.NewService()
+
+	// Repositories (Removed cache from repositories)
+	userRepo := repositories.NewUserRepository(db)
+	channelRepo := repositories.NewChannelRepository(db)
+	buttonRepo := repositories.NewButtonRepository(db)
+	separatorRepo := repositories.NewSeparatorRepository(db)
+	voteRepo := repositories.NewVoteRepository(db)
+	customCaptionRepo := repositories.NewCustomCaptionRepository(db)
+	permissionsRepo := repositories.NewPermissionsRepository(db)
+	serverRepo := repositories.NewServerConfigRepository(db)
+
 	container := &AppContainer{
 		DB:  db,
 		Bot: bot,
 
-		ServerRepo: repositories.NewServerConfigRepository(db, cacheService),
-
 		BroadcastQueue: make(chan BroadcastJob, 10000),
 
-		UserRepo:      repositories.NewUserRepository(db),
-		ChannelRepo:   repositories.NewChannelRepository(db, cacheService),
-		ButtonRepo:    repositories.NewButtonRepository(db),
-		SeparatorRepo: repositories.NewSeparatorRepository(db),
-		VoteRepo:      repositories.NewVoteRepository(db),
+		// Services
+		UserService:          services.NewUserService(userRepo),
+		ChannelService:       services.NewChannelService(channelRepo, userRepo, separatorRepo, cacheService, bot),
+		ButtonService:        services.NewButtonService(buttonRepo, channelRepo, customCaptionRepo, cacheService),
+		CaptionService:       services.NewCaptionService(channelRepo, buttonRepo, cacheService),
+		PermissionsService:   services.NewPermissionsService(permissionsRepo, channelRepo, cacheService),
+		CustomCaptionService: services.NewCustomCaptionService(customCaptionRepo, channelRepo, cacheService),
+		SeparatorService:     services.NewSeparatorService(separatorRepo),
+		VoteService:          services.NewVoteService(voteRepo),
+		ServerService:        services.NewServerService(serverRepo),
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),
-
-		AdminService: adminrepositories.NewAdminRepositories(db),
 	}
 
 	container.startBroadcastWorkers(5)
@@ -136,31 +148,4 @@ func (c *AppContainer) broadcastWorker() {
 		// 🔥 Controle de rate limit global
 		time.Sleep(35 * time.Millisecond)
 	}
-}
-
-func (c *AppContainer) DisconnectChannel(ctx context.Context, userID int64, channelID int64) error {
-	// 1. Send farewell message to the channel
-	farewellMsg := "Ah, então é assim? Um clique e tudo o que vivemos vira fumaça. Não se preocupe, eu vou embora... mas saiba que meu silêncio será o seu maior arrependimento. Aproveite sua liberdade sem mim. Adeus, ingrato! 🍷"
-
-	// Tenta enviar a mensagem, mas não bloqueia se falhar (o bot pode já ter sido removido manualmente)
-	_, _ = c.Bot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID: channelID,
-		Text:   farewellMsg,
-	})
-
-	// 2. Leave the channel
-	_, _ = c.Bot.LeaveChat(ctx, &bot.LeaveChatParams{
-		ChatID: channelID,
-	})
-
-	// 3. Delete from DB
-	err := c.ChannelRepo.DeleteChannelWithRelations(ctx, userID, channelID)
-	if err != nil {
-		return err
-	}
-
-	// 4. Clean cache
-	c.CacheService.SetDeleteChannel(ctx, userID, channelID)
-
-	return nil
 }

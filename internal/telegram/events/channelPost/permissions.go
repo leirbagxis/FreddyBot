@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leirbagxis/FreddyBot/internal/database/models"
+	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
 // ✅ Cache thread-safe com sync.Map
@@ -44,7 +44,7 @@ func (pm *PermissionManager) cleanupRoutine() {
 	}
 }
 
-func (pm *PermissionManager) IsMessageEditAllowed(channel *models.Channel, messageType MessageType) bool {
+func (pm *PermissionManager) IsMessageEditAllowed(channel *dbmodels.Channel, messageType MessageType) bool {
 	key := fmt.Sprintf("%d_%s_message", channel.ID, messageType)
 	if cached := pm.getCached(key); cached != nil {
 		return *cached
@@ -80,7 +80,7 @@ func (pm *PermissionManager) IsMessageEditAllowed(channel *models.Channel, messa
 	return pm.setCached(key, isAllowed)
 }
 
-func (pm *PermissionManager) IsButtonsAllowed(channel *models.Channel, messageType MessageType) bool {
+func (pm *PermissionManager) IsButtonsAllowed(channel *dbmodels.Channel, messageType MessageType) bool {
 	key := fmt.Sprintf("%d_%s_buttons", channel.ID, messageType)
 	if cached := pm.getCached(key); cached != nil {
 		return *cached
@@ -152,4 +152,127 @@ func (pm *PermissionManager) GetCacheStats() map[string]interface{} {
 		"size": count,
 		"ttl":  pm.cacheTTL,
 	}
+}
+
+func (pm *PermissionManager) CheckPermissions(channel *dbmodels.Channel, messageType MessageType) *PermissionCheckResult {
+	result := &PermissionCheckResult{
+		CanEdit:           true,
+		CanAddButtons:     true,
+		CanEditButtons:    true,
+		CanUseLinkPreview: true,
+		CanAddReactions:   true,
+	}
+
+	if channel == nil {
+		result.CanEdit = false
+		result.Reason = "Canal não encontrado"
+		return result
+	}
+
+	if channel.DefaultCaption != nil && channel.DefaultCaption.MessagePermission != nil {
+		mpPerm := channel.DefaultCaption.MessagePermission
+		if messageType == MessageTypeText && !mpPerm.LinkPreview {
+			result.CanUseLinkPreview = false
+		}
+		if !mpPerm.Reactions {
+			result.CanAddReactions = false
+		}
+		switch messageType {
+		case MessageTypeText:
+			if !mpPerm.Message {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de texto desabilitada"
+			}
+		case MessageTypeAudio:
+			if !mpPerm.Audio {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de áudio desabilitada"
+			}
+		case MessageTypeVideo:
+			if !mpPerm.Video {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de vídeo desabilitada"
+			}
+		case MessageTypePhoto:
+			if !mpPerm.Photo {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de foto desabilitada"
+			}
+		case MessageTypeDocument:
+			if !mpPerm.Document {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de documento desabilitada"
+			}
+		case MessageTypeSticker:
+			if !mpPerm.Sticker {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de sticker desabilitada"
+			}
+		case MessageTypeAnimation:
+			if !mpPerm.GIF {
+				result.CanEdit = false
+				result.Reason = "Edição de mensagens de GIF desabilitada"
+			}
+		}
+	}
+
+	if channel.DefaultCaption != nil && channel.DefaultCaption.ButtonsPermission != nil {
+		bp := channel.DefaultCaption.ButtonsPermission
+		switch messageType {
+		case MessageTypeText:
+			if !bp.Message {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypeAudio:
+			if !bp.Audio {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypeVideo:
+			if !bp.Video {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypePhoto:
+			if !bp.Photo {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypeDocument:
+			if !bp.Document {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypeSticker:
+			if !bp.Sticker {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		case MessageTypeAnimation:
+			if !bp.GIF {
+				result.CanAddButtons = false
+				result.CanEditButtons = false
+			}
+		}
+	}
+
+	return result
+}
+
+func (pm *PermissionManager) CheckCustomCaptionPermissions(channel *dbmodels.Channel, customCaption *dbmodels.CustomCaption, messageType MessageType) *PermissionCheckResult {
+	result := pm.CheckPermissions(channel, messageType)
+	if customCaption != nil && messageType == MessageTypeText && !customCaption.LinkPreview {
+		result.CanUseLinkPreview = false
+	}
+	return result
+}
+
+// Degradação: nunca bloqueia o fluxo, apenas filtra botões padrão.
+func (pm *PermissionManager) ApplyPermissions(channel *dbmodels.Channel, messageType MessageType, customCaption *dbmodels.CustomCaption, buttons []dbmodels.Button) (bool, []dbmodels.Button, *dbmodels.CustomCaption) {
+	perms := pm.CheckCustomCaptionPermissions(channel, customCaption, messageType)
+	if !perms.CanAddButtons {
+		buttons = nil
+	}
+	return true, buttons, customCaption
 }

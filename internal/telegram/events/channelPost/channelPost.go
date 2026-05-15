@@ -2,41 +2,46 @@ package channelpost
 
 import (
 	"context"
-	"fmt"
-	"regexp"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/go-telegram/bot"
 	"github.com/go-telegram/bot/models"
 	"github.com/leirbagxis/FreddyBot/internal/container"
-	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
-	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
-// ✅ SISTEMA DE FILA SIMPLIFICADO
+// ✅ SISTEMA DE FILA UNIFICADO
+type Job interface {
+	Run() error
+	GetChannelID() int64
+}
+
 type MessageQueue struct {
-	queue       chan QueueItem
+	queue       chan Job
 	mu          sync.Mutex
 	isRunning   bool
 	lastProcess sync.Map // map[int64]time.Time
 }
 
-type QueueItem struct {
-	MessageType        MessageType
-	Channel            *dbmodels.Channel
-	Post               *models.Message
-	Buttons            []dbmodels.Button
-	MessageEditAllowed bool
-	Processor          *MessageProcessor
+type PipelineJob struct {
+	Ctx      *ProcessingContext
+	Pipeline *Pipeline
+}
+
+func (j PipelineJob) Run() error {
+	return j.Pipeline.Execute(j.Ctx)
+}
+
+func (j PipelineJob) GetChannelID() int64 {
+	if j.Ctx.Channel != nil {
+		return j.Ctx.Channel.ID
+	}
+	return 0
 }
 
 var (
 	groupSeparators = sync.Map{} // string -> bool
-	retryAfterRegex = regexp.MustCompile(`retry after (\d+)`)
 )
 
 var messageQueue *MessageQueue
@@ -47,11 +52,11 @@ func init() {
 
 func NewMessageQueue() *MessageQueue {
 	mq := &MessageQueue{
-		queue:     make(chan QueueItem, 1000),
+		queue:     make(chan Job, 5000),
 		isRunning: true,
 	}
-	// Iniciar 5 workers para processamento paralelo
-	for i := 0; i < 5; i++ {
+	// Iniciar 20 workers para processamento paralelo (ideal para 2 vCPUs + I/O)
+	for i := 0; i < 20; i++ {
 		go mq.worker()
 	}
 	return mq
@@ -60,329 +65,60 @@ func NewMessageQueue() *MessageQueue {
 func (mq *MessageQueue) worker() {
 	for mq.isRunning {
 		select {
-		case item := <-mq.queue:
+		case job := <-mq.queue:
 			// Controle per-chat: evita processar mensagens do mesmo chat muito rápido
-			if item.Channel != nil {
-				last, ok := mq.lastProcess.Load(item.Channel.ID)
+			channelID := job.GetChannelID()
+			if channelID != 0 {
+				last, ok := mq.lastProcess.Load(channelID)
 				if ok {
 					elapsed := time.Since(last.(time.Time))
 					if elapsed < 500*time.Millisecond {
 						time.Sleep(500*time.Millisecond - elapsed)
 					}
 				}
-				mq.lastProcess.Store(item.Channel.ID, time.Now())
+				mq.lastProcess.Store(channelID, time.Now())
 			}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			err := mq.processWithRetry(ctx, item)
-			if err != nil {
-				logger.Error("BOT", "❌ Erro ao processar item da fila: %v", err)
+			if err := job.Run(); err != nil {
+				logger.Error("BOT", "❌ Erro ao processar job da fila: %v", err)
 			}
-			cancel()
 		}
 	}
 }
 
-func (mq *MessageQueue) processWithRetry(ctx context.Context, item QueueItem) error {
-	maxRetries := 3
-	baseDelay := time.Second
-
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		err := item.Processor.ProcessMessage(ctx, item.MessageType, item.Channel, item.Post, item.Buttons, item.MessageEditAllowed)
-		if err == nil {
-			return nil
-		}
-		if strings.Contains(err.Error(), "Too Many Requests") {
-			retryAfter := extractRetryAfter(err.Error())
-			if retryAfter == 0 {
-				retryAfter = int(baseDelay.Seconds()) * (attempt + 1)
-			}
-			logger.Bot("⏳ Rate limit atingido, aguardando %d segundos (tentativa %d/%d)", retryAfter, attempt+1, maxRetries)
-			time.Sleep(time.Duration(retryAfter) * time.Second)
-			continue
-		}
-		return err
-	}
-	return fmt.Errorf("falha após %d tentativas", maxRetries)
-}
-
-func extractRetryAfter(errorMsg string) int {
-	matches := retryAfterRegex.FindStringSubmatch(errorMsg)
-	if len(matches) > 1 {
-		if retryAfter, err := strconv.Atoi(matches[1]); err == nil {
-			return retryAfter
-		}
-	}
-	return 0
-}
-
-func (mq *MessageQueue) AddToQueue(messageType MessageType, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool, processor *MessageProcessor) {
+func (mq *MessageQueue) AddV2ToQueue(pCtx *ProcessingContext, pipeline *Pipeline) {
 	select {
-	case mq.queue <- QueueItem{
-		MessageType:        messageType,
-		Channel:            channel,
-		Post:               post,
-		Buttons:            buttons,
-		MessageEditAllowed: messageEditAllowed,
-		Processor:          processor,
-	}:
-		logger.Bot("📥 Mensagem adicionada à fila (tamanho: %d)", len(mq.queue))
+	case mq.queue <- PipelineJob{Ctx: pCtx, Pipeline: pipeline}:
+		logger.Bot("📥 Mensagem V2 adicionada à fila (tamanho: %d)", len(mq.queue))
 	default:
-		logger.Bot("⚠️ Fila cheia, descartando mensagem")
+		logger.Bot("⚠️ Fila cheia, descartando mensagem V2")
 	}
 }
 
 func Handler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-		dbCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		post := update.ChannelPost
-		if post == nil {
-			return
+		if update.ChannelPost != nil {
+			logger.Bot("🚀 [%d] Novo post recebido no canal %d", update.ChannelPost.ID, update.ChannelPost.Chat.ID)
 		}
 
-		// Ignorar mensagens enviadas via este bot (modo inline)
-		botInfo, _ := b.GetMe(ctx)
-		if post.ViaBot != nil && post.ViaBot.ID == botInfo.ID {
-			logger.Bot("⏭️ Ignorando mensagem enviada via modo inline deste bot.")
-			return
-		}
+		// 1. Execution Pipeline: Transformation -> Decoration -> Dispatch (Runs in Worker)
+		executionPipeline := NewPipeline(
+			"Execution",
+			StageTransform(c),
+			StageDecorate(c),
+			StageSend(c),
+		)
 
-		maintence, _ := c.ServerRepo.GetMaintence(ctx)
-		if maintence {
-			return
-		}
+		// 2. Discovery Pipeline: Filters -> Metadata -> Grouping -> Queue (Runs in Handler thread)
+		discoveryPipeline := NewPipeline(
+			"Discovery",
+			StagePreflight(c),
+			StageSpecialFlows(c),
+			StageMediaGrouping(c, executionPipeline),
+			StageQueue(c, executionPipeline),
+		)
 
-		processor := NewMessageProcessor(b)
-		chat := post.Chat
-
-		channel, err := c.ChannelRepo.GetChannelWithRelations(dbCtx, chat.ID)
-		if err != nil {
-			logger.Error("BOT", "Canal %d não encontrado: %v", chat.ID, err)
-			return
-		}
-
-		// Verificar se o dono está na blacklist
-		if channel.Owner != nil && channel.Owner.IsBlacklisted {
-			logger.Bot("🚫 Canal %d ignorado: Dono (%d) está na blacklist", chat.ID, channel.OwnerID)
-			return
-		}
-
-		handled, err := processor.TryHandleNewPack(dbCtx, *channel, *post)
-		if err != nil {
-			logger.Error("BOT", "Erro no fluxo newpack canal %d: %v", chat.ID, err)
-			return
-		}
-		if handled {
-			return
-		}
-
-		// Atualizar info básica e primeiro botão em background
-		go func() {
-			updateCtx, updateCancel := context.WithTimeout(context.Background(), 20*time.Second)
-			defer updateCancel()
-			updatedChannel, hasChanges := processor.UpdateChannelBasicInfo(updateCtx, chat.ID, channel)
-			if !hasChanges {
-				return
-			}
-			if err := c.ChannelRepo.UpdateChannelBasicInfoAndFirstButton(updateCtx, updatedChannel); err != nil {
-				logger.Error("BOT", "❌ Erro ao salvar informações do canal %d: %v", chat.ID, err)
-			} else {
-				logger.Bot("✅ Canal %d: informações básicas e primeiro botão atualizados automaticamente", chat.ID)
-			}
-		}()
-
-		messageType := processor.GetMessageType(post)
-		if messageType == "" {
-			return
-		}
-
-		permissions := processor.CheckPermissions(channel, messageType)
-		if !permissions.CanEdit && !permissions.CanAddButtons {
-			logger.Error("BOT", "❌ Sem permissões para processar mensagem no canal %d", channel.ID)
-			return
-		}
-
-		var finalButtons []dbmodels.Button
-		if permissions.CanAddButtons {
-			finalButtons = channel.Buttons
-		}
-
-		go func() {
-			// Note: passa CanEdit apenas como "messageEditAllowed" para controle de fallback
-			messageQueue.AddToQueue(messageType, channel, post, finalButtons, permissions.CanEdit, processor)
-		}()
-
-		// // Separator será enviado conforme tipo
-		// if channel.Separator != nil && (permissions.CanEdit || permissions.CanAddButtons) {
-		// 	go func() {
-		// 		time.Sleep(2 * time.Second)
-		// 		processor.HandleSeparator(channel, post, messageType)
-		// 	}()
-		// }
-
-		// Envio de separador para mensagens individuais (não grupos)
-		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
-			// Não enviar separador no início de álbuns; finalizadores de grupo enviarão ao final
-			if post.MediaGroupID == "" {
-				go func(ch *dbmodels.Channel, p *models.Message) {
-					// Contexto próprio para evitar cancelamentos do handler
-					ctxSep, cancelSep := context.WithTimeout(context.Background(), 10*time.Second)
-					defer cancelSep()
-					// Chama a função central de separador, que já faz retry/backoff
-					if err := processor.ProcessSeparator(ctxSep, ch, p); err != nil {
-						logger.Error("BOT", "⚠️ Falha ao enviar separador: %v", err)
-					}
-				}(channel, post)
-			}
-		}
-
+		pCtx := NewProcessingContext(ctx, b, update, discoveryPipeline)
+		_ = discoveryPipeline.Execute(pCtx)
 	}
-}
-
-// ✅ ProcessMessage
-func (mp *MessageProcessor) ProcessMessage(ctx context.Context, messageType MessageType, channel *dbmodels.Channel, post *models.Message, buttons []dbmodels.Button, messageEditAllowed bool) error {
-	switch messageType {
-	case MessageTypeText:
-		return mp.ProcessTextMessage(ctx, channel, post, buttons, messageEditAllowed)
-	case MessageTypeAudio:
-		return mp.ProcessAudioMessage(ctx, channel, post, buttons, messageEditAllowed)
-	case MessageTypeSticker:
-		if len(buttons) > 0 {
-			return mp.ProcessStickerMessage(ctx, channel, post, buttons)
-		}
-		return nil
-	case MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation, MessageTypeDocument:
-		return mp.ProcessMediaMessage(ctx, channel, post, buttons, messageEditAllowed)
-	default:
-		return nil
-	}
-}
-
-// ✅ Separator helpers (sem mudanças de permissão aqui)
-func (mp *MessageProcessor) HandleSeparator(channel *dbmodels.Channel, post *models.Message, messageType MessageType) {
-	if channel.Separator == nil || channel.Separator.SeparatorID == "" {
-		return
-	}
-	mediaGroupID := post.MediaGroupID
-	chatID := post.Chat.ID
-
-	// Áudio individual: enviar direto
-	if messageType == MessageTypeAudio && mediaGroupID == "" {
-		time.Sleep(1 * time.Second)
-		mp.sendSeparatorDirect(channel, chatID)
-		return
-	}
-
-	// Grupo de áudio
-	if messageType == MessageTypeAudio && mediaGroupID != "" {
-		mp.handleGroupSeparator(channel, mediaGroupID, chatID)
-		return
-	}
-
-	// Grupos de fotos/vídeos: enviados por finishGroupProcessing
-	if mediaGroupID != "" && (messageType == MessageTypePhoto || messageType == MessageTypeVideo || messageType == MessageTypeAnimation) {
-		logger.Bot("🔄 Separator para grupo de mídia %s será enviado via finishGroupProcessing", mediaGroupID)
-		return
-	}
-
-	// Outros tipos: direto
-	mp.sendSeparatorDirect(channel, chatID)
-}
-
-func (mp *MessageProcessor) sendSeparatorDirect(channel *dbmodels.Channel, chatID int64) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-	_, err := mp.bot.SendSticker(ctx, &bot.SendStickerParams{
-		ChatID:  chatID,
-		Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
-	})
-	if err != nil {
-		logger.Error("BOT", "❌ Erro ao enviar separator: %v", err)
-	} else {
-		logger.Bot("✅ Separator enviado com sucesso")
-	}
-}
-
-func (mp *MessageProcessor) handleGroupSeparator(channel *dbmodels.Channel, mediaGroupID string, chatID int64) {
-	if _, exists := groupSeparators.LoadOrStore(mediaGroupID, true); exists {
-		return
-	}
-	time.Sleep(3 * time.Second)
-	mp.sendSeparatorDirect(channel, chatID)
-	time.AfterFunc(10*time.Second, func() {
-		groupSeparators.Delete(mediaGroupID)
-	})
-}
-
-// Atualização de infos do canal e primeiro botão
-func (mp *MessageProcessor) UpdateChannelBasicInfo(ctx context.Context, chatID int64, channel *dbmodels.Channel) (*dbmodels.Channel, bool) {
-	chat, err := mp.bot.GetChat(ctx, &bot.GetChatParams{
-		ChatID: chatID,
-	})
-	if err != nil {
-		return channel, false
-	}
-
-	updated := false
-	if chat.Title != "" && chat.Title != channel.Title {
-		channel.Title = utils.RemoveHTMLTags(chat.Title)
-		updated = true
-	}
-	if chat.Username != "" {
-		newUsername := "@" + chat.Username
-		if newUsername != channel.InviteURL {
-			channel.InviteURL = newUsername
-			updated = true
-		}
-	} else if chat.InviteLink != "" {
-		if chat.InviteLink != channel.InviteURL {
-			channel.InviteURL = chat.InviteLink
-			updated = true
-		}
-	}
-
-	if len(channel.Buttons) > 0 {
-		buttonUpdated := mp.updateFirstButtonFromChannel(ctx, channel)
-		if buttonUpdated {
-			updated = true
-		}
-	}
-
-	return channel, updated
-}
-
-// Atualizar primeiro botão com title e URL do canal
-func (mp *MessageProcessor) updateFirstButtonFromChannel(ctx context.Context, channel *dbmodels.Channel) bool {
-	if len(channel.Buttons) == 0 {
-		return false
-	}
-	chat, err := mp.bot.GetChat(ctx, &bot.GetChatParams{
-		ChatID: channel.ID,
-	})
-	if err != nil {
-		return false
-	}
-
-	novoNome := fmt.Sprintf("%s", chat.Title)
-	var novaURL string
-	if chat.Username != "" {
-		novaURL = "https://t.me/" + chat.Username
-	} else if chat.InviteLink != "" {
-		novaURL = chat.InviteLink
-	} else {
-		return false
-	}
-
-	firstButton := &channel.Buttons[0]
-	if firstButton.NameButton == novoNome && firstButton.ButtonURL == novaURL {
-		return false
-	}
-
-	logger.Bot("🔘 Primeiro botão atualizado: '%s' → '%s' | URL: '%s' → '%s'",
-		firstButton.NameButton, novoNome, firstButton.ButtonURL, novaURL)
-	firstButton.NameButton = utils.RemoveHTMLTags(novoNome)
-	firstButton.ButtonURL = novaURL
-	return true
 }

@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"time"
 
 	"github.com/glebarez/sqlite"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
@@ -29,9 +30,21 @@ func InitDB() *gorm.DB {
 	}
 	db.Config.Logger = logger.Default.LogMode(logger.Silent)
 
+	// Configurar Pool de Conexões (Crucial para produção)
+	sqlDB, err := db.DB()
+	if err == nil {
+		sqlDB.SetMaxIdleConns(10)
+		sqlDB.SetMaxOpenConns(100)
+		sqlDB.SetConnMaxLifetime(time.Hour)
+		customLogger.DB("⚙️ Pool de conexões configurado (Idle: 10, Open: 100)")
+	}
+
+	// Forçar recriação de índices que mudaram de estrutura
+	db.Exec("DROP INDEX IF EXISTS idx_vote_user")
+
 	err = db.AutoMigrate(
-		&models.ServerConfig{},
 		&models.User{},
+		&models.ServerConfig{},
 		&models.Channel{},
 		&models.DefaultCaption{},
 		&models.MessagePermission{},

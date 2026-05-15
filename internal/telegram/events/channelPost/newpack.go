@@ -44,13 +44,14 @@ func shouldDisableLinkPreview(channel dbmodels.Channel) bool {
 	return !channel.DefaultCaption.MessagePermission.LinkPreview
 }
 
-func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodels.Channel, post models.Message) (handled bool, err error) {
+func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel, post models.Message) (handled bool, err error) {
 	channelID := post.Chat.ID
+	mgm := GetMediaGroupManager()
 
 	// 1) Se recebeu comando !newpack
 	if post.Text != "" && cmdNewPackRegex.MatchString(strings.TrimSpace(post.Text)) {
 		// Marca modo ativo (reaproveita seu mecanismo)
-		mp.mediaGroupManager.SetNewPackActive(channelID, true) // [file:3]
+		mgm.SetNewPackActive(channelID, true) // [file:3]
 		newPackStates.Store(channelID, newPackState{
 			WaitingForSticker: true,
 			MessageID:         post.ID,
@@ -60,7 +61,7 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 		defer cancel()
 
 		// Similar ao JS: "Envie-me um sticker do seu pack..."
-		_, err := mp.bot.EditMessageText(editCtx, &bot.EditMessageTextParams{
+		_, err := b.EditMessageText(editCtx, &bot.EditMessageTextParams{
 			ChatID:    channelID,
 			MessageID: post.ID,
 			Text:      "Envie-me um sticker do seu pack...",
@@ -68,7 +69,7 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 		if err != nil {
 			// Se falhar, ainda assim mantém o estado? Aqui preferi desativar pra não travar.
 			newPackStates.Delete(channelID)
-			mp.mediaGroupManager.SetNewPackActive(channelID, false)
+			mgm.SetNewPackActive(channelID, false)
 			return true, err
 		}
 		return true, nil
@@ -91,12 +92,12 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 			sendCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 			defer cancel()
 
-			_, _ = mp.bot.SendMessage(sendCtx, &bot.SendMessageParams{
+			_, _ = b.SendMessage(sendCtx, &bot.SendMessageParams{
 				ChatID: channelID,
 				Text:   "Sticker não faz parte de um pack público.",
 			})
 			newPackStates.Delete(channelID)
-			mp.mediaGroupManager.SetNewPackActive(channelID, false)
+			mgm.SetNewPackActive(channelID, false)
 			return true, nil
 		}
 
@@ -104,12 +105,12 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 		getCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 
-		pack, err := mp.bot.GetStickerSet(getCtx, &bot.GetStickerSetParams{
+		pack, err := b.GetStickerSet(getCtx, &bot.GetStickerSetParams{
 			Name: setName,
 		})
 		if err != nil {
 			newPackStates.Delete(channelID)
-			mp.mediaGroupManager.SetNewPackActive(channelID, false)
+			mgm.SetNewPackActive(channelID, false)
 			return true, err
 		}
 
@@ -149,11 +150,11 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 			}
 		}
 
-		_, err = mp.bot.EditMessageText(editCtx, &editParams)
+		_, err = b.EditMessageText(editCtx, &editParams)
 
 		if err != nil {
 			newPackStates.Delete(channelID)
-			mp.mediaGroupManager.SetNewPackActive(channelID, false)
+			mgm.SetNewPackActive(channelID, false)
 			return true, err
 		}
 
@@ -166,7 +167,7 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 			},
 		}
 
-		_, err = mp.bot.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
+		_, err = b.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
 			ChatID:      channelID,
 			MessageID:   state.MessageID,
 			ReplyMarkup: kb,
@@ -176,7 +177,7 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
 		}
 
-		_, err = mp.bot.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
+		_, err = b.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
 			ChatID:      channelID,
 			MessageID:   post.ID,
 			ReplyMarkup: kb,
@@ -187,19 +188,18 @@ func (mp MessageProcessor) TryHandleNewPack(ctx context.Context, channel dbmodel
 			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
 		}
 
-		// (Opcional) enviar sticker separador, semelhante ao JS
 		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
 			sepCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 			defer cancel()
-			_, _ = mp.bot.SendSticker(sepCtx, &bot.SendStickerParams{
+			_, _ = b.SendSticker(sepCtx, &bot.SendStickerParams{
 				ChatID:  channelID,
-				Sticker: &models.InputFileString{channel.Separator.SeparatorID},
+				Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
 			})
 		}
 
 		// Finaliza estado
 		newPackStates.Delete(channelID)
-		mp.mediaGroupManager.SetNewPackActive(channelID, false)
+		mgm.SetNewPackActive(channelID, false)
 		return true, nil
 	}
 

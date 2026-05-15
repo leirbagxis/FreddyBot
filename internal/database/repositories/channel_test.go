@@ -16,8 +16,12 @@ func TestDeleteChannelWithRelations(t *testing.T) {
 		t.Fatalf("failed to connect database: %v", err)
 	}
 
+	// Ativar foreign keys para que OnDelete:CASCADE funcione no SQLite
+	db.Exec("PRAGMA foreign_keys = ON;")
+
 	// Migrate models
 	err = db.AutoMigrate(
+		&models.User{},
 		&models.Channel{},
 		&models.DefaultCaption{},
 		&models.MessagePermission{},
@@ -31,11 +35,16 @@ func TestDeleteChannelWithRelations(t *testing.T) {
 		t.Fatalf("failed to migrate: %v", err)
 	}
 
-	repo := NewChannelRepository(db, nil)
+	repo := NewChannelRepository(db)
 
 	// Create a channel with some relations
 	channelID := int64(123)
 	ownerID := int64(1)
+
+	// Create owner first due to FK constraint
+	if err := db.Create(&models.User{UserId: ownerID, FirstName: "Owner"}).Error; err != nil {
+		t.Fatalf("failed to create owner: %v", err)
+	}
 
 	channel := &models.Channel{
 		ID:      channelID,

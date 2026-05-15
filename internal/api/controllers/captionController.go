@@ -5,9 +5,9 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leirbagxis/FreddyBot/internal/api/service"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
 type CaptionController struct {
@@ -22,136 +22,92 @@ func NewCaptionController(container *container.AppContainer) *CaptionController 
 
 func (c *CaptionController) UpdateDefaultCaptionController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var captionData types.CaptionDefaultUpdateRequest
 	if err := ctx.ShouldBindJSON(&captionData); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.UpdateDefaultCaptionService(ctx, channelId, captionData)
+	rowsAffected, err := c.container.CaptionService.UpdateDefaultCaption(ctx, channelId, captionData)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Legenda padrão atualizada com sucesso"))
 }
 
 func (c *CaptionController) UpdateNewPackCaptionController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var captionData types.CaptionDefaultUpdateRequest
 	if err := ctx.ShouldBindJSON(&captionData); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.UpdateNewPackCaptionService(ctx, channelId, captionData)
+	rowsAffected, err := c.container.CaptionService.UpdateNewPackCaption(ctx, channelId, captionData)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Legenda de novos packs atualizada com sucesso"))
 }
 
 func (c *CaptionController) UpdateReactionsController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var reactionsData types.ReactionsUpdateRequest
 	if err := ctx.ShouldBindJSON(&reactionsData); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.UpdateReactionsService(ctx, channelId, reactionsData)
+	rowsAffected, err := c.container.CaptionService.UpdateReactions(ctx, channelId, reactionsData)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Reações atualizadas com sucesso"))
 }
 
 func (c *CaptionController) UpdateReactionPositionController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
-
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "ID do canal inválido",
-		})
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
 		return
 	}
 
 	var posData types.ReactionPositionUpdateRequest
 	if err := ctx.ShouldBindJSON(&posData); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Dados inválidos: " + err.Error(),
-		})
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
 
-	appService := (*service.AppContainerLocal)(c.container)
-	result, err := appService.UpdateReactionPositionService(ctx, channelId, posData)
+	rowsAffected, err := c.container.CaptionService.UpdateReactionPosition(ctx, channelId, posData)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, result)
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Posição das reações atualizada com sucesso"))
 }

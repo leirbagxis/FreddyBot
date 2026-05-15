@@ -29,7 +29,7 @@ func AskTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -77,7 +77,7 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -88,7 +88,7 @@ func TransferAcessHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		user, err := c.UserRepo.GetUserById(ctx, userId)
+		user, err := c.UserService.GetUserByID(ctx, userId)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar usuario: %v", err)
 			return
@@ -128,7 +128,7 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, channelId)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -244,9 +244,9 @@ func SetTransferAccessHandler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// Deletar dados vinculados ao antigo dono
-		_ = c.SeparatorRepo.DeleteSeparatorByOwnerChannelId(ctx, userId)
+		_ = c.SeparatorService.DeleteSeparatorByOwnerChannelId(ctx, userId)
 
-		err = c.ChannelRepo.UpdateOwnerChannel(ctx, channelId, userId, newOwnerID)
+		err = c.ChannelService.UpdateOwnerChannel(ctx, channelId, userId, newOwnerID)
 		if err != nil {
 			logger.Error("BOT", "Erro ao transferir posse do canal: %v", err)
 			b.SendMessage(ctx, &bot.SendMessageParams{

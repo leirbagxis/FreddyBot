@@ -13,18 +13,14 @@ import (
 func CheckAdminMiddleware(app *container.AppContainer) bot.Middleware {
 	return func(next bot.HandlerFunc) bot.HandlerFunc {
 		return func(ctx context.Context, b *bot.Bot, update *models.Update) {
-			var userID int64
+			userID := getUpdateUserID(update)
 			ownerID := config.OwnerID
 
-			if update.Message != nil && update.Message.From != nil {
-				userID = update.Message.From.ID
-			} else if update.CallbackQuery != nil {
-				userID = update.CallbackQuery.From.ID
-			} else if update.InlineQuery != nil && update.InlineQuery.From != nil {
-				userID = update.InlineQuery.From.ID
+			if userID == 0 {
+				return
 			}
 
-			user, err := app.UserRepo.GetUserById(ctx, userID)
+			user, err := app.UserService.GetUserByID(ctx, userID)
 			if err != nil || user == nil {
 				if userID != ownerID {
 					logger.Error("MID", "Acesso negado: Usuário não encontrado ou não admin: %d", userID)
@@ -40,3 +36,4 @@ func CheckAdminMiddleware(app *container.AppContainer) bot.Middleware {
 		}
 	}
 }
+

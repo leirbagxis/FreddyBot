@@ -90,8 +90,9 @@ export function AdminDashboard({
     try {
       const res = await updateUserAdmin(uid);
       if (res.success) {
-        setLocalUsers(prev => prev.map(u => u.id === uid ? { ...u, is_admin: res.isAdmin } : u));
-        toast(res.isAdmin ? "Usuário promovido a Admin" : "Privilégios de Admin removidos", "success");
+        const isAdmin = res.data?.isAdmin;
+        setLocalUsers(prev => prev.map(u => u.id === uid ? { ...u, is_admin: isAdmin } : u));
+        toast(isAdmin ? "Usuário promovido a Admin" : "Privilégios de Admin removidos", "success");
       }
     } catch (err: any) {
       toast(err.message || "Erro ao atualizar status de admin", "error");
@@ -102,8 +103,9 @@ export function AdminDashboard({
     try {
       const res = await updateUserBlacklist(uid);
       if (res.success) {
-        setLocalUsers(prev => prev.map(u => u.id === uid ? { ...u, is_blacklisted: res.isBlacklisted } : u));
-        toast(res.isBlacklisted ? "Usuário adicionado à Blacklist" : "Usuário removido da Blacklist", res.isBlacklisted ? "error" : "success");
+        const isBlacklisted = res.data?.isBlacklisted;
+        setLocalUsers(prev => prev.map(u => u.id === uid ? { ...u, is_blacklisted: isBlacklisted } : u));
+        toast(isBlacklisted ? "Usuário adicionado à Blacklist" : "Usuário removido da Blacklist", isBlacklisted ? "error" : "success");
       }
     } catch (err: any) {
       toast(err.message || "Erro ao atualizar status de blacklist", "error");

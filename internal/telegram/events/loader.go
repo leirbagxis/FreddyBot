@@ -15,6 +15,7 @@ import (
 
 func LoadEvents(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandlerMatchFunc(matchMyChatMember, addchannel.AskAddChannelHandler(c), middleware.CheckAddBotMiddleware(c))
+	b.RegisterHandlerMatchFunc(matchMyChatMember, addchannel.UpdateChannelInfoHandler(c)) // Novo: Proativo
 	b.RegisterHandlerMatchFunc(matchForwardedChannel, addchannel.AskForwadedChannelHandler(c), middleware.CheckAddBotMiddleware(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "add-yes:", bot.MatchTypePrefix, addchannel.AddYesHandler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "add-not:", bot.MatchTypePrefix, addchannel.AddNotHandler(c))
@@ -23,10 +24,15 @@ func LoadEvents(b *bot.Bot, c *container.AppContainer) {
 	b.RegisterHandlerMatchFunc(matchPostBuilder(c), postbuilder.Handler(c))
 	b.RegisterHandler(bot.HandlerTypeCallbackQueryData, "pb-", bot.MatchTypePrefix, postbuilder.CallbackHandler(c))
 	b.RegisterHandlerMatchFunc(matchPostBuilderInline, postbuilder.InlineHandler(c))
+	b.RegisterHandlerMatchFunc(matchChosenInlineResult, postbuilder.ChosenInlineResultHandler(c))
 
 	// ## CHANNEL POST ## \\
 	b.RegisterHandlerMatchFunc(matchChannelPost, channelpost.Handler(c))
 
+}
+
+func matchChosenInlineResult(update *models.Update) bool {
+	return update.ChosenInlineResult != nil
 }
 
 func matchPostBuilderInline(update *models.Update) bool {

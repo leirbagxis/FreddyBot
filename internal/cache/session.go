@@ -37,5 +37,5 @@ func (sm *SessionManager) GetChannelSession(ctx context.Context, key string) (*C
 }
 
 func (sm *SessionManager) DeleteChannelSession(ctx context.Context, key string) error {
-	return sm.cache.DeleteSession(ctx, key)
+	return sm.cache.Delete(ctx, key)
 }

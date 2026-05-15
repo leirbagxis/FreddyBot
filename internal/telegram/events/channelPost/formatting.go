@@ -9,7 +9,6 @@ import (
 	"unicode/utf16"
 
 	"github.com/go-telegram/bot/models"
-	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
 // ✅ REGEX para conversão de Markdown para HTML
@@ -595,35 +594,4 @@ func removeHashtag(text, hashtag string) string {
 		removeHashRegexCache.Store(hashtag, re)
 	}
 	return strings.TrimSpace(re.ReplaceAllString(text, ""))
-}
-
-// ✅ FUNÇÃO ATUALIZADA: processMessageWithHashtag com conversão para HTML
-func (mp *MessageProcessor) processMessageWithHashtag(text string, channel *dbmodels.Channel) (string, *dbmodels.CustomCaption) {
-	hashtag := extractHashtag(text)
-
-	if hashtag == "" {
-		defaultCaption := ""
-		if channel.DefaultCaption != nil {
-			// ✅ CONVERTER CAPTION PADRÃO PARA HTML
-			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
-		}
-		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
-	}
-
-	customCaption := findCustomCaption(channel, hashtag)
-	if customCaption == nil {
-		defaultCaption := ""
-		if channel.DefaultCaption != nil {
-			// ✅ CONVERTER CAPTION PADRÃO PARA HTML
-			defaultCaption = detectParseMode(channel.DefaultCaption.Caption)
-		}
-		return fmt.Sprintf("%s\n\n%s", text, defaultCaption), nil
-	}
-
-	cleanText := removeHashtag(text, hashtag)
-
-	// ✅ CONVERTER CUSTOM CAPTION PARA HTML
-	formattedCustomCaption := detectParseMode(customCaption.Caption)
-
-	return fmt.Sprintf("%s\n\n%s", cleanText, formattedCustomCaption), customCaption
 }

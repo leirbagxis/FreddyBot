@@ -80,12 +80,12 @@ func handleMyChatMember(ctx context.Context, b *bot.Bot, chatMember *models.Chat
 	if newStatus == "left" || newStatus == "kicked" {
 		logger.Bot("Bot was removed from channel %d. Skipping.", chatId)
 
-		channel, err := c.ChannelRepo.GetChannelByID(ctx, chatId)
+		channel, err := c.ChannelService.GetChannelByID(ctx, chatId)
 		if err != nil {
 			logger.Error("BOT", "Canal nao Encontrado: %v", err)
 		}
 
-		err = c.ChannelRepo.DeleteChannelWithRelations(ctx, channel.OwnerID, chatId)
+		err = c.ChannelService.DisconnectChannel(ctx, channel.OwnerID, chatId)
 		if err != nil {
 			logger.Error("BOT", "Erro ao remover canal: %v", err)
 		}

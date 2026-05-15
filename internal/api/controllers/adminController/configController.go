@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
 type ConfigController struct {
@@ -16,16 +18,13 @@ func NewConfigController(container *container.AppContainer) *ConfigController {
 }
 
 func (ctrl *ConfigController) GetConfig(ctx *gin.Context) {
-	config, err := ctrl.container.ServerRepo.GetConfig(ctx)
+	config, err := ctrl.container.ServerService.GetConfig(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Erro ao buscar configurações"})
+		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao buscar configurações"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"config":  config,
-	})
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(config))
 }
 
 func (ctrl *ConfigController) UpdateConfig(ctx *gin.Context) {
@@ -35,18 +34,15 @@ func (ctrl *ConfigController) UpdateConfig(ctx *gin.Context) {
 	}
 
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Dados inválidos"})
+		ctx.Error(errors.BadRequest("Dados inválidos"))
 		return
 	}
 
-	config, err := ctrl.container.ServerRepo.UpdateConfig(ctx, body.Maintenance, body.ForceJoin)
+	config, err := ctrl.container.ServerService.UpdateConfig(ctx, body.Maintenance, body.ForceJoin)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Erro ao atualizar configurações"})
+		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao atualizar configurações"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"config":  config,
-	})
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(config, "Configurações atualizadas com sucesso"))
 }

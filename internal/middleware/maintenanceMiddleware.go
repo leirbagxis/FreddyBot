@@ -19,7 +19,7 @@ func CheckMaintenceMiddleware(c *container.AppContainer) bot.Middleware {
 			}
 
 			// 1. Get maintenance status first
-			maintenance, err := c.ServerRepo.GetMaintence(ctx)
+			maintenance, err := c.ServerService.GetMaintenance(ctx)
 			if err != nil {
 				logger.Error("MID", "Erro ao buscar status de manutenção: %v", err)
 				next(ctx, b, upt)
@@ -42,7 +42,7 @@ func CheckMaintenceMiddleware(c *container.AppContainer) bot.Middleware {
 				}
 
 				// Admins também passam
-				user, err := c.UserRepo.GetUserById(ctx, userID)
+				user, err := c.UserService.GetUserByID(ctx, userID)
 				if err == nil && user != nil && user.IsAdmin {
 					next(ctx, b, upt)
 					return
@@ -55,22 +55,6 @@ func CheckMaintenceMiddleware(c *container.AppContainer) bot.Middleware {
 	}
 }
 
-func getUpdateUserID(upt *models.Update) int64 {
-	switch {
-	case upt.Message != nil:
-		return upt.Message.From.ID
-	case upt.CallbackQuery != nil:
-		return upt.CallbackQuery.From.ID
-	case upt.InlineQuery != nil:
-		return upt.InlineQuery.From.ID
-	case upt.MyChatMember != nil:
-		return upt.MyChatMember.From.ID
-	case upt.ChatMember != nil:
-		return upt.ChatMember.From.ID
-	default:
-		return 0
-	}
-}
 
 func sendMaintenceResponse(ctx context.Context, b *bot.Bot, upt *models.Update, userID int64) {
 	switch {

@@ -33,10 +33,14 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 
 	opts := []bot.Option{
 		bot.WithMiddlewares(
-			middleware.SaveUserMiddleware(db),
+			middleware.SaveUserMiddleware(app),
 			middleware.CheckBlacklistMiddleware(app),
 			middleware.CheckMaintenceMiddleware(app),
 		),
+		bot.WithAllowedUpdates([]string{
+			"message", "edited_message", "callback_query", "inline_query",
+			"chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post",
+		}),
 	}
 
 	b, err := bot.New(config.TelegramBotToken, opts...)
@@ -85,7 +89,7 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 
 		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
 			URL:            webhookUrl,
-			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "my_chat_member", "channel_post", "edited_channel_post"},
+			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post"},
 		})
 		if err != nil {
 			logger.Error("BOT", "❌ Erro ao setar webhook: %v", err)

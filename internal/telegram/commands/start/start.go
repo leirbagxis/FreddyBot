@@ -16,7 +16,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		userID := update.Message.From.ID
 
 		// 0. Verificar Blacklist
-		user, err := c.UserRepo.GetUserById(ctx, userID)
+		user, err := c.UserService.GetUserByID(ctx, userID)
 		if err == nil && user != nil && user.IsBlacklisted {
 			b.SendMessage(ctx, &bot.SendMessageParams{
 				ChatID:    update.Message.Chat.ID,
@@ -30,7 +30,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 		}
 
 		// 1. Verificar se Force Join está ativado
-		configData, err := c.ServerRepo.GetConfig(ctx)
+		configData, err := c.ServerService.GetConfig(ctx)
 		if err == nil && configData.ForceJoin {
 
 			// Bypass para Owner e Admins
@@ -38,7 +38,7 @@ func Handler(c *container.AppContainer) bot.HandlerFunc {
 			if userID == config.OwnerID {
 				isAdmin = true
 			} else {
-				user, err := c.UserRepo.GetUserById(ctx, userID)
+				user, err := c.UserService.GetUserByID(ctx, userID)
 				if err == nil && user != nil && user.IsAdmin {
 					isAdmin = true
 				}

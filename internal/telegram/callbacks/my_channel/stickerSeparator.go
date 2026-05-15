@@ -30,7 +30,7 @@ func AskStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -73,7 +73,7 @@ func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -103,22 +103,28 @@ func RequireStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 
 func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+		if update.Message == nil || update.Message.From == nil {
+			return
+		}
 
 		userId := update.Message.From.ID
 		channelId, err := c.CacheService.GetAwaitingStickerSeparator(ctx, userId)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar cache sticker: %v", err)
-			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
-				CallbackQueryID: update.CallbackQuery.ID,
-				Text:            "⌛ Seção Expirada. Selecione o canal novamente!",
-				ShowAlert:       true,
+			b.SendMessage(ctx, &bot.SendMessageParams{
+				ChatID: update.Message.Chat.ID,
+				Text:   "⌛ Seção Expirada. Selecione o canal novamente!",
 			})
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, channelId)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, channelId)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
+			return
+		}
+
+		if update.Message.Sticker == nil {
 			return
 		}
 
@@ -138,7 +144,7 @@ func SetStickerSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			UpdatedAt:      time.Now(),
 		}
 
-		if err = c.SeparatorRepo.SaveSeparator(ctx, separator); err != nil {
+		if err = c.SeparatorService.SaveSeparator(ctx, separator); err != nil {
 			text, button := parser.GetMessage("failed-save-separator", map[string]string{
 				"channelId": fmt.Sprintf("%d", channelId),
 			})
@@ -188,7 +194,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		channel, err := c.ChannelRepo.GetChannelByTwoID(ctx, userId, session)
+		channel, err := c.ChannelService.GetChannelByTwoID(ctx, userId, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar canal: %v", err)
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -199,7 +205,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		separator, err := c.SeparatorRepo.GetSeparatorByOwnerChannelID(ctx, channel.ID)
+		separator, err := c.SeparatorService.GetSeparatorByOwnerChannelID(ctx, channel.ID)
 
 		if separator == nil || err != nil {
 			b.AnswerCallbackQuery(ctx, &bot.AnswerCallbackQueryParams{
@@ -210,7 +216,7 @@ func DeleteSeparatorHandler(c *container.AppContainer) bot.HandlerFunc {
 			return
 		}
 
-		err = c.SeparatorRepo.DeleteSeparatorByOwnerChannelId(ctx, session)
+		err = c.SeparatorService.DeleteSeparatorByOwnerChannelId(ctx, session)
 		if err != nil {
 			logger.Error("BOT", "Erro ao excluir separator: %v", err)
 			return

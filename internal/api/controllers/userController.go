@@ -9,8 +9,10 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-telegram/bot"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
+	"github.com/leirbagxis/FreddyBot/internal/api/dto"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -28,47 +30,40 @@ func NewUserController(container *container.AppContainer) *UserController {
 func (c *UserController) GetUserChannelsController(ctx *gin.Context) {
 	userID, exists := ctx.Get("userID")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Usuário não identificado"})
+		ctx.Error(errors.ErrUnauthorized)
 		return
 	}
 
-	channels, err := c.container.ChannelRepo.GetAllChannelsByUserID(ctx, userID.(int64))
+	channels, err := c.container.ChannelService.GetUserChannels(ctx, userID.(int64))
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Erro ao buscar canais"})
+		ctx.Error(err)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"channels": channels,
-	})
+	var dtos []dto.ChannelDTO
+	for _, ch := range channels {
+		dtos = append(dtos, dto.ToChannelDTO(&ch))
+	}
+
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(dtos))
 }
 
 func (c *UserController) GetUserInfo(ctx *gin.Context) {
 	userParams := ctx.Param("userParams")
 	if len(userParams) < 5 {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"succes":  false,
-			"message": "ID ou Username inválido!",
-		})
+		ctx.Error(errors.BadRequest("ID ou Username inválido!"))
 		return
 	}
 
 	userID, _ := strconv.ParseInt(userParams, 10, 64)
 	if userID == 0 {
-		user, err := c.container.UserRepo.GetUserByUsername(context.Background(), userParams)
+		user, err := c.container.UserService.GetUserByUsername(context.Background(), userParams)
 		if err != nil {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"succes":  false,
-				"message": "Usuario nao encontrado",
-			})
+			ctx.Error(err)
 			return
 		}
 
-		ctx.JSON(http.StatusOK, gin.H{
-			"succes": true,
-			"user":   user,
-		})
+		ctx.JSON(http.StatusOK, types.NewSuccessResponse(dto.ToUserDTO(user)))
 		return
 
 	}
@@ -77,68 +72,41 @@ func (c *UserController) GetUserInfo(ctx *gin.Context) {
 		ChatID: userID,
 	})
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"succes":  false,
-			"message": "Usuario nao encontrado",
-		})
+		ctx.Error(errors.BadRequest("Usuario nao encontrado"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"succes": true,
-		"user":   user,
-	})
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(user))
 }
 
 func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	var body *types.TransferChannelRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "payload inválido", "details": err.Error()})
+		ctx.Error(errors.BadRequest("payload inválido: " + err.Error()))
 		return
 	}
 
-	channel, err := c.container.ChannelRepo.GetChannelByTwoID(ctx, body.OldOwnerID, body.ChannelID)
+	channel, err := c.container.ChannelService.GetChannelByID(ctx, body.ChannelID)
 	if err != nil {
-		logger.Error("API", "Erro ao buscar canal: %v", err)
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Canal não encontrado ou você não tem permissão para alterá-lo.",
-		})
-		return
-	}
-	if channel == nil {
-		logger.Error("API", "Canal retornado é nil para channelId=%d e userId=%d", body.ChannelID, body.OldOwnerID)
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Erro interno: canal não encontrado.",
-		})
+		ctx.Error(err)
 		return
 	}
 
 	if body.NewOwnerID == body.OldOwnerID {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "O novo dono precisa ser diferente de voce.",
-		})
+		ctx.Error(errors.BadRequest("O novo dono precisa ser diferente de voce."))
 		return
 	}
 
 	newOwner, err := c.container.Bot.GetChat(ctx, &bot.GetChatParams{ChatID: body.NewOwnerID})
 	if err != nil {
 		logger.Error("API", "Erro ao obter chat do novo dono: %v", err)
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "O novo dono precisa iniciar o bot pelo menos uma vez. Peça para ele mandar uma mensagem no bot antes de transferir o canal.",
-		})
+		ctx.Error(errors.BadRequest("O novo dono precisa iniciar o bot pelo menos uma vez."))
 		return
 	}
 
 	// Verifica se o novo dono é um bot
 	if body.NewOwnerID == c.container.Bot.ID() {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "O novo dono não pode ser eu.",
-		})
+		ctx.Error(errors.BadRequest("O novo dono não pode ser eu."))
 		return
 	}
 
@@ -147,10 +115,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	})
 	if err != nil {
 		logger.Error("API", "Erro ao buscar administradores do canal: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Erro ao consultar administradores do canal.",
-		})
+		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao consultar administradores do canal."))
 		return
 	}
 
@@ -167,23 +132,13 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	}
 
 	if !isAdmin {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "O novo dono precisa ser administrador do canal.",
-		})
+		ctx.Error(errors.BadRequest("O novo dono precisa ser administrador do canal."))
 		return
 	}
 
-	// Deletar dados vinculados ao antigo dono
-	_ = c.container.SeparatorRepo.DeleteSeparatorByOwnerChannelId(ctx, body.OldOwnerID)
-
-	err = c.container.ChannelRepo.UpdateOwnerChannel(ctx, body.ChannelID, body.OldOwnerID, body.NewOwnerID)
+	err = c.container.ChannelService.TransferChannel(ctx, body.ChannelID, body.OldOwnerID, body.NewOwnerID)
 	if err != nil {
-		logger.Error("API", "Erro ao transferir posse do canal: %v", err)
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Erro ao passar a posse para o novo usuário.",
-		})
+		ctx.Error(err)
 		return
 	}
 
@@ -217,11 +172,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	_, err = c.container.CacheService.DeleteAllUserSessionsBySuffix(ctx, body.OldOwnerID)
 	if err != nil {
 		logger.Error("API", "Erro ao excluir all sessions: %v", err)
-		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"succes":  true,
-		"message": "Dono migrado com sucesso!",
-	})
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Dono migrado com sucesso!"))
 }

@@ -8,8 +8,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
+	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
 type AuthController struct {
@@ -27,35 +29,32 @@ type LoginRequest struct {
 func (ac *AuthController) Login(ctx *gin.Context) {
 	var req LoginRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "Dados inválidos"})
+		ctx.Error(errors.BadRequest("Dados inválidos"))
 		return
 	}
 
 	authData := ctx.GetHeader("x-telegram-init-data")
 	if authData == "" {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "InitData ausente"})
+		ctx.Error(errors.New(http.StatusUnauthorized, "InitData ausente"))
 		return
 	}
 
 	// 1. Validação RIGOROSA do Telegram
 	validateResult := auth.ValidateTelegramInitData(authData, 3600)
 	if !validateResult.IsValid {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Autenticação do Telegram falhou"})
+		ctx.Error(errors.New(http.StatusUnauthorized, "Autenticação do Telegram falhou"))
 		return
 	}
 
 	// 1.1 Verificar se o userID do InitData condiz com o userID do Request
-	// Isso impede que um usuário envie o InitData dele mas peça um token para outro ID (impersonation)
 	userDataRaw, ok := validateResult.Data["user"]
 	if !ok {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Dados de usuário ausentes no Telegram"})
+		ctx.Error(errors.New(http.StatusUnauthorized, "Dados de usuário ausentes no Telegram"))
 		return
 	}
 
-	// O Telegram envia o campo 'user' como um JSON stringificado
-	// Exemplo: {"id":123456,"first_name":"...","username":"..."}
 	if !strings.Contains(userDataRaw, fmt.Sprintf("\"id\":%d", req.UserID)) {
-		ctx.JSON(http.StatusForbidden, gin.H{"success": false, "message": "ID de usuário não coincide com a autenticação"})
+		ctx.Error(errors.ErrForbidden)
 		return
 	}
 
@@ -65,7 +64,7 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 	if req.UserID == config.OwnerID {
 		role = auth.RoleOwner
 	} else {
-		user, err := ac.container.UserRepo.GetUserById(ctx, req.UserID)
+		user, err := ac.container.UserService.GetUserByID(ctx, req.UserID)
 		if err == nil && user != nil {
 			if user.IsAdmin {
 				role = auth.RoleAdmin
@@ -76,10 +75,10 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 		}
 	}
 
-	// 3. Gerar Token Seguro (Expirando em 12 horas para UX melhor no Mini App, ou conforme necessário)
+	// 3. Gerar Token Seguro
 	token, err := auth.GenerateToken(req.UserID, role, 1, 12*time.Hour)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "Erro ao gerar acesso"})
+		ctx.Error(errors.Internal(err))
 		return
 	}
 
@@ -94,10 +93,9 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success":       true,
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{
 		"role":          role,
-		"token":         token, // Retornamos o token tbm caso o cliente queira salvar fora do cookie
+		"token":         token,
 		"isBlacklisted": isBlacklisted,
-	})
+	}, "Login realizado com sucesso"))
 }
