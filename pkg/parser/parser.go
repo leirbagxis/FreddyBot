@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-telegram/bot/models"
+	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gopkg.in/yaml.v3"
 )
@@ -15,166 +15,175 @@ import (
 type Button struct {
 	Text                         string `yaml:"text"`
 	CallbackData                 string `yaml:"callback_data,omitempty"`
-	SwitchInlineQuery            string `yaml:"switch_inline_query,omitempty"`
 	URL                          string `yaml:"url,omitempty"`
-	WebApp                       string `yaml:"web_app,omitempty"`
+	SwitchInlineQuery            string `yaml:"switch_inline_query,omitempty"`
 	SwitchInlineQueryCurrentChat string `yaml:"switch_inline_query_current_chat,omitempty"`
 	IconCustomEmojiID            string `yaml:"custom_emoji,omitempty"`
 	Style                        string `yaml:"style,omitempty"`
+	WebApp                       string `yaml:"web_app,omitempty"`
 }
 
 type Message struct {
-	Name        string
-	Text        string
-	Buttons     [][]Button
-	VarKeys     []string
-	HasVarsText bool
+	Name        string     `yaml:"name"`
+	Text        string     `yaml:"text"`
+	Buttons     [][]Button `yaml:"buttons,omitempty"`
+	HasVarsText bool       `yaml:"-"`
+	VarKeys     []string   `yaml:"-"`
 }
 
 var (
-	messagesMap      map[string]*Message
-	loadOnce         sync.Once
-	placeholderRegex = regexp.MustCompile(`\{(\w+)\}`)
+	messagesMap = make(map[string]Message)
+	loadOnce    sync.Once
+	varRegex    = regexp.MustCompile(`\{(\w+)\}`) // Adjusted to match {var} instead of {{var}} based on yml
 )
 
 func loadMessages() {
-	configPath := os.Getenv("MESSAGES_PATH")
-	if configPath == "" {
-		configPath = "./config/messages.yml"
-	}
-
-	var file []byte
-	var err error
-	var finalPath string
-
-	// Lista de caminhos para tentar encontrar o arquivo
-	pathsToTry := []string{
-		configPath,
-		"../config/messages.yml",
-		"../../config/messages.yml",
-		"./messages.yml",
-	}
-
-	for _, p := range pathsToTry {
-		file, err = os.ReadFile(p)
-		if err == nil {
-			finalPath = p
-			break
-		}
-	}
-
+	data, err := os.ReadFile("config/messages.yml")
 	if err != nil {
-		cwd, _ := os.Getwd()
-		panic(fmt.Sprintf("❌ Erro ao carregar messages.yml\nCWD: %s\nTentados: %v\nErro: %v", cwd, pathsToTry, err))
+		logger.Error("PARSER", "Erro ao carregar arquivo de mensagens: %v", err)
+		return
 	}
 
-	var raw []struct {
-		Name    string     `yaml:"name"`
-		Text    string     `yaml:"text"`
-		Buttons [][]Button `yaml:"buttons,omitempty"`
+	// Unmarshal into a slice first (!!seq)
+	var messages []Message
+	if err := yaml.Unmarshal(data, &messages); err != nil {
+		logger.Error("PARSER", "Erro ao parsear YAML (list): %v", err)
+		return
 	}
 
-	if err := yaml.Unmarshal(file, &raw); err != nil {
-		panic(fmt.Sprintf("Erro ao parsear YAML (%s): %v", finalPath, err))
+	// Clear existing map to avoid stale data
+	for k := range messagesMap {
+		delete(messagesMap, k)
 	}
 
-	messagesMap = make(map[string]*Message, len(raw))
-
-	for _, item := range raw {
-		varKeys := detectPlaceholders(item.Text)
-		messagesMap[item.Name] = &Message{
-			Name:        item.Name,
-			Text:        item.Text,
-			Buttons:     item.Buttons,
-			VarKeys:     varKeys,
-			HasVarsText: len(varKeys) > 0,
+	for _, msg := range messages {
+		msg.HasVarsText = varRegex.MatchString(msg.Text)
+		if msg.HasVarsText {
+			matches := varRegex.FindAllStringSubmatch(msg.Text, -1)
+			keys := make([]string, 0, len(matches))
+			for _, m := range matches {
+				keys = append(keys, m[1])
+			}
+			msg.VarKeys = keys
 		}
+		messagesMap[msg.Name] = msg
 	}
 
-	logger.Info("PARSER", "✅ Messages carregadas: %d (via %s)", len(messagesMap), finalPath)
-}
-
-func detectPlaceholders(text string) []string {
-	matches := placeholderRegex.FindAllStringSubmatch(text, -1)
-	var keys []string
-	seen := make(map[string]struct{}, len(matches))
-
-	for _, match := range matches {
-		key := match[1]
-		if _, exists := seen[key]; !exists {
-			keys = append(keys, key)
-			seen[key] = struct{}{}
-		}
-	}
-	return keys
+	logger.Info("PARSER", "✅ %d mensagens carregadas com sucesso", len(messagesMap))
 }
 
 func ParseText(text string, vars map[string]string, keys []string) string {
+	res := text
 	for _, key := range keys {
 		val, ok := vars[key]
 		if !ok {
 			val = fmt.Sprintf("{%s}", key)
 		}
-		text = strings.ReplaceAll(text, "{"+key+"}", val)
+		res = strings.ReplaceAll(res, "{"+key+"}", val)
 	}
-	return text
+	return res
 }
 
-func parseButtons(buttons [][]Button, vars map[string]string) [][]Button {
-	if len(buttons) == 0 || len(vars) == 0 {
-		return buttons
+func parseButtons(rows [][]Button, vars map[string]string) [][]Button {
+	if len(rows) == 0 {
+		return nil
 	}
 
-	parsed := make([][]Button, len(buttons))
-	for i, row := range buttons {
+	newRows := make([][]Button, len(rows))
+	for i, row := range rows {
 		newRow := make([]Button, len(row))
 		for j, btn := range row {
-			newRow[j] = Button{
-				Text:                         ParseText(btn.Text, vars, detectPlaceholders(btn.Text)),
-				CallbackData:                 ParseText(btn.CallbackData, vars, detectPlaceholders(btn.CallbackData)),
-				URL:                          ParseText(btn.URL, vars, detectPlaceholders(btn.URL)),
-				WebApp:                       ParseText(btn.WebApp, vars, detectPlaceholders(btn.WebApp)),
-				SwitchInlineQuery:            ParseText(btn.SwitchInlineQuery, vars, detectPlaceholders(btn.SwitchInlineQuery)),
-				SwitchInlineQueryCurrentChat: ParseText(btn.SwitchInlineQueryCurrentChat, vars, detectPlaceholders(btn.SwitchInlineQueryCurrentChat)),
-				IconCustomEmojiID:            ParseText(btn.IconCustomEmojiID, vars, detectPlaceholders(btn.IconCustomEmojiID)),
-				Style:                        ParseText(btn.Style, vars, detectPlaceholders(btn.Style)),
+			newBtn := btn
+			// Parse text
+			if varRegex.MatchString(btn.Text) {
+				matches := varRegex.FindAllStringSubmatch(btn.Text, -1)
+				keys := make([]string, 0, len(matches))
+				for _, m := range matches {
+					keys = append(keys, m[1])
+				}
+				newBtn.Text = ParseText(btn.Text, vars, keys)
 			}
+			// Parse callback_data
+			if btn.CallbackData != "" && varRegex.MatchString(btn.CallbackData) {
+				matches := varRegex.FindAllStringSubmatch(btn.CallbackData, -1)
+				keys := make([]string, 0, len(matches))
+				for _, m := range matches {
+					keys = append(keys, m[1])
+				}
+				newBtn.CallbackData = ParseText(btn.CallbackData, vars, keys)
+			}
+			// Parse URL
+			if btn.URL != "" && varRegex.MatchString(btn.URL) {
+				matches := varRegex.FindAllStringSubmatch(btn.URL, -1)
+				keys := make([]string, 0, len(matches))
+				for _, m := range matches {
+					keys = append(keys, m[1])
+				}
+				newBtn.URL = ParseText(btn.URL, vars, keys)
+			}
+			// Parse switch_inline_query
+			if btn.SwitchInlineQuery != "" && varRegex.MatchString(btn.SwitchInlineQuery) {
+				matches := varRegex.FindAllStringSubmatch(btn.SwitchInlineQuery, -1)
+				keys := make([]string, 0, len(matches))
+				for _, m := range matches {
+					keys = append(keys, m[1])
+				}
+				newBtn.SwitchInlineQuery = ParseText(btn.SwitchInlineQuery, vars, keys)
+			}
+			// Parse WebApp
+			if btn.WebApp != "" && varRegex.MatchString(btn.WebApp) {
+				matches := varRegex.FindAllStringSubmatch(btn.WebApp, -1)
+				keys := make([]string, 0, len(matches))
+				for _, m := range matches {
+					keys = append(keys, m[1])
+				}
+				newBtn.WebApp = ParseText(btn.WebApp, vars, keys)
+			}
+
+			newRow[j] = newBtn
 		}
-		parsed[i] = newRow
+		newRows[i] = newRow
 	}
-	return parsed
+	return newRows
 }
 
-func BuildInlineKeyboard(buttons [][]Button) *models.InlineKeyboardMarkup {
+func BuildInlineKeyboardTelego(buttons [][]Button) *telego.InlineKeyboardMarkup {
 	if len(buttons) == 0 {
 		return nil
 	}
 
-	inlineKeyboard := make([][]models.InlineKeyboardButton, len(buttons))
+	inlineKeyboard := make([][]telego.InlineKeyboardButton, len(buttons))
 	for i, row := range buttons {
-		btnRow := make([]models.InlineKeyboardButton, len(row))
+		btnRow := make([]telego.InlineKeyboardButton, len(row))
 		for j, btn := range row {
-			btnRow[j] = models.InlineKeyboardButton{
-				Text:                         btn.Text,
-				CallbackData:                 btn.CallbackData,
-				URL:                          btn.URL,
-				SwitchInlineQuery:            btn.SwitchInlineQuery,
-				SwitchInlineQueryCurrentChat: btn.SwitchInlineQueryCurrentChat,
-				IconCustomEmojiID:            btn.IconCustomEmojiID,
-				Style:                        btn.Style,
+			btnRow[j] = telego.InlineKeyboardButton{
+				Text:              btn.Text,
+				CallbackData:      btn.CallbackData,
+				URL:               btn.URL,
+				IconCustomEmojiID: btn.IconCustomEmojiID,
+				Style:             btn.Style,
+			}
+
+			if btn.SwitchInlineQuery != "" {
+				query := btn.SwitchInlineQuery
+				btnRow[j].SwitchInlineQuery = &query
+			}
+			if btn.SwitchInlineQueryCurrentChat != "" {
+				query := btn.SwitchInlineQueryCurrentChat
+				btnRow[j].SwitchInlineQueryCurrentChat = &query
 			}
 
 			if btn.WebApp != "" {
-				btnRow[j].WebApp = &models.WebAppInfo{URL: btn.WebApp}
+				btnRow[j].WebApp = &telego.WebAppInfo{URL: btn.WebApp}
 			}
 		}
 		inlineKeyboard[i] = btnRow
 	}
 
-	return &models.InlineKeyboardMarkup{InlineKeyboard: inlineKeyboard}
+	return &telego.InlineKeyboardMarkup{InlineKeyboard: inlineKeyboard}
 }
 
-func GetMessage(name string, vars map[string]string) (string, *models.InlineKeyboardMarkup) {
+func GetMessageTelego(name string, vars map[string]string) (string, *telego.InlineKeyboardMarkup) {
 	loadOnce.Do(loadMessages)
 
 	msg, ok := messagesMap[name]
@@ -188,7 +197,7 @@ func GetMessage(name string, vars map[string]string) (string, *models.InlineKeyb
 	}
 
 	buttons := parseButtons(msg.Buttons, vars)
-	keyboard := BuildInlineKeyboard(buttons)
+	keyboard := BuildInlineKeyboardTelego(buttons)
 
 	return text, keyboard
 }

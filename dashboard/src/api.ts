@@ -224,10 +224,10 @@ export const fetchServerConfig = async () => {
     });
 };
 
-export const updateServerConfig = async (maintence: boolean, forceJoin: boolean) => {
+export const updateServerConfig = async (maintence: boolean, forceJoin: boolean, globalDefaultCaption: string, globalNewPackCaption: string) => {
     return apiFetch(`/api/admin/config`, {
         method: 'PUT',
-        body: JSON.stringify({ maintence, forceJoin }),
+        body: JSON.stringify({ maintence, forceJoin, globalDefaultCaption, globalNewPackCaption }),
     });
 };
 

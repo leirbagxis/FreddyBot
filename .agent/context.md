@@ -2,7 +2,7 @@
 
 ## Stack Tecnológica
 - **Linguagem:** Go (Golang) v1.24+
-- **Framework Bot:** `github.com/go-telegram/bot`
+- **Framework Bot:** `github.com/mymmrac/telego`
 - **Banco de Dados:** SQLite (GORM)
 - **Cache/Sessão:** Redis
 - **Dashboard:** React (TypeScript) + Vite

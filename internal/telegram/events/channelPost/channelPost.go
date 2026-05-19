@@ -5,8 +5,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
@@ -24,16 +24,16 @@ type MessageQueue struct {
 	lastProcess sync.Map // map[int64]time.Time
 }
 
-type PipelineJob struct {
-	Ctx      *ProcessingContext
-	Pipeline *Pipeline
+type PipelineJobTelego struct {
+	Ctx      *ProcessingContextTelego
+	Pipeline *PipelineTelego
 }
 
-func (j PipelineJob) Run() error {
+func (j PipelineJobTelego) Run() error {
 	return j.Pipeline.Execute(j.Ctx)
 }
 
-func (j PipelineJob) GetChannelID() int64 {
+func (j PipelineJobTelego) GetChannelID() int64 {
 	if j.Ctx.Channel != nil {
 		return j.Ctx.Channel.ID
 	}
@@ -86,39 +86,40 @@ func (mq *MessageQueue) worker() {
 	}
 }
 
-func (mq *MessageQueue) AddV2ToQueue(pCtx *ProcessingContext, pipeline *Pipeline) {
+func (mq *MessageQueue) AddTelegoToQueue(pCtx *ProcessingContextTelego, pipeline *PipelineTelego) {
 	select {
-	case mq.queue <- PipelineJob{Ctx: pCtx, Pipeline: pipeline}:
-		logger.Bot("📥 Mensagem V2 adicionada à fila (tamanho: %d)", len(mq.queue))
+	case mq.queue <- PipelineJobTelego{Ctx: pCtx, Pipeline: pipeline}:
+		logger.Bot("📥 Mensagem Telego adicionada à fila (tamanho: %d)", len(mq.queue))
 	default:
-		logger.Bot("⚠️ Fila cheia, descartando mensagem V2")
+		logger.Bot("⚠️ Fila cheia, descartando mensagem Telego")
 	}
 }
 
-func Handler(c *container.AppContainer) bot.HandlerFunc {
-	return func(ctx context.Context, b *bot.Bot, update *models.Update) {
+func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
+	return func(ctx *telegohandler.Context, update telego.Update) error {
 		if update.ChannelPost != nil {
-			logger.Bot("🚀 [%d] Novo post recebido no canal %d", update.ChannelPost.ID, update.ChannelPost.Chat.ID)
+			logger.Bot("🚀 [%d] Novo post recebido no canal %d (Telego)", update.ChannelPost.MessageID, update.ChannelPost.Chat.ID)
 		}
 
-		// 1. Execution Pipeline: Transformation -> Decoration -> Dispatch (Runs in Worker)
-		executionPipeline := NewPipeline(
+		// 1. Execution Pipeline
+		executionPipeline := NewPipelineTelego(
 			"Execution",
-			StageTransform(c),
-			StageDecorate(c),
-			StageSend(c),
+			StageTransformTelego(c),
+			StageDecorateTelego(c),
+			StageSendTelego(c),
 		)
 
-		// 2. Discovery Pipeline: Filters -> Metadata -> Grouping -> Queue (Runs in Handler thread)
-		discoveryPipeline := NewPipeline(
+		// 2. Discovery Pipeline
+		discoveryPipeline := NewPipelineTelego(
 			"Discovery",
-			StagePreflight(c),
-			StageSpecialFlows(c),
-			StageMediaGrouping(c, executionPipeline),
-			StageQueue(c, executionPipeline),
+			StagePreflightTelego(c),
+			StageSpecialFlowsTelego(c),
+			StageMediaGroupingTelego(c, executionPipeline),
+			StageQueueTelego(c, executionPipeline),
 		)
 
-		pCtx := NewProcessingContext(ctx, b, update, discoveryPipeline)
+		pCtx := NewProcessingContextTelego(context.Background(), ctx.Bot(), update, discoveryPipeline)
 		_ = discoveryPipeline.Execute(pCtx)
+		return nil
 	}
 }

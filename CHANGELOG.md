@@ -2,6 +2,24 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.3.0] - 2026-05-19
+
+### Added
+- **Migração para Telego Framework**: Refatoração completa do motor do bot para utilizar o framework `telego`, proporcionando maior estabilidade e tipos nativos.
+- **Placeholder Dinâmico `{usernameBot}`**: Implementação de substituição em tempo real do nome de usuário do bot nas legendas globais durante o cadastro de novos canais.
+- **Proteção Legal e Docs**: Adição de arquivo de `LICENSE` (Proprietário) e atualização completa do `README.md` com instruções de deploy focadas em PostgreSQL e variáveis de ambiente.
+- **Limpeza Profunda de Cache**: Implementação de purga automática de sessões e metadados tanto no Redis quanto na memória RAM local ao excluir ou desconectar um canal.
+
+### Fixed
+- **Prioridade de Interceptação**: Reordenação de handlers para garantir que fluxos ativos (ex: Sticker Separador) não sejam roubados pelo PostBuilder.
+- **Renderização de Tags**: Adição de fallbacks automáticos para a tag `{channelName}`, evitando textos vazios em canais recém-criados.
+- **Persistência de Modelos**: Correção no salvamento do Sticker Separador com geração obrigatória de UUID.
+- **Parsing de YAML**: Ajuste no parser de mensagens para lidar com chaves simples e caracteres especiais de forma mais resiliente.
+
+### Changed
+- **Arquitetura de Middlewares**: Migração dos middlewares globais (Blacklist, Manutenção, SaveUser) para o padrão Telego.
+- **Inicialização de Banco**: Injeção de templates padrão para legendas globais diretamente no `ServerConfig` durante o primeiro boot.
+
 ## [Unreleased]
 
 ### Added

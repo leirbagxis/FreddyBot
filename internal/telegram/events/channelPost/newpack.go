@@ -1,4 +1,3 @@
-// file: internal/telegram/events/channelPost/newpack.go (sugestão)
 package channelpost
 
 import (
@@ -7,10 +6,8 @@ import (
 	"regexp"
 	"strings"
 	"sync"
-	"time"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
+	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
@@ -18,56 +15,29 @@ import (
 // Estado por canal: quando recebeu !newpack e está aguardando sticker
 type newPackState struct {
 	WaitingForSticker bool
-	MessageID         int // id da mensagem do !newpack (pra editar depois)
+	MessageID         int
 }
 
 var newPackStates sync.Map // map[int64]newPackState
+var cmdNewPackRegex = regexp.MustCompile(`^!newpack`)
 
-var cmdNewPackRegex = regexp.MustCompile(`^(?:/newpack|!newpack)(\s|$)`)
-
-// -------------------- template --------------------
-func renderNewPackTemplate(tpl, titulo, link string) string {
-	out := tpl
-	out = strings.ReplaceAll(out, "$titulo", titulo)
-	out = strings.ReplaceAll(out, "$link", link)
-
-	out = strings.ReplaceAll(out, "$title", titulo)
-	out = strings.ReplaceAll(out, "$url", link)
-	return out
-}
-
-func shouldDisableLinkPreview(channel dbmodels.Channel) bool {
-	// padrão do seu código é "permitir" quando não há config explícita. [file:7]
-	if channel.DefaultCaption == nil || channel.DefaultCaption.MessagePermission == nil {
-		return false
-	}
-	return !channel.DefaultCaption.MessagePermission.LinkPreview
-}
-
-func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel, post models.Message) (handled bool, err error) {
+func TryHandleNewPackTelego(ctx context.Context, b *telego.Bot, channel dbmodels.Channel, post telego.Message) (handled bool, err error) {
 	channelID := post.Chat.ID
-	mgm := GetMediaGroupManager()
+	mgm := GetMediaGroupManagerTelego()
 
-	// 1) Se recebeu comando !newpack
 	if post.Text != "" && cmdNewPackRegex.MatchString(strings.TrimSpace(post.Text)) {
-		// Marca modo ativo (reaproveita seu mecanismo)
-		mgm.SetNewPackActive(channelID, true) // [file:3]
+		mgm.SetNewPackActive(channelID, true)
 		newPackStates.Store(channelID, newPackState{
 			WaitingForSticker: true,
-			MessageID:         post.ID,
+			MessageID:         post.MessageID,
 		})
 
-		editCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-		defer cancel()
-
-		// Similar ao JS: "Envie-me um sticker do seu pack..."
-		_, err := b.EditMessageText(editCtx, &bot.EditMessageTextParams{
-			ChatID:    channelID,
-			MessageID: post.ID,
+		_, err := b.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+			ChatID:    telego.ChatID{ID: channelID},
+			MessageID: post.MessageID,
 			Text:      "Envie-me um sticker do seu pack...",
 		})
 		if err != nil {
-			// Se falhar, ainda assim mantém o estado? Aqui preferi desativar pra não travar.
 			newPackStates.Delete(channelID)
 			mgm.SetNewPackActive(channelID, false)
 			return true, err
@@ -75,7 +45,6 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 		return true, nil
 	}
 
-	// 2) Se chegou sticker e o canal está aguardando
 	if post.Sticker != nil {
 		v, ok := newPackStates.Load(channelID)
 		if !ok {
@@ -86,14 +55,10 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 			return false, nil
 		}
 
-		// Validar se sticker tem set_name (sticker de pack público)
 		setName := post.Sticker.SetName
 		if strings.TrimSpace(setName) == "" {
-			sendCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-			defer cancel()
-
-			_, _ = b.SendMessage(sendCtx, &bot.SendMessageParams{
-				ChatID: channelID,
+			_, _ = b.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: telego.ChatID{ID: channelID},
 				Text:   "Sticker não faz parte de um pack público.",
 			})
 			newPackStates.Delete(channelID)
@@ -101,11 +66,7 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 			return true, nil
 		}
 
-		// Buscar infos do pack
-		getCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-
-		pack, err := b.GetStickerSet(getCtx, &bot.GetStickerSetParams{
+		pack, err := b.GetStickerSet(context.Background(), &telego.GetStickerSetParams{
 			Name: setName,
 		})
 		if err != nil {
@@ -128,29 +89,25 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 		}
 
 		caption := renderNewPackTemplate(tpl, title, link)
+		
+		pm := GetPermissionManager()
+		perms := pm.CheckPermissions(&channel, MessageTypeText)
+		disableLP := !perms.CanUseLinkPreview
 
-		// aplicar link preview permission (como processors.go faz no texto). [file:7]
-		disableLP := shouldDisableLinkPreview(channel)
-
-		editCtx, cancel2 := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel2()
-
-		// Edita o texto da mensagem original do comando
-		editParams := bot.EditMessageTextParams{
-			ChatID:    channelID,
+		editParams := telego.EditMessageTextParams{
+			ChatID:    telego.ChatID{ID: channelID},
 			MessageID: state.MessageID,
 			Text:      DetectParseMode(caption),
-			ParseMode: models.ParseModeHTML,
+			ParseMode: telego.ModeHTML,
 		}
 
 		if disableLP {
-			val := true
-			editParams.LinkPreviewOptions = &models.LinkPreviewOptions{
-				IsDisabled: &val,
+			editParams.LinkPreviewOptions = &telego.LinkPreviewOptions{
+				IsDisabled: true,
 			}
 		}
 
-		_, err = b.EditMessageText(editCtx, &editParams)
+		_, err = b.EditMessageText(context.Background(), &editParams)
 
 		if err != nil {
 			newPackStates.Delete(channelID)
@@ -158,46 +115,40 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 			return true, err
 		}
 
-		// Adiciona botão com link do pack (equivalente ao inline keyboard do JS)
-		kb := models.InlineKeyboardMarkup{
-			InlineKeyboard: [][]models.InlineKeyboardButton{
+		kb := telego.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telego.InlineKeyboardButton{
 				{
 					{Text: title, URL: packURL},
 				},
 			},
 		}
 
-		_, err = b.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
-			ChatID:      channelID,
+		_, err = b.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
+			ChatID:      telego.ChatID{ID: channelID},
 			MessageID:   state.MessageID,
-			ReplyMarkup: kb,
+			ReplyMarkup: &kb,
 		})
 		if err != nil {
-			// Não precisa falhar o fluxo inteiro; o texto já foi editado.
 			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
 		}
 
-		_, err = b.EditMessageReplyMarkup(editCtx, &bot.EditMessageReplyMarkupParams{
-			ChatID:      channelID,
-			MessageID:   post.ID,
-			ReplyMarkup: kb,
+		_, err = b.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
+			ChatID:      telego.ChatID{ID: channelID},
+			MessageID:   post.MessageID,
+			ReplyMarkup: &kb,
 		})
 
 		if err != nil {
-			// Não precisa falhar o fluxo inteiro; o texto já foi editado.
 			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
 		}
 
 		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
-			sepCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
-			defer cancel()
-			_, _ = b.SendSticker(sepCtx, &bot.SendStickerParams{
-				ChatID:  channelID,
-				Sticker: &models.InputFileString{Data: channel.Separator.SeparatorID},
+			_, _ = b.SendSticker(context.Background(), &telego.SendStickerParams{
+				ChatID:  telego.ChatID{ID: channelID},
+				Sticker: telego.InputFile{FileID: channel.Separator.SeparatorID},
 			})
 		}
 
-		// Finaliza estado
 		newPackStates.Delete(channelID)
 		mgm.SetNewPackActive(channelID, false)
 		return true, nil
@@ -206,8 +157,9 @@ func TryHandleNewPack(ctx context.Context, b *bot.Bot, channel dbmodels.Channel,
 	return false, nil
 }
 
-// helper mínimo (ou reaproveite seu utils.RemoveHTMLTags/escape já existente)
-func escapeHTML(s string) string {
-	r := strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;", "\"", "&quot;")
-	return r.Replace(s)
+func renderNewPackTemplate(tpl, title, link string) string {
+	res := strings.ReplaceAll(tpl, "$titulo", title)
+	res = strings.ReplaceAll(res, "$name", title)
+	res = strings.ReplaceAll(res, "$link", link)
+	return res
 }

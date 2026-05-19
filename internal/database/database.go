@@ -30,6 +30,11 @@ func InitDB() *gorm.DB {
 	}
 	db.Config.Logger = logger.Default.LogMode(logger.Silent)
 
+	// Habilitar Foreign Keys no SQLite
+	if config.AppEnv == "dev" {
+		db.Exec("PRAGMA foreign_keys = ON;")
+	}
+
 	// Configurar Pool de Conexões (Crucial para produção)
 	sqlDB, err := db.DB()
 	if err == nil {
@@ -68,9 +73,20 @@ func InitDB() *gorm.DB {
 
 func initServerConfig(db *gorm.DB) error {
 	config := models.ServerConfig{
-		ID:        1,
-		Maintence: false,
-		ForceJoin: false,
+		ID:                   1,
+		Maintence:            false,
+		ForceJoin:            false,
+		GlobalDefaultCaption: "🐈‍⠀៹ [t.me/legendasbot](https://t.me/{usernameBot})  ‹",
+		GlobalNewPackCaption: `╔═━──━═༻✧༺═━──━═╗
+
+        𖦹⁠⁠⁠ ࣪ ⭑ ᥫ᭡
+        (｡•́︿•̀｡)っ✧.*ೃ༄
+        ˗ˏˋ [$name]($link) ⋆｡˚ ☁︎
+            彡♡ ₊˚
+
+⋆｡˚ ❀ @LegendasBrBot ☽⁺₊
+
+╚═━──━═༻✧༺═━──━═╝`,
 	}
 
 	if err := db.WithContext(context.Background()).FirstOrCreate(&config, models.ServerConfig{ID: 1}).Error; err != nil {

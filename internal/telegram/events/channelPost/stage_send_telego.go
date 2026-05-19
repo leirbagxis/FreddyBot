@@ -1,0 +1,63 @@
+package channelpost
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
+)
+
+func StageSendTelego(c *container.AppContainer) StageTelego {
+	return func(pCtx *ProcessingContextTelego) error {
+		logger.Bot("📤 Iniciando envio final Telego (Tipo: %s, Album: %v)", pCtx.MessageType, pCtx.IsMediaGroup)
+		
+		err := processWithRetryTelego(pCtx.Ctx, func() error {
+			if pCtx.IsMediaGroup {
+				return ProcessMediaGroupDispatchTelego(pCtx)
+			}
+
+			switch pCtx.MessageType {
+			case MessageTypeText:
+				return ProcessTextDispatchTelego(pCtx)
+			case MessageTypeAudio, MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation, MessageTypeDocument:
+				return ProcessMediaDispatchTelego(pCtx)
+			case MessageTypeSticker:
+				return ProcessStickerDispatchTelego(pCtx)
+			}
+			return nil
+		})
+
+		if err != nil {
+			logger.Error("BOT", "❌ Falha final no envio Telego: %v", err)
+			return err
+		}
+
+		logger.Bot("✅ Postagem Telego concluída com sucesso no canal %d", pCtx.Channel.ID)
+		return nil
+	}
+}
+
+func processWithRetryTelego(ctx context.Context, fn func() error) error {
+	maxRetries := 3
+	for attempt := 0; attempt < maxRetries; attempt++ {
+		err := fn()
+		if err == nil {
+			return nil
+		}
+		
+		if strings.Contains(err.Error(), "Too Many Requests") || strings.Contains(err.Error(), "429") {
+			retryAfter := extractRetryAfter(err.Error())
+			if retryAfter == 0 {
+				retryAfter = (attempt + 1) * 2
+			}
+			logger.Bot("⏳ Rate limit Telego, aguardando %d segundos...", retryAfter)
+			time.Sleep(time.Duration(retryAfter) * time.Second)
+			continue
+		}
+		return err
+	}
+	return fmt.Errorf("failed after %d attempts", maxRetries)
+}

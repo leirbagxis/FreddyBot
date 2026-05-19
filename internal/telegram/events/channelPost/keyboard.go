@@ -3,11 +3,11 @@ package channelpost
 import (
 	"strings"
 
-	"github.com/go-telegram/bot/models"
+	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 )
 
-func CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption, channel *dbmodels.Channel, messageType MessageType) *models.InlineKeyboardMarkup {
+func CreateInlineKeyboardTelego(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption, channel *dbmodels.Channel, messageType MessageType) *telego.InlineKeyboardMarkup {
 	var finalButtons []dbmodels.Button
 	pm := GetPermissionManager()
 
@@ -28,14 +28,12 @@ func CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.Cus
 		finalButtons = buttons
 	}
 
-	if len(finalButtons) == 0 {
+	if len(finalButtons) == 0 && (channel == nil || channel.Reactions == "") {
 		return nil
 	}
 
-	// Construção por linhas
-	rows := map[int][]models.InlineKeyboardButton{}
+	rows := map[int][]telego.InlineKeyboardButton{}
 
-	// Adicionar botões
 	for _, b := range finalButtons {
 		if b.NameButton == "" || b.ButtonURL == "" {
 			continue
@@ -44,19 +42,18 @@ func CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.Cus
 		if row < 0 {
 			row = 0
 		}
-		btn := models.InlineKeyboardButton{Text: b.NameButton, URL: b.ButtonURL}
+		btn := telego.InlineKeyboardButton{Text: b.NameButton, URL: b.ButtonURL}
 		rows[row] = append(rows[row], btn)
 	}
 
-	// Adicionar reações (se houver) na posição correta
 	perms := pm.CheckPermissions(channel, messageType)
 	if channel != nil && channel.Reactions != "" && perms.CanAddReactions {
 		reactions := strings.Split(channel.Reactions, ",")
-		var reactionRow []models.InlineKeyboardButton
+		var reactionRow []telego.InlineKeyboardButton
 		for _, r := range reactions {
 			emoji := strings.TrimSpace(r)
 			if emoji != "" {
-				reactionRow = append(reactionRow, models.InlineKeyboardButton{
+				reactionRow = append(reactionRow, telego.InlineKeyboardButton{
 					Text:         emoji,
 					CallbackData: "vote:" + emoji,
 				})
@@ -68,7 +65,6 @@ func CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.Cus
 				row = 0
 			}
 
-			// Evitar conflito: se a linha das reações já tiver botões, joga para a próxima linha disponível
 			hasConflict := false
 			maxBtnRow := -1
 			for _, b := range finalButtons {
@@ -88,9 +84,8 @@ func CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.Cus
 		}
 	}
 
-	// Ordenar por linha
-	keyboard := make([][]models.InlineKeyboardButton, 0)
-	maxRow := 0
+	keyboard := make([][]telego.InlineKeyboardButton, 0)
+	maxRow := -1
 	for r := range rows {
 		if r > maxRow {
 			maxRow = r
@@ -106,5 +101,5 @@ func CreateInlineKeyboard(buttons []dbmodels.Button, customCaption *dbmodels.Cus
 	if len(keyboard) == 0 {
 		return nil
 	}
-	return &models.InlineKeyboardMarkup{InlineKeyboard: keyboard}
+	return &telego.InlineKeyboardMarkup{InlineKeyboard: keyboard}
 }

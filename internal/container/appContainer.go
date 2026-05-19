@@ -4,8 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/go-telegram/bot"
-	"github.com/go-telegram/bot/models"
+	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
@@ -28,7 +27,7 @@ type BroadcastJob struct {
 
 type AppContainer struct {
 	DB  *gorm.DB
-	Bot *bot.Bot
+	TelegoBot *telego.Bot
 
 	BroadcastQueue chan BroadcastJob
 
@@ -48,7 +47,7 @@ type AppContainer struct {
 	SessionManager *cache.SessionManager
 }
 
-func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
+func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	cacheService := cache.NewService()
 
 	// Repositories (Removed cache from repositories)
@@ -62,14 +61,14 @@ func NewAppContainer(db *gorm.DB, bot *bot.Bot) *AppContainer {
 	serverRepo := repositories.NewServerConfigRepository(db)
 
 	container := &AppContainer{
-		DB:  db,
-		Bot: bot,
+		DB:        db,
+		TelegoBot: telegoClient,
 
 		BroadcastQueue: make(chan BroadcastJob, 10000),
 
 		// Services
 		UserService:          services.NewUserService(userRepo),
-		ChannelService:       services.NewChannelService(channelRepo, userRepo, separatorRepo, cacheService, bot),
+		ChannelService:       services.NewChannelService(channelRepo, userRepo, separatorRepo, cacheService, telegoClient),
 		ButtonService:        services.NewButtonService(buttonRepo, channelRepo, customCaptionRepo, cacheService),
 		CaptionService:       services.NewCaptionService(channelRepo, buttonRepo, cacheService),
 		PermissionsService:   services.NewPermissionsService(permissionsRepo, channelRepo, cacheService),
@@ -94,12 +93,12 @@ func (c *AppContainer) startBroadcastWorkers(workerCount int) {
 
 func (c *AppContainer) broadcastWorker() {
 	for job := range c.BroadcastQueue {
-		var keyboard [][]models.InlineKeyboardButton
-		var replyMarkup *models.InlineKeyboardMarkup
+		var keyboard [][]telego.InlineKeyboardButton
+		var replyMarkup *telego.InlineKeyboardMarkup
 
 		if len(job.Buttons) > 0 {
 			for _, btn := range job.Buttons {
-				button := models.InlineKeyboardButton{
+				button := telego.InlineKeyboardButton{
 					Text: btn.Text,
 				}
 
@@ -109,35 +108,35 @@ func (c *AppContainer) broadcastWorker() {
 					button.CallbackData = btn.Value
 				}
 
-				keyboard = append(keyboard, []models.InlineKeyboardButton{button})
+				keyboard = append(keyboard, []telego.InlineKeyboardButton{button})
 			}
-			replyMarkup = &models.InlineKeyboardMarkup{
+			replyMarkup = &telego.InlineKeyboardMarkup{
 				InlineKeyboard: keyboard,
 			}
 		}
 
 		var err error
 		if job.ImageUrl != "" {
-			params := &bot.SendPhotoParams{
-				ChatID:    job.ChatID,
-				Photo:     &models.InputFileString{Data: job.ImageUrl},
+			params := &telego.SendPhotoParams{
+				ChatID:    telego.ChatID{ID: job.ChatID},
+				Photo:     telego.InputFile{URL: job.ImageUrl},
 				Caption:   job.Text,
-				ParseMode: "HTML",
+				ParseMode: telego.ModeHTML,
 			}
 			if replyMarkup != nil {
 				params.ReplyMarkup = replyMarkup
 			}
-			_, err = c.Bot.SendPhoto(context.Background(), params)
+			_, err = c.TelegoBot.SendPhoto(context.Background(), params)
 		} else {
-			params := &bot.SendMessageParams{
-				ChatID:    job.ChatID,
+			params := &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: job.ChatID},
 				Text:      job.Text,
-				ParseMode: "HTML",
+				ParseMode: telego.ModeHTML,
 			}
 			if replyMarkup != nil {
 				params.ReplyMarkup = replyMarkup
 			}
-			_, err = c.Bot.SendMessage(context.Background(), params)
+			_, err = c.TelegoBot.SendMessage(context.Background(), params)
 		}
 
 		if err != nil {

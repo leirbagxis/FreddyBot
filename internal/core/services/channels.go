@@ -4,7 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/go-telegram/bot"
+	"github.com/google/uuid"
+	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
@@ -16,10 +17,10 @@ type ChannelService struct {
 	userRepo      *repositories.UserRepository
 	separatorRepo *repositories.SeparatorRepository
 	cache         *cache.Service
-	bot           *bot.Bot
+	bot           *telego.Bot
 }
 
-func NewChannelService(channelRepo *repositories.ChannelRepository, userRepo *repositories.UserRepository, separatorRepo *repositories.SeparatorRepository, cache *cache.Service, bot *bot.Bot) *ChannelService {
+func NewChannelService(channelRepo *repositories.ChannelRepository, userRepo *repositories.UserRepository, separatorRepo *repositories.SeparatorRepository, cache *cache.Service, bot *telego.Bot) *ChannelService {
 	return &ChannelService{
 		channelRepo:   channelRepo,
 		userRepo:      userRepo,
@@ -144,6 +145,7 @@ func (s *ChannelService) GetAllChannelsPaginated(ctx context.Context, limit, off
 }
 
 func (s *ChannelService) CreateChannelWithDefaults(ctx context.Context, channelID int64, title, inviteURL, newPackCaption, defaultCaption string, ownerID int64) (*models.Channel, error) {
+	captionID := uuid.NewString()
 	channel := &models.Channel{
 		ID:             channelID,
 		Title:          title,
@@ -151,7 +153,25 @@ func (s *ChannelService) CreateChannelWithDefaults(ctx context.Context, channelI
 		NewPackCaption: newPackCaption,
 		OwnerID:        ownerID,
 		DefaultCaption: &models.DefaultCaption{
-			Caption: defaultCaption,
+			CaptionID: captionID,
+			Caption:   defaultCaption,
+			MessagePermission: &models.MessagePermission{
+				MessagePermissionID: uuid.NewString(),
+				OwnerCaptionID:      captionID,
+			},
+			ButtonsPermission: &models.ButtonsPermission{
+				ButtonsPermissionID: uuid.NewString(),
+				OwnerCaptionID:      captionID,
+			},
+		},
+		Buttons: []models.Button{
+			{
+				ButtonID:   uuid.NewString(),
+				NameButton: title,
+				ButtonURL:  inviteURL,
+				PositionX:  0,
+				PositionY:  0,
+			},
 		},
 	}
 
@@ -167,6 +187,8 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, userID int64, channe
 		return errors.Internal(err)
 	}
 	s.cache.InvalidateChannel(ctx, channelID)
+	// Limpa todas as sessões do usuário (RAM e Redis) para evitar inconsistências
+	_, _ = s.cache.DeleteAllUserSessionsBySuffix(ctx, userID)
 	return nil
 }
 
@@ -176,14 +198,14 @@ func (s *ChannelService) DisconnectChannel(ctx context.Context, userID int64, ch
 
 	// Tenta enviar a mensagem, mas não bloqueia se falhar (o bot pode já ter sido removido manualmente)
 	if s.bot != nil {
-		_, _ = s.bot.SendMessage(ctx, &bot.SendMessageParams{
-			ChatID: channelID,
+		_, _ = s.bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: channelID},
 			Text:   farewellMsg,
 		})
 
 		// 2. Leave the channel
-		_, _ = s.bot.LeaveChat(ctx, &bot.LeaveChatParams{
-			ChatID: channelID,
+		_ = s.bot.LeaveChat(context.Background(), &telego.LeaveChatParams{
+			ChatID: telego.ChatID{ID: channelID},
 		})
 	}
 

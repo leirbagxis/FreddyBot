@@ -24,7 +24,7 @@ func (s *ServerService) GetConfig(ctx context.Context) (*models.ServerConfig, er
 	return config, nil
 }
 
-func (s *ServerService) UpdateConfig(ctx context.Context, maintenance, forceJoin bool) (*models.ServerConfig, error) {
+func (s *ServerService) UpdateConfig(ctx context.Context, maintenance, forceJoin bool, globalDefaultCaption, globalNewPackCaption string) (*models.ServerConfig, error) {
 	config, err := s.serverRepo.GetServerConfig(ctx)
 	if err != nil {
 		return nil, errors.Internal(err)
@@ -32,6 +32,8 @@ func (s *ServerService) UpdateConfig(ctx context.Context, maintenance, forceJoin
 
 	config.Maintence = maintenance
 	config.ForceJoin = forceJoin
+	config.GlobalDefaultCaption = globalDefaultCaption
+	config.GlobalNewPackCaption = globalNewPackCaption
 
 	if err := s.serverRepo.UpdateServerConfig(ctx, config); err != nil {
 		return nil, errors.Internal(err)

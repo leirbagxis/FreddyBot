@@ -9,7 +9,7 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/go-telegram/bot"
+	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/api/routes"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
@@ -18,11 +18,11 @@ import (
 	"gorm.io/gorm"
 )
 
-func StartApi(db *gorm.DB, webhookHandler http.Handler, bot *bot.Bot) error {
+func StartApi(db *gorm.DB, webhookHandler http.Handler, tb *telego.Bot) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	app := container.NewAppContainer(db, bot)
+	app := container.NewAppContainer(db, tb)
 	router := gin.Default() // Usar Default para ter Logger e Recovery
 
 	router.Use(cors.New(cors.Config{

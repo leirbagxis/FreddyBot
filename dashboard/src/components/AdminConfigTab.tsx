@@ -1,13 +1,19 @@
 import { useState, useEffect } from 'react';
-import { Settings, ShieldCheck, Construction } from 'lucide-react';
+import { Settings, ShieldCheck, Construction, FileText, PackagePlus, Save } from 'lucide-react';
 import { fetchServerConfig, updateServerConfig } from '../api';
 import { ServerConfig } from '../types';
 import { useToast } from './Toast';
+import { RichTextEditor } from './RichTextEditor';
 
 export function AdminConfigTab() {
     const [config, setConfig] = useState<ServerConfig | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    
+    // Estados locais para os editores para evitar re-render pesado da tab inteira a cada caractere
+    const [globalDefault, setGlobalDefault] = useState('');
+    const [globalNewPack, setGlobalNewPack] = useState('');
+
     const toast = useToast();
 
     useEffect(() => {
@@ -15,9 +21,16 @@ export function AdminConfigTab() {
             try {
                 const res = await fetchServerConfig();
                 if (res.success) {
-                    setConfig(res.config);
+                    // O backend retorna os dados dentro da propriedade 'data' (NewSuccessResponse)
+                    const serverData = res.data || res.config; 
+                    if (serverData) {
+                        setConfig(serverData);
+                        setGlobalDefault(serverData.globalDefaultCaption || '');
+                        setGlobalNewPack(serverData.globalNewPackCaption || '');
+                    }
                 }
             } catch (err) {
+                console.error("Erro ao carregar configurações Admin:", err);
                 toast('Erro ao carregar configurações', 'error');
             } finally {
                 setLoading(false);
@@ -26,29 +39,47 @@ export function AdminConfigTab() {
         loadConfig();
     }, [toast]);
 
-    const handleToggle = async (field: 'maintence' | 'forceJoin') => {
+    const handleSave = async (overrides: Partial<ServerConfig> = {}) => {
         if (!config) return;
         
-        const newConfig = { ...config, [field]: !config[field] };
+        const payload = {
+            maintence: overrides.maintence ?? config.maintence,
+            forceJoin: overrides.forceJoin ?? config.forceJoin,
+            globalDefaultCaption: overrides.globalDefaultCaption ?? globalDefault,
+            globalNewPackCaption: overrides.globalNewPackCaption ?? globalNewPack
+        };
         
         setSaving(true);
         try {
-            const res = await updateServerConfig(newConfig.maintence, newConfig.forceJoin);
+            const res = await updateServerConfig(
+                payload.maintence, 
+                payload.forceJoin, 
+                payload.globalDefaultCaption, 
+                payload.globalNewPackCaption
+            );
             if (res.success) {
-                setConfig(res.config);
-                toast(`Configuração atualizada: ${field === 'maintence' ? 'Manutenção' : 'Force Join'} ${newConfig[field] ? 'Ativado' : 'Desativado'}`, 'success');
+                const serverData = res.data || res.config;
+                if (serverData) {
+                    setConfig(serverData);
+                }
+                toast('Configurações atualizadas com sucesso', 'success');
             }
         } catch (err) {
-            toast('Erro ao atualizar configuração', 'error');
+            toast('Erro ao atualizar configurações', 'error');
         } finally {
             setSaving(false);
         }
     };
 
+    const handleToggle = (field: 'maintence' | 'forceJoin') => {
+        if (!config) return;
+        handleSave({ [field]: !config[field] });
+    };
+
     if (loading) return <div className="p-8 text-center opacity-50">Carregando configurações...</div>;
 
     return (
-        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
             <div className="admin-welcome-card">
                 <div className="flex items-center gap-4">
                     <div className="section-icon purple">
@@ -56,7 +87,7 @@ export function AdminConfigTab() {
                     </div>
                     <div>
                         <h2 className="text-xl font-bold">Configurações Globais</h2>
-                        <p className="text-sm opacity-60">Gerencie o estado do bot e restrições de acesso.</p>
+                        <p className="text-sm opacity-60">Gerencie o estado do bot e as legendas iniciais de novos canais.</p>
                     </div>
                 </div>
             </div>
@@ -102,11 +133,63 @@ export function AdminConfigTab() {
                         </div>
                         <div className={`toggle ${config?.forceJoin ? 'on' : ''}`} />
                     </div>
-                    <div className="mt-3 p-3 bg-[var(--surface)] rounded-xl border border-[var(--border)]">
-                        <div className="text-[11px] font-bold opacity-40 uppercase mb-1">Canal de Verificação</div>
-                        <div className="text-[12px] font-mono opacity-80">-1003767126116</div>
+                </div>
+            </div>
+
+            {/* Legenda Padrão Global */}
+            <div className="card">
+                <div className="section-header">
+                    <div className="section-icon purple">
+                        <FileText size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-semibold truncate">Legenda Padrão (Global)</h3>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
+                            Usada para preencher novos canais vinculados ao bot.
+                        </p>
                     </div>
                 </div>
+                <div className="p-4 bg-[var(--surface)] rounded-2xl border border-[var(--border)] mt-2">
+                    <RichTextEditor 
+                        value={globalDefault}
+                        onChange={setGlobalDefault}
+                        placeholder="Ex: 🐈‍⠀៹ [t.me/legendasbot](https://t.me/botusername)  ‹"
+                    />
+                </div>
+            </div>
+
+            {/* Legenda Novo Pack Global */}
+            <div className="card">
+                <div className="section-header">
+                    <div className="section-icon amber">
+                        <PackagePlus size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-semibold truncate">Legenda de Novo Pack (Global)</h3>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
+                            Usada como valor inicial para a mensagem de pack padrão.
+                        </p>
+                    </div>
+                </div>
+                <div className="p-4 bg-[var(--surface)] rounded-2xl border border-[var(--border)] mt-2">
+                    <RichTextEditor 
+                        value={globalNewPack}
+                        onChange={setGlobalNewPack}
+                        placeholder="Texto inicial para novos packs..."
+                    />
+                </div>
+            </div>
+
+            {/* Botão Salvar Geral */}
+            <div className="pt-4 pb-12">
+                <button 
+                    className={`btn-primary w-full shadow-2xl flex items-center justify-center gap-2 h-12 rounded-2xl transition-all active:scale-95 ${saving ? 'opacity-70 grayscale' : ''}`}
+                    onClick={() => !saving && handleSave()}
+                    disabled={saving}
+                >
+                    <Save size={20} />
+                    <span className="font-bold">{saving ? 'Salvando...' : 'Salvar Legendas Globais'}</span>
+                </button>
             </div>
         </div>
     );

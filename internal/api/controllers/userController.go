@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/go-telegram/bot"
+	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/dto"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
@@ -68,8 +68,8 @@ func (c *UserController) GetUserInfo(ctx *gin.Context) {
 
 	}
 
-	user, err := c.container.Bot.GetChat(context.Background(), &bot.GetChatParams{
-		ChatID: userID,
+	user, err := c.container.TelegoBot.GetChat(context.Background(), &telego.GetChatParams{
+		ChatID: telego.ChatID{ID: userID},
 	})
 	if err != nil {
 		ctx.Error(errors.BadRequest("Usuario nao encontrado"))
@@ -97,7 +97,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 		return
 	}
 
-	newOwner, err := c.container.Bot.GetChat(ctx, &bot.GetChatParams{ChatID: body.NewOwnerID})
+	newOwner, err := c.container.TelegoBot.GetChat(ctx, &telego.GetChatParams{ChatID: telego.ChatID{ID: body.NewOwnerID}})
 	if err != nil {
 		logger.Error("API", "Erro ao obter chat do novo dono: %v", err)
 		ctx.Error(errors.BadRequest("O novo dono precisa iniciar o bot pelo menos uma vez."))
@@ -105,13 +105,14 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	}
 
 	// Verifica se o novo dono é um bot
-	if body.NewOwnerID == c.container.Bot.ID() {
+	botInfo, _ := c.container.TelegoBot.GetMe(context.Background())
+	if body.NewOwnerID == botInfo.ID {
 		ctx.Error(errors.BadRequest("O novo dono não pode ser eu."))
 		return
 	}
 
-	admins, err := c.container.Bot.GetChatAdministrators(ctx, &bot.GetChatAdministratorsParams{
-		ChatID: body.ChannelID,
+	admins, err := c.container.TelegoBot.GetChatAdministrators(ctx, &telego.GetChatAdministratorsParams{
+		ChatID: telego.ChatID{ID: body.ChannelID},
 	})
 	if err != nil {
 		logger.Error("API", "Erro ao buscar administradores do canal: %v", err)
@@ -121,13 +122,18 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 
 	isAdmin := false
 	for _, admin := range admins {
-		if admin.Administrator != nil && admin.Administrator.User.ID == body.NewOwnerID {
-			isAdmin = true
-			break
+		status := admin.MemberStatus()
+		if status == telego.MemberStatusAdministrator {
+			if a, ok := admin.(*telego.ChatMemberAdministrator); ok && a.User.ID == body.NewOwnerID {
+				isAdmin = true
+				break
+			}
 		}
-		if admin.Owner != nil && admin.Owner.User != nil && admin.Owner.User.ID == body.NewOwnerID {
-			isAdmin = true
-			break
+		if status == telego.MemberStatusCreator {
+			if a, ok := admin.(*telego.ChatMemberOwner); ok && a.User.ID == body.NewOwnerID {
+				isAdmin = true
+				break
+			}
 		}
 	}
 
@@ -153,21 +159,27 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 		"miniAppUrl":   auth.GenerateMiniAppUrl(newOwnerIDStr, channelID),
 	}
 
-	textOld, buttonOld := parser.GetMessage("success-old-paccess-message", data)
-	c.container.Bot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      body.OldOwnerID,
-		Text:        textOld,
-		ReplyMarkup: buttonOld,
-		ParseMode:   "HTML",
-	})
+	textOld, buttonOld := parser.GetMessageTelego("success-old-paccess-message", data)
+	paramsOld := &telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: body.OldOwnerID},
+		Text:      textOld,
+		ParseMode: telego.ModeHTML,
+	}
+	if buttonOld != nil {
+		paramsOld.ReplyMarkup = buttonOld
+	}
+	_, _ = c.container.TelegoBot.SendMessage(context.Background(), paramsOld)
 
-	textNew, buttonNew := parser.GetMessage("success-new-paccess-message", data)
-	c.container.Bot.SendMessage(ctx, &bot.SendMessageParams{
-		ChatID:      body.NewOwnerID,
-		Text:        textNew,
-		ReplyMarkup: buttonNew,
-		ParseMode:   "HTML",
-	})
+	textNew, buttonNew := parser.GetMessageTelego("success-new-paccess-message", data)
+	paramsNew := &telego.SendMessageParams{
+		ChatID:    telego.ChatID{ID: body.NewOwnerID},
+		Text:      textNew,
+		ParseMode: telego.ModeHTML,
+	}
+	if buttonNew != nil {
+		paramsNew.ReplyMarkup = buttonNew
+	}
+	_, _ = c.container.TelegoBot.SendMessage(context.Background(), paramsNew)
 
 	_, err = c.container.CacheService.DeleteAllUserSessionsBySuffix(ctx, body.OldOwnerID)
 	if err != nil {

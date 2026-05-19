@@ -5,11 +5,15 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/go-telegram/bot/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/mymmrac/telego"
 )
 
-func GetMessageType(post *models.Message) MessageType {
+func GetMessageTypeTelego(post *telego.Message) MessageType {
+	if post == nil {
+		return ""
+	}
 	switch {
 	case post.Text != "":
 		return MessageTypeText
@@ -35,60 +39,40 @@ var (
 	hashtagRegex    = regexp.MustCompile(`#(\w+)`)
 )
 
-func extractRetryAfter(errorMsg string) int {
-	matches := retryAfterRegex.FindStringSubmatch(errorMsg)
+func extractRetryAfter(errStr string) int {
+	matches := retryAfterRegex.FindStringSubmatch(errStr)
 	if len(matches) > 1 {
-		if retryAfter, err := strconv.Atoi(matches[1]); err == nil {
-			return retryAfter
-		}
+		retryAfter, _ := strconv.Atoi(matches[1])
+		return retryAfter
 	}
 	return 0
 }
 
 func extractHashtag(text string) string {
-	m := hashtagRegex.FindStringSubmatch(text)
-	if len(m) > 1 {
-		return strings.ToLower(m[1])
+	matches := hashtagRegex.FindStringSubmatch(text)
+	if len(matches) > 1 {
+		return matches[1]
 	}
 	return ""
 }
 
-func findCustomCaption(channel *dbmodels.Channel, code string) *dbmodels.CustomCaption {
-	if channel == nil || len(channel.CustomCaptions) == 0 {
+func removeHashtag(text, hashtag string) string {
+	return strings.TrimSpace(strings.Replace(text, "#"+hashtag, "", 1))
+}
+
+func findCustomCaption(channel *dbmodels.Channel, hashtag string) *dbmodels.CustomCaption {
+	if channel == nil || hashtag == "" {
 		return nil
 	}
-	code = strings.ToLower(strings.TrimSpace(code))
-	for i := range channel.CustomCaptions {
-		if strings.ToLower(channel.CustomCaptions[i].Code) == code {
-			return &channel.CustomCaptions[i]
+	for _, cc := range channel.CustomCaptions {
+		if strings.EqualFold(cc.Code, hashtag) {
+			return &cc
 		}
 	}
 	return nil
 }
 
-func convertMessageEntitiesToInterface(ents []models.MessageEntity) []interface{} {
-	out := make([]interface{}, 0, len(ents))
-	for _, e := range ents {
-		out = append(out, e)
-	}
-	return out
-}
-
-func convertInterfaceToEntities(anys []interface{}) []models.MessageEntity {
-	out := make([]models.MessageEntity, 0, len(anys))
-	for _, v := range anys {
-		if e, ok := v.(models.MessageEntity); ok {
-			out = append(out, e)
-		}
-	}
-	return out
-}
-
-// composeMessage combina o conteúdo original com uma legenda do banco.
-// order: "append" -> original + sep + db; "prepend" -> db + sep + original
-func composeMessage(original, fromDB, sep, order string) string {
-	o := strings.TrimSpace(original)
-	d := strings.TrimSpace(fromDB)
+func composeMessage(o, d, sep, order string) string {
 	if o == "" && d == "" {
 		return ""
 	}
@@ -105,4 +89,109 @@ func composeMessage(original, fromDB, sep, order string) string {
 		return d + sep + o
 	}
 	return o + sep + d
+}
+
+func IsMarkdown(text string) bool {
+	// Verifica se contém marcadores de Markdown (suporta básicos do Telegram)
+	mdChars := []string{"*", "_", "`", "["}
+	for _, char := range mdChars {
+		if strings.Contains(text, char) {
+			return true
+		}
+	}
+	return false
+}
+
+func DetectParseMode(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	res := text
+
+	// Link: [text](url) -> <a href="url">text</a>
+	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\((https?://[^\s)]+)\)`)
+	res = linkRegex.ReplaceAllString(res, `<a href="$2">$1</a>`)
+
+	// Bold: *text* -> <b>text</b>
+	boldRegex := regexp.MustCompile(`\*([^\*\n]+)\*`)
+	res = boldRegex.ReplaceAllString(res, "<b>$1</b>")
+
+	// Italic: _text_ -> <i>text</i>
+	italicRegex := regexp.MustCompile(`_([^\_\n]+)_`)
+	res = italicRegex.ReplaceAllString(res, "<i>$1</i>")
+
+	// Code: `text` -> <code>text</code>
+	codeRegex := regexp.MustCompile("`([^`\\n]+)`")
+	res = codeRegex.ReplaceAllString(res, "<code>$1</code>")
+
+	return res
+}
+func int64ToStr(v int64) string {
+	return strconv.FormatInt(v, 10)
+}
+
+func ExtractDynamicLinks(text string) ([]dbmodels.Button, string) {
+	var buttons []dbmodels.Button
+	cleanText := text
+
+	// 1. Bang style: !Name \n !URL (at the start of a line)
+	bangRegex := regexp.MustCompile(`(?m)^!\s*(.+)\s*\n\s*!\s*(https?://[^\s<>"]+)`)
+	matchesBang := bangRegex.FindAllStringSubmatch(cleanText, -1)
+	for _, match := range matchesBang {
+		if len(match) == 3 {
+			name := strings.TrimSpace(utils.RemoveHTMLTags(match[1]))
+			buttons = append(buttons, dbmodels.Button{
+				NameButton: name,
+				ButtonURL:  strings.TrimSpace(match[2]),
+				PositionY:  len(buttons),
+			})
+			cleanText = strings.Replace(cleanText, match[0], "", 1)
+		}
+	}
+
+	// 2. Markdown style: [Name](URL)
+	linkRegex := regexp.MustCompile(`\[(.*?)\]\((https?://[^\s)]+)\)`)
+	matchesLink := linkRegex.FindAllStringSubmatch(cleanText, -1)
+	for _, match := range matchesLink {
+		if len(match) == 3 {
+			name := strings.TrimSpace(utils.RemoveHTMLTags(match[1]))
+			buttons = append(buttons, dbmodels.Button{
+				NameButton: name,
+				ButtonURL:  strings.TrimSpace(match[2]),
+				PositionY:  len(buttons),
+			})
+			cleanText = strings.Replace(cleanText, match[0], "", 1)
+		}
+	}
+
+	// 3. HTML style: <a href="URL">Name</a> (often from processed entities)
+	htmlRegex := regexp.MustCompile(`<a\s+href="(https?://[^\s"]+)">([^<]+)</a>`)
+	matchesHTML := htmlRegex.FindAllStringSubmatch(cleanText, -1)
+	for _, match := range matchesHTML {
+		if len(match) == 3 {
+			name := strings.TrimSpace(utils.RemoveHTMLTags(match[2]))
+			buttons = append(buttons, dbmodels.Button{
+				NameButton: name,
+				ButtonURL:  strings.TrimSpace(match[1]),
+				PositionY:  len(buttons),
+			})
+			cleanText = strings.Replace(cleanText, match[0], "", 1)
+		}
+	}
+
+	return buttons, strings.TrimSpace(cleanText)
+}
+func convertCustomButtons(cbs []dbmodels.CustomCaptionButton) []dbmodels.Button {
+	btns := make([]dbmodels.Button, len(cbs))
+	for i, cb := range cbs {
+		btns[i] = dbmodels.Button{
+			ButtonID:   cb.ButtonID,
+			NameButton: cb.NameButton,
+			ButtonURL:  cb.ButtonURL,
+			PositionX:  cb.PositionX,
+			PositionY:  cb.PositionY,
+		}
+	}
+	return btns
 }

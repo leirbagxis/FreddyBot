@@ -2,6 +2,8 @@ export interface ServerConfig {
   id: number;
   maintence: boolean;
   forceJoin: boolean;
+  globalDefaultCaption: string;
+  globalNewPackCaption: string;
   created_at: string;
   updated_at: string;
 }

@@ -391,8 +391,17 @@ func (s *Service) ShouldUpdateChannel(ctx context.Context, channelID int64) bool
 
 // ### DELETE ALL SESSIONS ### \\\
 func (s *Service) DeleteAllUserSessionsBySuffix(ctx context.Context, userID int64) (int64, error) {
+	// 1. Limpa o cache local (RAM)
+	suffix := ":" + strconv.FormatInt(userID, 10)
+	for k := range localCache.Items() {
+		if strings.HasSuffix(k, suffix) {
+			localCache.Delete(k)
+		}
+	}
+
+	// 2. Limpa o Redis
 	client := GetRedisClient()
-	pattern := "*:" + strconv.FormatInt(userID, 10)
+	pattern := "*" + suffix
 
 	var totalDeleted int64
 	var cursor uint64

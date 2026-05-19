@@ -1,72 +1,61 @@
 package telegram
 
 import (
-	"bytes"
 	"context"
-	"fmt"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
 	"os/signal"
 
-	"github.com/go-telegram/bot"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
-	"github.com/leirbagxis/FreddyBot/internal/middleware"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/callbacks"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/commands"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/events"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"gorm.io/gorm"
 )
 
-func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
+func StartBot(db *gorm.DB) (http.Handler, *telego.Bot) {
 
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
 
 	cache.GetRedisClient()
 
-	// 1. Criar container primeiro
-	// Passamos um bot temporário (nil) apenas para inicializar o container
-	app := container.NewAppContainer(db, nil)
-
-	opts := []bot.Option{
-		bot.WithMiddlewares(
-			middleware.SaveUserMiddleware(app),
-			middleware.CheckBlacklistMiddleware(app),
-			middleware.CheckMaintenceMiddleware(app),
-		),
-		bot.WithAllowedUpdates([]string{
-			"message", "edited_message", "callback_query", "inline_query",
-			"chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post",
-		}),
-	}
-
-	b, err := bot.New(config.TelegramBotToken, opts...)
+	// Inicializar telego
+	tb, err := telego.NewBot(config.TelegramBotToken)
 	if err != nil {
 		panic(err)
 	}
 
-	// 2. Atualizar o bot no container
-	app.Bot = b
+	app := container.NewAppContainer(db, tb)
 
-	botInfo, _ := b.GetMe(ctx)
-	botUsername := fmt.Sprintf("@%s", botInfo.Username)
-	logger.Bot("🤖 Bot iniciado: %s", botInfo.Username)
+	botInfo, _ := tb.GetMe(context.Background())
+	logger.Bot("🤖 Bot iniciado (Telego): %s", botInfo.Username)
 
-	originalHandler := b.WebhookHandler()
-	debugHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	// Updates channel
+	updates := make(chan telego.Update, 1000)
+	bh, _ := telegohandler.NewBotHandler(tb, updates)
 
+	// Custom HTTP Handler for Webhook
+	webhookHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			logger.Error("BOT", "❌ Erro ao ler body: %v", err)
 			http.Error(w, "Bad Request", http.StatusBadRequest)
 			return
 		}
-		r.Body = io.NopCloser(bytes.NewBuffer(body))
 
-		originalHandler.ServeHTTP(w, r)
+		var update telego.Update
+		if err := json.Unmarshal(body, &update); err != nil {
+			logger.Error("BOT", "❌ Erro ao deserealizar update: %v", err)
+			http.Error(w, "Bad Request", http.StatusBadRequest)
+			return
+		}
+
+		updates <- update
+		w.WriteHeader(http.StatusOK)
 		logger.Bot("✅ Webhook processado com sucesso")
 	})
 
@@ -79,44 +68,43 @@ func StartBot(db *gorm.DB) (http.Handler, bot.Bot) {
 		cancel()
 	}()
 
+	// Load Handlers
+	LoadHandlersTelegoWithBH(bh, app)
+
 	webhookUrl := config.WebhookURL
 	if webhookUrl != "" {
 		logger.Bot("🔗 Bot configurado para modo webhook: %s", webhookUrl)
 
-		events.LoadEvents(b, app)
-		commands.LoadCommandHandlers(b, app)
-		callbacks.LoadCallbacksHandlers(b, app, botUsername)
-
-		_, err := b.SetWebhook(ctx, &bot.SetWebhookParams{
+		_ = tb.SetWebhook(context.Background(), &telego.SetWebhookParams{
 			URL:            webhookUrl,
 			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post"},
 		})
-		if err != nil {
-			logger.Error("BOT", "❌ Erro ao setar webhook: %v", err)
-			os.Exit(1)
-		}
 
 		logger.Bot("✅ Webhook configurado com sucesso")
 
-		webhookInfo, err := b.GetWebhookInfo(ctx)
+		webhookInfo, err := tb.GetWebhookInfo(context.Background())
 		if err == nil {
 			logger.Bot("📊 Webhook Info - URL: %s, Pending: %d",
 				webhookInfo.URL, webhookInfo.PendingUpdateCount)
 		}
 
-		logger.Bot("🚀 Iniciando webhook...")
-		go b.StartWebhook(ctx)
+		logger.Bot("🚀 Iniciando processamento de updates...")
+		go bh.Start()
 
 	} else {
 		logger.Bot("🔄 Bot iniciado em modo polling")
-
-		events.LoadEvents(b, app)
-		commands.LoadCommandHandlers(b, app)
-		callbacks.LoadCallbacksHandlers(b, app, botUsername)
-
-		b.DeleteWebhook(ctx, &bot.DeleteWebhookParams{})
-		go b.Start(ctx)
+		_ = tb.DeleteWebhook(context.Background(), &telego.DeleteWebhookParams{})
+		
+		// Iniciar Long Polling em paralelo para alimentar o channel de updates
+		pollingUpdates, _ := tb.UpdatesViaLongPolling(context.Background(), nil)
+		go func() {
+			for u := range pollingUpdates {
+				updates <- u
+			}
+		}()
+		
+		go bh.Start()
 	}
 
-	return debugHandler, *b
+	return webhookHandler, tb
 }
