@@ -49,6 +49,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 			channelRoutes.PUT("/reactions", captionController.UpdateReactionsController)
 			channelRoutes.PUT("/reactions/active", permissionsController.UpdateReactionsActiveController)
 			channelRoutes.PUT("/reactions/position", captionController.UpdateReactionPositionController)
+			channelRoutes.PUT("/dynamic-links", permissionsController.UpdateDynamicLinksController)
 			channelRoutes.PUT("/caption/permissions", permissionsController.UpdateMessagePermissionController)
 			channelRoutes.PUT("/buttons/permissions", permissionsController.UpdateButtonsPermissionController)
 

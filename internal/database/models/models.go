@@ -36,6 +36,10 @@ type Channel struct {
 	TokenVersion     int64           `gorm:"not null;default:1"`
 	Reactions        string          `json:"reactions"`
 	ReactionPosition int             `gorm:"default:0" json:"reactionPosition"`
+	DynamicLinks     bool            `gorm:"default:false" json:"dynamicLinks"`
+	DLBotButtons     bool            `gorm:"default:true" json:"dlBotButtons"`
+	DLBotCaptions    bool            `gorm:"default:true" json:"dlBotCaptions"`
+	DLBotReactions   bool            `gorm:"default:true" json:"dlBotReactions"`
 	CreatedAt        time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt        time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
 }

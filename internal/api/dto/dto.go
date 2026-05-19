@@ -20,6 +20,10 @@ type ChannelDTO struct {
 	OwnerID          int64               `json:"ownerId"`
 	Reactions        string              `json:"reactions"`
 	ReactionPosition int                 `json:"reactionPosition"`
+	DynamicLinks     bool                `json:"dynamicLinks"`
+	DLBotButtons     bool                `json:"dlBotButtons"`
+	DLBotCaptions    bool                `json:"dlBotCaptions"`
+	DLBotReactions   bool                `json:"dlBotReactions"`
 	DefaultCaption   *DefaultCaptionDTO  `json:"defaultCaption,omitempty"`
 	Buttons          []ButtonDTO         `json:"buttons,omitempty"`
 	CustomCaptions   []CustomCaptionDTO  `json:"customCaptions,omitempty"`

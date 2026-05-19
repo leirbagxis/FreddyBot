@@ -1,102 +1,138 @@
-import { Dispatch, SetStateAction } from 'react';
+import { useState, memo } from 'react';
 import {
-    Users, ExternalLink, LogOut, Cpu
+    Users, LogOut, ShieldCheck
 } from 'lucide-react';
 import { Channel } from '../types';
 import { ConfirmModal } from './ConfirmModal';
+import { fetchUserInfo, transferChannel } from '../api';
+import { useToast } from './Toast';
 
 interface DashboardInicioTabProps {
     channel: Channel;
     displayName: string;
     getGreeting: () => string;
     getGreetingEmoji: () => string;
-    transferInput: string;
-    setTransferInput: Dispatch<SetStateAction<string>>;
-    isTransferring: boolean;
-    handleTransferClick: () => void;
     handleDisconnect: () => void;
     showDisconnect: boolean;
-    setShowDisconnect: Dispatch<SetStateAction<boolean>>;
+    setShowDisconnect: (open: boolean) => void;
     isDisconnecting: boolean;
     confirmDisconnect: () => void;
     showDisconnectSuccess: boolean;
-    setShowDisconnectSuccess: Dispatch<SetStateAction<boolean>>;
-    showTransferConfirm: boolean;
-    setShowTransferConfirm: Dispatch<SetStateAction<boolean>>;
-    confirmTransfer: () => void;
-    transferNewOwnerName: string;
-    showTransferError: boolean;
-    setShowTransferError: Dispatch<SetStateAction<boolean>>;
-    transferErrorMessage: string;
-    showTransferSuccess: boolean;
-    setShowTransferSuccess: Dispatch<SetStateAction<boolean>>;
+    setShowDisconnectSuccess: (open: boolean) => void;
 }
 
-export function DashboardInicioTab({
+export const DashboardInicioTab = memo(({
     channel, displayName, getGreeting, getGreetingEmoji,
-    transferInput, setTransferInput, isTransferring, handleTransferClick,
     handleDisconnect, showDisconnect, setShowDisconnect, isDisconnecting, confirmDisconnect,
     showDisconnectSuccess, setShowDisconnectSuccess,
-    showTransferConfirm, setShowTransferConfirm, confirmTransfer, transferNewOwnerName,
-    showTransferError, setShowTransferError, transferErrorMessage,
-    showTransferSuccess, setShowTransferSuccess
-}: DashboardInicioTabProps) {
+}: DashboardInicioTabProps) => {
+    const [transferInput, setTransferInput] = useState('');
+    const [isTransferring, setIsTransferring] = useState(false);
+    const [showTransferConfirm, setShowTransferConfirm] = useState(false);
+    const [transferNewOwnerName, setTransferNewOwnerName] = useState('');
+    const [transferNewOwnerId, setTransferNewOwnerId] = useState<number | null>(null);
+    const [showTransferError, setShowTransferError] = useState(false);
+    const [transferErrorMessage, setTransferErrorMessage] = useState('');
+    const [showTransferSuccess, setShowTransferSuccess] = useState(false);
+    const toast = useToast();
+
+    const handleTransferClick = async () => {
+        const newOwner = transferInput.trim();
+        if (!newOwner) {
+            toast('Digite o ID ou Username do novo dono', 'error');
+            return;
+        }
+
+        setIsTransferring(true);
+        setTransferErrorMessage('');
+        setShowTransferError(false);
+
+        try {
+            const resp = await fetchUserInfo(newOwner);
+            const isSuccess = resp && (resp.success || resp.succes) && resp.user;
+
+            if (isSuccess) {
+                setTransferNewOwnerName(resp.user.first_name);
+                setTransferNewOwnerId(resp.user.id);
+                setShowTransferConfirm(true);
+            } else {
+                setTransferErrorMessage(`Não foi possível encontrar nenhum usuário com o ID ou Username "${newOwner}". Por favor, verifique e tente novamente.`);
+                setShowTransferError(true);
+            }
+        } catch {
+            setTransferErrorMessage(`Ocorreu um erro ao buscar as informações do usuário. Tente novamente.`);
+            setShowTransferError(true);
+        } finally {
+            setIsTransferring(false);
+        }
+    };
+
+    const confirmTransfer = async () => {
+        try {
+            if (!channel?.ownerId) throw new Error("Owner ID not found");
+            if (!transferNewOwnerId) throw new Error("New owner ID not found");
+
+            await transferChannel(channel.ownerId, transferNewOwnerId, channel.id);
+            setShowTransferSuccess(true);
+            setTransferInput('');
+            setShowTransferConfirm(false);
+            setTransferNewOwnerName('');
+            setTransferNewOwnerId(null);
+        } catch (err: any) {
+            if (err instanceof Error) {
+                try {
+                    const parsedErr = JSON.parse(err.message);
+                    setTransferErrorMessage(parsedErr.message || 'Erro ao passar a posse para o novo usuário.');
+                } catch {
+                    setTransferErrorMessage(err.message || 'Erro ao passar a posse para o novo usuário.');
+                }
+            } else {
+                setTransferErrorMessage('Erro desconhecido ao transferir o canal');
+            }
+            setShowTransferConfirm(false);
+            setShowTransferError(true);
+        }
+    };
+
     return (
         <div className="space-y-3 tab-content-wrapper">
-            {/* Welcome */}
-            <div className="welcome-card">
-                <div className="welcome-greeting">
-                    <span className="welcome-emoji" style={{ fontSize: '20px' }}>{getGreetingEmoji()}</span>
-                    <div className="min-w-0 flex-1">
-                        <h2 className="welcome-title text-[15px]">{getGreeting()}</h2>
-                        <p className="welcome-sub text-[11px]">Gerencie seu canal por aqui.</p>
-                    </div>
-                </div>
-            </div>
-
-            {/* Digital Access Card */}
-            <div className="access-card">
-                <div className="flex justify-between items-start">
-                    <div className="card-chip flex items-center justify-center overflow-hidden">
-                        <Cpu size={14} className="text-black/20" />
-                    </div>
-                    <div className="text-right">
-                        <div className="text-[9px] font-bold tracking-widest opacity-40">LEGENDAS BOT</div>
-                        <div className="text-[9px] font-medium text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-full inline-block mt-1">ACCESS GRANTED</div>
-                    </div>
-                </div>
-
-                <div className="access-card-content">
-                    <div>
-                        <div className="card-label !text-[8px]">IDENTIDADE</div>
-                        <div className="card-value truncate text-[13px]">{displayName}</div>
-                    </div>
-                    <div className="text-right">
-                        <div className="card-label !text-[8px]">USUÁRIO ID</div>
-                        <div className="card-value text-[13px]">{channel.ownerId}</div>
-                    </div>
-                </div>
-
-                <div className="card-footer !mt-4">
-                    <div className="flex-1 mr-3">
-                        <div 
-                            className="security-scratch !py-1.5" 
-                            onClick={() => {
-                                const url = channel.inviteUrl.startsWith('@') 
-                                    ? `https://t.me/${channel.inviteUrl.substring(1)}` 
-                                    : channel.inviteUrl;
-                                window.open(url, '_blank', 'noopener,noreferrer');
-                            }}
-                        >
-                            <div className="scratch-overlay text-[9px]">REVEAL ACCESS LINK</div>
-                            <div className="link-content text-[11px]">
-                                <ExternalLink size={12} />
-                                <span className="font-mono truncate">{channel.inviteUrl.replace('https://', '')}</span>
-                            </div>
+            
+            {/* Unified Identity Card */}
+            <div className="card animate-stagger-in">
+                {/* Header: Greeting & Emoji */}
+                <div className="flex items-center justify-between mb-5">
+                    <div className="flex items-center gap-2">
+                        <span className="text-xl">{getGreetingEmoji()}</span>
+                        <div>
+                            <h2 className="text-[15px] font-bold leading-none">{getGreeting()}</h2>
+                            <p className="text-[10px] text-[var(--hint)] mt-1 uppercase tracking-wider font-semibold">Painel de Controle</p>
                         </div>
                     </div>
-                    <div className="card-barcode !h-[24px]"></div>
+                    <div className="flex items-center gap-1.5 bg-[var(--accent-soft)] px-2.5 py-1 rounded-lg">
+                        <ShieldCheck size={12} className="text-[var(--accent)]" />
+                        <span className="text-[11px] font-mono font-bold text-[var(--accent)]">{channel.ownerId}</span>
+                    </div>
                 </div>
+
+                {/* User Info */}
+                <div className="flex items-center gap-3 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl mb-4">
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center bg-[var(--accent)] text-white font-bold text-lg flex-shrink-0 shadow-sm">
+                        {displayName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[16px] font-bold text-[var(--text)] truncate">{displayName}</h3>
+                        <p className="text-[11px] text-[var(--hint)] truncate">Administrador do Canal</p>
+                    </div>
+                </div>
+                
+                {/* Integrated Disconnect Action */}
+                <button 
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[var(--danger-soft)] text-[var(--danger)] text-[13px] font-bold hover:opacity-80 transition-all active:scale-[0.98]" 
+                    onClick={handleDisconnect}
+                >
+                    <LogOut size={16} />
+                    <span>Desconectar Bot</span>
+                </button>
             </div>
 
             {/* Transferir Posse */}
@@ -128,12 +164,6 @@ export function DashboardInicioTab({
                 </div>
             </div>
 
-            {/* Disconnect */}
-            <button className="disconnect-btn" onClick={handleDisconnect}>
-                <LogOut size={18} />
-                <span>Desconectar Bot</span>
-            </button>
-
             {/* Disconnect Confirm Modal */}
             <ConfirmModal
                 open={showDisconnect}
@@ -153,25 +183,37 @@ export function DashboardInicioTab({
                     const tg = window.Telegram?.WebApp;
                     if (tg) {
                         tg.close();
-                    } else {
-                        setShowDisconnectSuccess(false);
                     }
                 }}
-                title="Bot Desconectado"
-                message="O bot foi desconectado com sucesso deste canal. Ele não processará mais mensagens aqui. Você já pode fechar esta aba."
-                confirmText="Ok"
-                alertOnly
+                title="Desconectado"
+                message="O bot foi desconectado com sucesso. Esta janela será fechada."
+                confirmText="Fechar"
             />
 
             {/* Transfer Confirm Modal */}
             <ConfirmModal
                 open={showTransferConfirm}
-                onClose={() => setShowTransferConfirm(false)}
+                onClose={() => !isTransferring && setShowTransferConfirm(false)}
                 onConfirm={confirmTransfer}
-                title="Transferir Canal"
-                message={`Tem certeza que deseja transferir a posse do canal para "${transferNewOwnerName}" (${transferInput})? Esta ação não pode ser desfeita e você não será mais dono no sistema.`}
-                confirmText="Transferir"
+                title="Confirmar Transferência"
+                message={`Você tem certeza que deseja transferir a posse para ${transferNewOwnerName}? Você perderá o acesso de dono.`}
+                confirmText={isTransferring ? "Transferindo..." : "Confirmar"}
                 danger
+            />
+
+            {/* Transfer Success Modal */}
+            <ConfirmModal
+                open={showTransferSuccess}
+                onClose={() => { }}
+                onConfirm={() => {
+                    const tg = window.Telegram?.WebApp;
+                    if (tg) {
+                        tg.close();
+                    }
+                }}
+                title="Sucesso"
+                message="Posse transferida com sucesso. O bot foi reiniciado e esta janela será fechada."
+                confirmText="Fechar"
             />
 
             {/* Transfer Error Modal */}
@@ -182,28 +224,8 @@ export function DashboardInicioTab({
                 title="Erro na Transferência"
                 message={transferErrorMessage}
                 confirmText="Ok"
-                alertOnly
                 danger
-            />
-
-            {/* Transfer Success Modal */}
-            <ConfirmModal
-                open={showTransferSuccess}
-                onClose={() => {
-                    setShowTransferSuccess(false);
-                    const tg = window.Telegram?.WebApp;
-                    if (tg) tg.close();
-                }}
-                onConfirm={() => {
-                    setShowTransferSuccess(false);
-                    const tg = window.Telegram?.WebApp;
-                    if (tg) tg.close();
-                }}
-                title="Transferência Concluída"
-                message="Dono migrado com sucesso! O aplicativo será fechado agora."
-                confirmText="Ok"
-                alertOnly
             />
         </div>
     );
-}
+});

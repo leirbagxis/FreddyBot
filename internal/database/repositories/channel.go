@@ -194,3 +194,10 @@ func (r *ChannelRepository) UpdateReactionPosition(ctx context.Context, channelI
 		Update("reaction_position", position)
 	return result.RowsAffected, result.Error
 }
+
+func (r *ChannelRepository) UpdateDynamicLinks(ctx context.Context, channelID int64, settings map[string]any) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Updates(settings)
+	return result.RowsAffected, result.Error
+}

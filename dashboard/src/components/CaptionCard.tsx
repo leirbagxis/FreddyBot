@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { Caption } from '../types';
 import { FileText, Pencil, X, Check } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
@@ -8,7 +8,7 @@ interface Props {
   onUpdate?: (text: string) => void;
 }
 
-export function CaptionCard({ caption, onUpdate }: Props) {
+export const CaptionCard = memo(({ caption, onUpdate }: Props) => {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(caption.caption);
 
@@ -56,4 +56,4 @@ export function CaptionCard({ caption, onUpdate }: Props) {
       )}
     </div>
   );
-}
+});

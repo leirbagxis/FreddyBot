@@ -36,6 +36,10 @@ func ToChannelDTO(c *models.Channel) ChannelDTO {
 		OwnerID:          c.OwnerID,
 		Reactions:        c.Reactions,
 		ReactionPosition: c.ReactionPosition,
+		DynamicLinks:     c.DynamicLinks,
+		DLBotButtons:     c.DLBotButtons,
+		DLBotCaptions:    c.DLBotCaptions,
+		DLBotReactions:   c.DLBotReactions,
 		CreatedAt:        c.CreatedAt,
 		UpdatedAt:        c.UpdatedAt,
 	}

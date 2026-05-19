@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { SmilePlus, X } from 'lucide-react';
 
 interface ReactionsCardProps {
@@ -6,7 +6,7 @@ interface ReactionsCardProps {
     onUpdate: (reactions: string) => Promise<void>;
 }
 
-export function ReactionsCard({ reactions, onUpdate }: ReactionsCardProps) {
+export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) => {
     const [slots, setSlots] = useState<string[]>(['', '', '', '', '']);
     const [loading, setLoading] = useState(false);
 
@@ -23,7 +23,7 @@ export function ReactionsCard({ reactions, onUpdate }: ReactionsCardProps) {
     }, [reactions]);
 
     const isEmoji = (str: string) => {
-        // Regex para detectar se a string contém APENAS emojis (incluindo variações de cor, etc)
+        // Regex para detectar se a string contém APENAS emojis (incluindo variações de colos, etc)
         const emojiRegex = /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$/;
         return emojiRegex.test(str);
     };
@@ -111,4 +111,4 @@ export function ReactionsCard({ reactions, onUpdate }: ReactionsCardProps) {
             </div>
         </div>
     );
-}
+});

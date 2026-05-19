@@ -2,8 +2,7 @@ import { Permission } from '../types';
 import {
   MessageSquare, Headphones, Video, Image, Smile, Film, Link2, Zap, FileText
 } from 'lucide-react';
-import { type ReactNode, useEffect } from 'react';
-import gsap from 'gsap';
+import { memo, type ReactNode } from 'react';
 
 interface Props {
   title: string;
@@ -24,15 +23,13 @@ const fields: { key: string; label: string; icon: ReactNode }[] = [
 ];
 
 export function PermissionsCard({ title, icon, permission, onToggle }: Props) {
-  useEffect(() => {
-    gsap.fromTo('.perm-row',
-      { opacity: 0, x: -5 },
-      { opacity: 1, x: 0, duration: 0.3, stagger: 0.05, ease: 'power2.out', clearProps: 'all' }
-    );
-  }, []);
-
-  const available = fields.filter(f => f.key in permission);
-  const perm = permission as unknown as Record<string, unknown>;
+  const isMessagePerm = title.toLowerCase().includes('mensagem');
+  const available = fields.filter(f => {
+    if (f.key === 'linkPreview') return isMessagePerm;
+    if (!permission) return false;
+    return (f.key in permission);
+  });
+  const perm = (permission || {}) as unknown as Record<string, unknown>;
   const active = available.filter(f => perm[f.key] === true).length;
 
   return (
@@ -49,12 +46,13 @@ export function PermissionsCard({ title, icon, permission, onToggle }: Props) {
       </div>
 
       <div className="space-y-2">
-        {available.map(f => {
+        {available.map((f, index) => {
           const isOn = perm[f.key] === true;
           return (
             <div
               key={f.key}
-              className={`perm-row ${isOn ? 'on' : ''}`}
+              className={`perm-row animate-stagger-in ${isOn ? 'on' : ''}`}
+              style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => onToggle?.(f.key, !isOn)}
             >
               <div className="flex items-center gap-3 min-w-0">

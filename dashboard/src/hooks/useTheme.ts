@@ -43,8 +43,8 @@ export function useTheme() {
     const tg = window.Telegram?.WebApp;
     if (tg) {
       try {
-        tg.setHeaderColor(theme === 'light' ? '#ffffff' : '#1a1a24');
-        tg.setBackgroundColor(theme === 'light' ? '#f0f2f5' : '#0e0e12');
+        tg.setHeaderColor(theme === 'light' ? '#faf6ee' : '#0f1115');
+        tg.setBackgroundColor(theme === 'light' ? '#faf6ee' : '#0f1115');
       } catch {}
     }
 
@@ -55,7 +55,7 @@ export function useTheme() {
       meta.name = 'theme-color';
       document.head.appendChild(meta);
     }
-    meta.content = theme === 'light' ? '#ffffff' : '#1a1a24';
+    meta.content = theme === 'light' ? '#faf6ee' : '#0f1115';
   }, [theme]);
 
   // Listen to device changes

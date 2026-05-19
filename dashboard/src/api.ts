@@ -105,6 +105,18 @@ export const updateReactionPosition = async (channelId: number, reactionPosition
     });
 };
 
+export const updateDynamicLinks = async (channelId: number, settings: {
+    dynamicLinks: boolean;
+    dlBotButtons: boolean;
+    dlBotCaptions: boolean;
+    dlBotReactions: boolean;
+}) => {
+    return apiFetch(`/api/channel/${channelId}/dynamic-links`, {
+        method: 'PUT',
+        body: JSON.stringify(settings),
+    });
+};
+
 export const updateMessagePermission = async (channelId: number, perms: Permission) => {
     const payload = {
         linkPreview: Boolean(perms.linkPreview),

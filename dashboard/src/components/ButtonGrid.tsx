@@ -4,7 +4,6 @@ import {
   Plus, Minus, GripVertical, Pencil, Trash2, ExternalLink,
   X, Check, AlertTriangle, Grid3X3
 } from 'lucide-react';
-import gsap from 'gsap';
 
 interface Props {
   buttons: Button[];
@@ -19,13 +18,6 @@ interface Props {
 }
 
 export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, onAdd, onDelete, onEdit, onMove, onMoveReactions }: Props) {
-  useEffect(() => {
-    gsap.fromTo('.button-grid-content > *',
-      { opacity: 0, y: 15 },
-      { opacity: 1, y: 0, duration: 0.4, stagger: 0.08, ease: 'power2.out', clearProps: 'all' }
-    );
-  }, []);
-
   const [cols, setCols] = useState(() => Math.max(4, buttons.reduce((m, b) => Math.max(m, b.positionX), 0) + 1));
   const [rows, setRows] = useState(() => {
     const maxBtnY = buttons.reduce((m, b) => Math.max(m, b.positionY), -1);
@@ -266,7 +258,7 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, on
 
   return (
     <div className="button-grid-content">
-      <div className="card">
+      <div className="card animate-stagger-in" style={{ animationDelay: '0s' }}>
         <div className="section-header">
           <div className="section-icon purple"><Grid3X3 size={18} /></div>
           <div className="flex-1 min-w-0">

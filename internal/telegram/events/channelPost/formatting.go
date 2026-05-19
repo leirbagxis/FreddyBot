@@ -6,9 +6,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf16"
 
 	"github.com/go-telegram/bot/models"
+	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 // ✅ REGEX para conversão de Markdown para HTML
@@ -651,4 +654,76 @@ func removeHashtag(text, hashtag string) string {
 		removeHashRegexCache.Store(hashtag, re)
 	}
 	return strings.TrimSpace(re.ReplaceAllString(text, ""))
+}
+
+// ✅ EXTRAÇÃO DE LINKS DINÂMICOS
+
+var (
+	bangLinkRegex     = regexp.MustCompile(`(?m)^!\s*(.+?)\s*[\r\n]+\s*!\s*(?:<a[^>]*>)?\s*(https?://[^\s<>"]+)(?:</a>)?`)
+	embeddedLinkRegex = regexp.MustCompile(`<a href="(https?://[^\s<>"]+)">(.+?)</a>`)
+	htmlStripRegex    = regexp.MustCompile(`(?i)<[^>]*>`)
+)
+
+// ExtractDynamicLinks extrai botões de padrões ! e links embutidos
+func ExtractDynamicLinks(text string) ([]dbmodels.Button, string) {
+	if text == "" {
+		return nil, text
+	}
+
+	logger.Bot("🛠️ [DEBUG] Iniciando extração. Texto recebido:\n---BEGIN---\n%s\n---END---", text)
+
+	var buttons []dbmodels.Button
+	
+	// 1. Extrair padrões !Nome\n!URL
+	text = bangLinkRegex.ReplaceAllStringFunc(text, func(match string) string {
+		sub := bangLinkRegex.FindStringSubmatch(match)
+		logger.Bot("🛠️ [DEBUG] Encontrado match regex !: '%s' (grupos: %d)", match, len(sub))
+		
+		if len(sub) >= 3 {
+			// Limpar nome de possíveis tags HTML residuais
+			name := htmlStripRegex.ReplaceAllString(sub[1], "")
+			name = strings.TrimSpace(name)
+			url := strings.TrimSpace(sub[2])
+			
+			logger.Bot("🔗 [DEBUG] Capturado: Nome='%s' URL='%s'", name, url)
+			
+			buttons = append(buttons, dbmodels.Button{
+				ButtonID:   fmt.Sprintf("dyn_%d", time.Now().UnixNano()),
+				NameButton: name,
+				ButtonURL:  url,
+			})
+			return "" // Remove do texto
+		}
+		return match
+	})
+
+	// 2. Extrair links embutidos <a>
+	text = embeddedLinkRegex.ReplaceAllStringFunc(text, func(match string) string {
+		sub := embeddedLinkRegex.FindStringSubmatch(match)
+		logger.Bot("🛠️ [DEBUG] Encontrado match regex <a>: '%s'", match)
+		
+		if len(sub) >= 3 {
+			url := sub[1]
+			name := sub[2]
+			
+			// Só extrai se o nome não for a própria URL (para evitar transformar links puros em botões indesejados)
+			if name != url {
+				logger.Bot("🔗 [DEBUG] Capturado link embutido: Nome='%s' URL='%s'", name, url)
+				buttons = append(buttons, dbmodels.Button{
+					ButtonID:   fmt.Sprintf("dyn_emb_%d", time.Now().UnixNano()),
+					NameButton: name,
+					ButtonURL:  url,
+				})
+				return "" // Remove do texto
+			}
+		}
+		return match // Mantém no texto se for apenas URL pura
+	})
+
+	// Limpeza final
+	text = strings.TrimSpace(text)
+	multiNewlineRegex := regexp.MustCompile(`\n{3,}`)
+	text = multiNewlineRegex.ReplaceAllString(text, "\n\n")
+
+	return buttons, text
 }

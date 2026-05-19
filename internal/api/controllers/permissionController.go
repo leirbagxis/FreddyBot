@@ -100,3 +100,38 @@ func (ctrl *PermissionController) UpdateReactionsActiveController(c *gin.Context
 
 	c.JSON(http.StatusOK, types.NewSuccessResponse(result))
 }
+
+func (ctrl *PermissionController) UpdateDynamicLinksController(c *gin.Context) {
+	channelIDStr := c.Param("channelId")
+	channelID, err := strconv.ParseInt(channelIDStr, 10, 64)
+	if err != nil {
+		c.Error(errors.BadRequest("channelId inválido"))
+		return
+	}
+
+	var body struct {
+		Active         bool `json:"dynamicLinks"`
+		DLBotButtons   bool `json:"dlBotButtons"`
+		DLBotCaptions  bool `json:"dlBotCaptions"`
+		DLBotReactions bool `json:"dlBotReactions"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
+		return
+	}
+
+	settings := map[string]any{
+		"dynamic_links":    body.Active,
+		"dl_bot_buttons":   body.DLBotButtons,
+		"dl_bot_captions":  body.DLBotCaptions,
+		"dl_bot_reactions": body.DLBotReactions,
+	}
+
+	err = ctrl.container.ChannelService.UpdateDynamicLinks(c, channelID, settings)
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	c.JSON(http.StatusOK, types.NewSuccessResponse(body))
+}

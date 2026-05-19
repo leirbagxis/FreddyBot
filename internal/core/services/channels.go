@@ -190,3 +190,12 @@ func (s *ChannelService) DisconnectChannel(ctx context.Context, userID int64, ch
 	// 3. Delete from DB
 	return s.DeleteChannel(ctx, userID, channelID)
 }
+
+func (s *ChannelService) UpdateDynamicLinks(ctx context.Context, channelID int64, settings map[string]any) error {
+	_, err := s.channelRepo.UpdateDynamicLinks(ctx, channelID, settings)
+	if err != nil {
+		return errors.Internal(err)
+	}
+	s.cache.InvalidateChannel(ctx, channelID)
+	return nil
+}

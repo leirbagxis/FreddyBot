@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Design Dashboard (Sentri Soft + Liquid Glass)**:
+  - Implementação do tema **Sentri Soft** (Violeta/Indigo) focado em conforto visual e modernidade.
+  - Adição do efeito **Liquid Glass** de alta performance, utilizando transparência seletiva e brilho de borda (specular highlight).
+  - Nova animação fluida para troca de tema (claro/escuro) com rotação de ícones e transição de fundo.
+- **Identidade Visual**:
+  - Unificação do card de identidade do usuário, integrando saudação, ID e o botão de desconexão em um único local limpo e funcional.
+
+### Fixed
+- **Performance Extrema (Dashboard)**:
+  - Remoção das bibliotecas pesadas **GSAP**, **Three.js** e **Lenis** (smooth scroll) para garantir 60fps constantes no navegador do Telegram.
+  - Refatoração profunda do motor React: Implementação massiva de `memo` e `useCallback` para eliminar re-renders desnecessários.
+  - Otimização de CSS: Troca de `transition: all` por transições cirúrgicas e redução drástica do uso de `backdrop-filter`.
+- **Estabilidade da UI**:
+  - Correção de erro fatal (tela preta) na aba de Permissões devido a ícones não importados e tratamento de dados nulos.
+  - Implementação de proteção contra falhas (`optional chaining`) em todos os cards de configuração.
+- **Navegação**:
+  - Ajuste na lógica do botão de voltar nativo do Telegram para navegação consistente entre Meus Canais e Painel Admin.
+
+### Changed
+- **Arquitetura de Componentes**: Mover estados locais (como inputs de transferência) para dentro dos componentes filhos, reduzindo a carga no componente principal `App.tsx`.
+- **Simplificação de UX**: Remoção do sistema de "Revelar Link" e HUD de Telemetria complexo em favor de uma interface mais direta e rápida.
+
+## [1.2.0] - 2026-05-15
+
+### Added
 - **Post Builder (Novas Funcionalidades)**:
   - **Suporte a Stickers**: Agora é possível criar postagens a partir de stickers, com suporte total a botões e reações (sem legenda, conforme limitação do Telegram).
   - **Enviar para Canais**: Novo fluxo pós-salvamento que permite enviar a postagem diretamente para qualquer canal configurado pelo usuário no bot, sem depender exclusivamente do modo inline.
@@ -21,44 +46,3 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Arquitetura PostBuilder**: Refatoração interna para maior modularidade e suporte a múltiplos tipos de mídia de forma consistente.
 - **Cache de Sessão**: Otimização do tempo de vida e estrutura de dados das sessões temporárias do PostBuilder no Redis.
-
-
-### Changed
-- **Limpeza do Legado V1 (Motor V2 Puro)**: A estrutura legada `MessageProcessor` foi eliminada. Toda a sua lógica de despacho, formatação e metadados foi convertida em funções independentes e integradas nativamente aos estágios do Pipeline V2, tornando a arquitetura 100% modular.
-- **Segurança (.gitignore)**: Atualização massiva das regras de ignorância para proteger arquivos sensíveis (`.env`), bancos de dados temporários e diretórios de ferramentas de automação.
-- **Workflows do Makefile**:
-  - `make build`: Agora realiza o build completo (UI + Servidor) e **executa o binário** automaticamente.
-  - `make dev`: Agora realiza o build da UI e **executa o bot via `go run`**, facilitando o desenvolvimento do backend.
-  - Removido o alvo `run` que se tornou redundante e atualizada a ajuda (`make help`).
-- **Dockerfile Multi-stage Build**: Implementada construção em múltiplos estágios (Node.js para frontend e Go para backend), automatizando a geração dos arquivos estáticos da dashboard e reduzindo o tamanho da imagem final.
-- **Otimização do Makefile**:
-  - O comando `make` agora realiza apenas o build por padrão (em vez de build e run), evitando bloqueios na CLI.
-  - Adicionada detecção inteligente de dependências do frontend para evitar `npm install` desnecessários em cada build.
-- **Otimização de Regex**: Pré-compilação de todas as expressões regulares globais (formatação de texto e detecção de Markdown/HTML) para reduzir uso de CPU.
-- **Refatoração do Comando /channels**: Melhoria na UX com resposta direta (reply) e edição da mensagem de status em tempo real.
-- **Ajustes de Infraestrutura**: Conversão do banco de dados legado de PostgreSQL para SQLite para facilitação do desenvolvimento local.
-- **Processamento de Canais**: Implementada verificação `via_bot` para que o bot ignore postagens enviadas por ele mesmo via modo inline, prevenindo loops de edição ou processamento duplicado.
-
-### Fixed
-- **Comando "Sobre"**: Corrigido erro de "falta de ação" ao clicar no botão "Sobre" devido a uma tag `<blockquote>` não fechada no arquivo de mensagens.
-- **Lógica de Versão**: Melhorada a detecção da versão do bot para incluir um fallback automático para o comando `git rev-parse --short HEAD` caso o binário não tenha sido compilado com as flags de versão ou não contenha informações de VCS.
-- **Log de Erro de Callback**: Adicionado logging de erros ao handler do comando "Sobre" para facilitar o diagnóstico de falhas na API do Telegram.
-- **Log de Porta da API**: Corrigida a exibição da URL no log que apresentava dois pontos extras (ex: `http://localhost::7000`).
-- **Camada de UI (Z-Index)**: Corrigido problema onde o toast de confirmação e modais ficavam atrás do menu inferior (TabBar) e de outros elementos, garantindo visibilidade total em todas as resoluções.
-- **Payload de Permissões**: Corrigida falha no dashboard que impedia a ativação de novas permissões devido à falta do campo `document` no payload enviado para a API.
-- **Contexto de Canal**: Corrigida falha no middleware `AuthorizeChannel` que impedia a injeção do `channelID` no contexto para usuários com cargo Admin/Owner, resolvendo o erro "channelID invalido no contexto" na desconexão de canais.
-- **Desconexão de Bot**: Corrigido erro de "channelID inválido" ao mover a rota para o grupo autorizado e padronizar para o padrão RESTful.
-- **Sincronização de UI**: Padronização de campos camelCase (ex: `forceJoin`) entre frontend e backend para garantir persistência visual dos toggles.
-- **Verificação de Membros**: Refinada a lógica de Force Join para incluir usuários com status `restricted` e melhorar feedback de erros.
-- **Middlewares**:
-  - `MaintenanceMiddleware`: Corrigida a lógica para permitir updates normalmente quando a manutenção está desativada, evitando o bloqueio de novos usuários ou consultas inline.
-  - `AdminMiddleware`: Adicionada verificação de segurança para evitar pânico quando um usuário não existe na base de dados.
-- **Modo Inline**:
-  - O Post Builder agora fornece um feedback visual ("Postagem não encontrada") caso o ID da sessão seja inválido ou tenha expirado.
-  - Corrigido erro onde o caption poderia ficar vazio em resultados do tipo Article.
-- **Webhook**: Atualizada a lista de `AllowedUpdates` para incluir `channel_post`, `edited_message` e `edited_channel_post`, garantindo que o bot receba todos os eventos necessários.
-- Erro de compilação em `admin.go` relacionado à mudança de campos na biblioteca `go-telegram/bot`.
-- Vazamentos potenciais de memória em loops de processamento de texto.
-
-### Added (Reconstrução Anterior)
-- **Suporte ao SQLite3**: Agora é possível alternar entre SQLite e PostgreSQL usando a variável de ambiente `APP_ENV`.

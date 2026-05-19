@@ -44,11 +44,30 @@ func StageTransform(c *container.AppContainer) Stage {
 		// 2. Format base text with existing Telegram formatting
 		formattedBase := ProcessTextWithFormatting(baseText, entities)
 
+		// 2.1 Dynamic Links Extraction (Only from original content)
+		extractedDynLinks := false
+		if pCtx.Channel.DynamicLinks {
+			dynButtons, cleanBase := ExtractDynamicLinks(formattedBase)
+			if len(dynButtons) > 0 {
+				logger.Bot("🔗 Extraídos %d botões dinâmicos do conteúdo original", len(dynButtons))
+				formattedBase = cleanBase
+				extractedDynLinks = true
+				// Serão adicionados ao finalButtons mais tarde
+				pCtx.FinalButtons = append(pCtx.FinalButtons, dynButtons...)
+			}
+		}
+
 		// 3. Extract Hashtag and find Custom Caption
 		hashtag := extractHashtag(formattedBase)
 		var dbCaption string
 		var finalButtons []dbmodels.Button = pCtx.Channel.Buttons
 		var custom *dbmodels.CustomCaption
+
+		// 3.1 Regra: Omitir botões do bot se extraiu links dinâmicos e DLBotButtons for falso
+		if extractedDynLinks && !pCtx.Channel.DLBotButtons {
+			logger.Bot("🚫 Omitindo botões do bot (regra DynamicLinks)")
+			finalButtons = []dbmodels.Button{}
+		}
 
 		if hashtag != "" {
 			logger.Bot("🔍 Hashtag detectada: #%s", hashtag)
@@ -80,19 +99,40 @@ func StageTransform(c *container.AppContainer) Stage {
 			dbCaption = DetectParseMode(pCtx.Channel.DefaultCaption.Caption)
 		}
 
+		// 4.1 Regra: Omitir legenda do bot se extraiu links dinâmicos e DLBotCaptions for falso
+		if extractedDynLinks && !pCtx.Channel.DLBotCaptions {
+			logger.Bot("🚫 Omitindo legenda do bot (regra DynamicLinks)")
+			dbCaption = ""
+		}
+
 		// 5. Final Assembly
-		// Match legacy behavior: Text appends, Media replaces
+		// Match legacy behavior: Text appends, Media logic varies by type
 		if pCtx.MessageType == MessageTypeText {
 			pCtx.FormattedText = composeMessage(formattedBase, dbCaption, "\n\n", "append")
-		} else {
+		} else if pCtx.MessageType == MessageTypeAudio {
+			// For audio, we strictly use the bot's caption (replace)
 			if dbCaption != "" {
 				pCtx.FormattedText = dbCaption
 			} else {
 				pCtx.FormattedText = formattedBase
 			}
+		} else {
+			// For other media (photos, videos, etc.), we append the bot's caption to the original
+			if dbCaption != "" {
+				pCtx.FormattedText = composeMessage(formattedBase, dbCaption, "\n\n", "append")
+			} else {
+				pCtx.FormattedText = formattedBase
+			}
 		}
-		pCtx.FinalButtons = finalButtons
+
+		pCtx.FinalButtons = append(finalButtons, pCtx.FinalButtons...)
 		logger.Bot("✅ Texto final preparado (tamanho: %d)", len(pCtx.FormattedText))
+
+		// 5.2 Regra: Omitir reações se extraiu links dinâmicos e DLBotReactions for falso
+		if extractedDynLinks && !pCtx.Channel.DLBotReactions {
+			logger.Bot("🚫 Desativando reações (regra DynamicLinks)")
+			pCtx.Permissions.CanAddReactions = false
+		}
 
 		// 6. Global Link Preview override from permissions
 		if !pCtx.Permissions.CanUseLinkPreview {

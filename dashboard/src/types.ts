@@ -52,6 +52,10 @@ export interface Channel {
   ownerId: number;
   reactions: string;
   reactionPosition: number;
+  dynamicLinks: boolean;
+  dlBotButtons: boolean;
+  dlBotCaptions: boolean;
+  dlBotReactions: boolean;
   defaultCaption: Caption;
   buttons: Button[];
   customCaptions: Caption[];

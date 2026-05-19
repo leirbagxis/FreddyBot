@@ -1,4 +1,4 @@
-import { type ReactNode } from 'react';
+import { memo, type ReactNode } from 'react';
 
 export interface Tab {
   id: string;
@@ -12,7 +12,7 @@ interface Props {
   onTabChange: (id: string) => void;
 }
 
-export function TabBar({ tabs, activeTab, onTabChange }: Props) {
+export const TabBar = memo(({ tabs, activeTab, onTabChange }: Props) => {
   return (
     <nav className="bottom-nav">
       {tabs.map((t) => (
@@ -28,4 +28,4 @@ export function TabBar({ tabs, activeTab, onTabChange }: Props) {
       ))}
     </nav>
   );
-}
+});

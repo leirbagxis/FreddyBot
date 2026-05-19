@@ -70,8 +70,45 @@ Padronizar o armazenamento do estado do PostBuilder em HTML. Toda entrada de tex
 - **Fidelidade:** Permite capturar exatamente o que o usuário formatou no app (negrito/itálico via UI) e o que digitou via Markdown.
 - **Simplicidade:** Evita a necessidade de rotinas complexas de escape para MarkdownV2 no lado do servidor.
 
-### Impacto
+### Impact
 - `handleTextInput` agora salva `formattedText` (HTML).
 - `InlineHandler` e `sendFinalPost` (Preview) utilizam `DetectParseMode` para garantir a integridade das tags antes do envio final.
 - Melhora na experiência do usuário ao importar canais (legendas já vêm em HTML).
+
+## Decisão: Preservação de Legendas Originais em Mídias
+### Data
+2026-05-16
+
+### Contexto
+Anteriormente, ao enviar uma mídia (foto/vídeo) com legenda, o bot substituía o texto do usuário pela legenda padrão do canal. O comportamento desejado é que a legenda do bot atue como um rodapé (footer), preservando o conteúdo do usuário.
+
+### Decisão tomada
+Alterar a lógica de montagem final no `StageTransform` para que, tanto em mensagens de texto quanto em mídias, o bot utilize a função `composeMessage` com a estratégia `append`.
+
+### Motivo
+- **UX:** O usuário não perde o contexto que escreveu ao enviar a mídia.
+- **Consistência:** Unifica o comportamento entre tipos de mensagem (texto e mídia).
+- **Flexibilidade:** Permite usar Links Dinâmicos no texto original enquanto mantém a assinatura padrão do canal abaixo.
+
+### Impact
+- `StageTransform` modificado para não sobrescrever `formattedBase` em mídias.
+- Legenda padrão é adicionada com duas quebras de linha após o texto original.
+
+## Decisão: Substituição Estrita de Legendas em Áudio
+### Data
+2026-05-16
+
+### Contexto
+Diferente de fotos e vídeos, onde a legenda original deve ser preservada, para arquivos de áudio/música a convenção do projeto é que a legenda original do arquivo seja totalmente descartada em favor da legenda configurada no bot.
+
+### Decisão tomada
+Implementar uma exceção no `StageTransform` para `MessageTypeAudio`. Se houver uma legenda configurada (`dbCaption`), ela substituirá completamente o texto original (`formattedBase`).
+
+### Motivo
+- **Convenção:** Manter o comportamento esperado para canais de música.
+- **Limpeza:** Arquivos de áudio costumam vir com metadados ou legendas de outros bots no arquivo original que devem ser limpos.
+
+### Impacto
+- Mensagens de áudio voltam a usar a estratégia "replace".
+- Demais mídias permanecem com a estratégia "append".
 

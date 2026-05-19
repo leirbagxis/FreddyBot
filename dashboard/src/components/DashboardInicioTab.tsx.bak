@@ -1,0 +1,209 @@
+import { Dispatch, SetStateAction } from 'react';
+import {
+    Users, ExternalLink, LogOut, Cpu
+} from 'lucide-react';
+import { Channel } from '../types';
+import { ConfirmModal } from './ConfirmModal';
+
+interface DashboardInicioTabProps {
+    channel: Channel;
+    displayName: string;
+    getGreeting: () => string;
+    getGreetingEmoji: () => string;
+    transferInput: string;
+    setTransferInput: Dispatch<SetStateAction<string>>;
+    isTransferring: boolean;
+    handleTransferClick: () => void;
+    handleDisconnect: () => void;
+    showDisconnect: boolean;
+    setShowDisconnect: Dispatch<SetStateAction<boolean>>;
+    isDisconnecting: boolean;
+    confirmDisconnect: () => void;
+    showDisconnectSuccess: boolean;
+    setShowDisconnectSuccess: Dispatch<SetStateAction<boolean>>;
+    showTransferConfirm: boolean;
+    setShowTransferConfirm: Dispatch<SetStateAction<boolean>>;
+    confirmTransfer: () => void;
+    transferNewOwnerName: string;
+    showTransferError: boolean;
+    setShowTransferError: Dispatch<SetStateAction<boolean>>;
+    transferErrorMessage: string;
+    showTransferSuccess: boolean;
+    setShowTransferSuccess: Dispatch<SetStateAction<boolean>>;
+}
+
+export function DashboardInicioTab({
+    channel, displayName, getGreeting, getGreetingEmoji,
+    transferInput, setTransferInput, isTransferring, handleTransferClick,
+    handleDisconnect, showDisconnect, setShowDisconnect, isDisconnecting, confirmDisconnect,
+    showDisconnectSuccess, setShowDisconnectSuccess,
+    showTransferConfirm, setShowTransferConfirm, confirmTransfer, transferNewOwnerName,
+    showTransferError, setShowTransferError, transferErrorMessage,
+    showTransferSuccess, setShowTransferSuccess
+}: DashboardInicioTabProps) {
+    return (
+        <div className="space-y-3 tab-content-wrapper">
+            {/* Welcome */}
+            <div className="welcome-card">
+                <div className="welcome-greeting">
+                    <span className="welcome-emoji" style={{ fontSize: '20px' }}>{getGreetingEmoji()}</span>
+                    <div className="min-w-0 flex-1">
+                        <h2 className="welcome-title text-[15px]"><span>{getGreeting()}</span>, {displayName}</h2>
+                        <p className="welcome-sub text-[11px]">Gerencie seu canal por aqui.</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Digital Access Card */}
+            <div className="access-card">
+                <div className="flex justify-between items-start">
+                    <div className="card-chip flex items-center justify-center overflow-hidden">
+                        <Cpu size={14} className="text-black/20" />
+                    </div>
+                    <div className="text-right">
+                        <div className="text-[9px] font-bold tracking-widest opacity-40">LEGENDAS BOT</div>
+                        <div className="text-[9px] font-medium text-[var(--accent)] bg-[var(--accent-soft)] px-2 py-0.5 rounded-full inline-block mt-1">ACCESS GRANTED</div>
+                    </div>
+                </div>
+
+                <div className="access-card-content">
+                    <div>
+                        <div className="card-label !text-[8px]">IDENTIDADE</div>
+                        <div className="card-value truncate text-[13px]">{displayName}</div>
+                    </div>
+                    <div className="text-right">
+                        <div className="card-label !text-[8px]">USUÁRIO ID</div>
+                        <div className="card-value text-[13px]">{channel.ownerId}</div>
+                    </div>
+                </div>
+
+                <div className="card-footer !mt-4">
+                    <div className="flex-1 mr-3">
+                        <div 
+                            className="security-scratch !py-1.5" 
+                            onClick={() => {
+                                const url = channel.inviteUrl.startsWith('@') 
+                                    ? `https://t.me/${channel.inviteUrl.substring(1)}` 
+                                    : channel.inviteUrl;
+                                window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                        >
+                            <div className="scratch-overlay text-[9px]">REVEAL ACCESS LINK</div>
+                            <div className="link-content text-[11px]">
+                                <ExternalLink size={12} />
+                                <span className="font-mono truncate">{channel.inviteUrl.replace('https://', '')}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div className="card-barcode !h-[24px]"></div>
+                </div>
+            </div>
+
+            {/* Transferir Posse */}
+            <div className="card">
+                <div className="section-header">
+                    <div className="section-icon purple" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+                        <Users size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[15px] font-semibold truncate">Transferir Posse</h3>
+                        <p className="text-xs truncate" style={{ color: 'var(--hint)' }}>Passe a administração para outro usuário</p>
+                    </div>
+                </div>
+                <div className="flex flex-col gap-3 mt-3">
+                    <input
+                        type="text"
+                        placeholder="ID ou Username do novo dono"
+                        className="w-full bg-[var(--background)] text-[var(--text)] border border-[var(--border)] rounded-xl py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
+                        value={transferInput}
+                        onChange={(e) => setTransferInput(e.target.value)}
+                    />
+                    <button
+                        className="btn btn-primary"
+                        onClick={handleTransferClick}
+                        disabled={!transferInput.trim() || isTransferring}
+                    >
+                        {isTransferring ? 'Aguarde...' : 'Enviar'}
+                    </button>
+                </div>
+            </div>
+
+            {/* Disconnect */}
+            <button className="disconnect-btn" onClick={handleDisconnect}>
+                <LogOut size={18} />
+                <span>Desconectar Bot</span>
+            </button>
+
+            {/* Disconnect Confirm Modal */}
+            <ConfirmModal
+                open={showDisconnect}
+                onClose={() => !isDisconnecting && setShowDisconnect(false)}
+                onConfirm={confirmDisconnect}
+                title="Desconectar Bot"
+                message="Tem certeza que deseja desconectar o bot deste canal? Todas as configurações serão perdidas."
+                confirmText={isDisconnecting ? "Desconectando..." : "Desconectar"}
+                danger
+            />
+
+            {/* Disconnect Success Modal */}
+            <ConfirmModal
+                open={showDisconnectSuccess}
+                onClose={() => { }}
+                onConfirm={() => {
+                    const tg = window.Telegram?.WebApp;
+                    if (tg) {
+                        tg.close();
+                    } else {
+                        setShowDisconnectSuccess(false);
+                    }
+                }}
+                title="Bot Desconectado"
+                message="O bot foi desconectado com sucesso deste canal. Ele não processará mais mensagens aqui. Você já pode fechar esta aba."
+                confirmText="Ok"
+                alertOnly
+            />
+
+            {/* Transfer Confirm Modal */}
+            <ConfirmModal
+                open={showTransferConfirm}
+                onClose={() => setShowTransferConfirm(false)}
+                onConfirm={confirmTransfer}
+                title="Transferir Canal"
+                message={`Tem certeza que deseja transferir a posse do canal para "${transferNewOwnerName}" (${transferInput})? Esta ação não pode ser desfeita e você não será mais dono no sistema.`}
+                confirmText="Transferir"
+                danger
+            />
+
+            {/* Transfer Error Modal */}
+            <ConfirmModal
+                open={showTransferError}
+                onClose={() => setShowTransferError(false)}
+                onConfirm={() => setShowTransferError(false)}
+                title="Erro na Transferência"
+                message={transferErrorMessage}
+                confirmText="Ok"
+                alertOnly
+                danger
+            />
+
+            {/* Transfer Success Modal */}
+            <ConfirmModal
+                open={showTransferSuccess}
+                onClose={() => {
+                    setShowTransferSuccess(false);
+                    const tg = window.Telegram?.WebApp;
+                    if (tg) tg.close();
+                }}
+                onConfirm={() => {
+                    setShowTransferSuccess(false);
+                    const tg = window.Telegram?.WebApp;
+                    if (tg) tg.close();
+                }}
+                title="Transferência Concluída"
+                message="Dono migrado com sucesso! O aplicativo será fechado agora."
+                confirmText="Ok"
+                alertOnly
+            />
+        </div>
+    );
+}

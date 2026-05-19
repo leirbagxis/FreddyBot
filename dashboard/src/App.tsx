@@ -5,7 +5,7 @@ import {
   updateMessagePermission, updateButtonsPermission,
   createButton, deleteButton, updateButton, updateLayoutButtons,
   updateDefaultCaption, updateNewPackCaption, updateReactions, 
-  updateReactionPosition, transferChannel, fetchUserInfo,
+  updateReactionPosition, updateDynamicLinks, transferChannel, fetchUserInfo,
   sendAdminNotice, NoticeButton, NoticeRequest, disconnectChannel
 } from './api';
 import { PermissionsCard } from './components/PermissionsCard';
@@ -19,10 +19,8 @@ import { TabBar, Tab } from './components/TabBar';
 import { AdminSidebar } from './components/AdminSidebar';
 import { ToastProvider, useToast } from './components/Toast';
 import { useTheme } from './hooks/useTheme';
-import { BackgroundEffect } from './components/BackgroundEffect';
-import gsap from 'gsap';
 import {
-  Users, Hash, Sun, Moon, ExternalLink, MousePointerClick,
+  Users, Hash, Sun, Moon, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
   AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings
 } from 'lucide-react';
@@ -64,7 +62,7 @@ type AuthState = 'idle' | 'authenticating' | 'authenticated' | 'error';
 
 const MemoizedAdminDashboard = memo(AdminDashboard);
 
-function DashboardContent() {
+const DashboardContent = memo(function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('geral');
@@ -220,57 +218,90 @@ function DashboardContent() {
         setLoading(false);
       }
     })();
-  }, [channelId]);
+  }, [channelId, handleBlacklist]);
 
   const handleMsgPerm = useCallback(async (field: string, value: boolean) => {
-    if (!data) return;
-    const cid = parseInt(String(channelId), 10);
+    if (!data?.channel?.defaultCaption) return;
+    const cid = data.channel.id;
     
     setData(p => {
-      if (!p) return p;
+      if (!p?.channel?.defaultCaption) return p;
       return {
         ...p, channel: {
           ...p.channel, defaultCaption: {
             ...p.channel.defaultCaption,
-            messagePermission: { ...p.channel.defaultCaption.messagePermission, [field]: value }
+            messagePermission: { ...(p.channel.defaultCaption.messagePermission || {}), [field]: value }
           }
         }
       };
     });
 
     try {
-      const newPerms = { ...data.channel.defaultCaption.messagePermission, [field]: value };
+      const currentPerms = data.channel.defaultCaption.messagePermission || {};
+      const newPerms = { ...currentPerms, [field]: value };
       await updateMessagePermission(cid, newPerms);
       toast(`${permLabels[field] || field} ${value ? 'ativado' : 'desativado'}`, value ? 'success' : 'info');
     } catch {
       setData(data); 
       toast(`Erro ao atualizar permissão`, 'error');
     }
-  }, [toast, channelId, data]);
+  }, [toast, data]);
 
   const handleBtnPerm = useCallback(async (field: string, value: boolean) => {
-    if (!data) return;
-    const cid = parseInt(String(channelId), 10);
+    if (!data?.channel?.defaultCaption) return;
+    const cid = data.channel.id;
 
     setData(p => {
-      if (!p) return p;
+      if (!p?.channel?.defaultCaption) return p;
       return {
         ...p, channel: {
           ...p.channel, defaultCaption: {
             ...p.channel.defaultCaption,
-            buttonsPermission: { ...p.channel.defaultCaption.buttonsPermission, [field]: value }
+            buttonsPermission: { ...(p.channel.defaultCaption.buttonsPermission || {}), [field]: value }
           }
         }
       };
     });
 
     try {
-      const newPerms = { ...data.channel.defaultCaption.buttonsPermission, [field]: value };
+      const currentPerms = data.channel.defaultCaption.buttonsPermission || {};
+      const newPerms = { ...currentPerms, [field]: value };
       await updateButtonsPermission(cid, newPerms);
       toast(`${permLabels[field] || field} ${value ? 'ativado' : 'desativado'}`, value ? 'success' : 'info');
     } catch {
       setData(data);
       toast(`Erro ao atualizar permissão`, 'error');
+    }
+  }, [toast, data]);
+
+  const handleDynamicLinks = useCallback(async (field: string, value: boolean) => {
+    if (!data) return;
+    const cid = parseInt(String(channelId), 10);
+
+    const newSettings = {
+      dynamicLinks: field === 'dynamicLinks' ? value : data.channel.dynamicLinks,
+      dlBotButtons: field === 'dlBotButtons' ? value : data.channel.dlBotButtons,
+      dlBotCaptions: field === 'dlBotCaptions' ? value : data.channel.dlBotCaptions,
+      dlBotReactions: field === 'dlBotReactions' ? value : data.channel.dlBotReactions,
+    };
+
+    setData(p => {
+      if (!p) return p;
+      return { ...p, channel: { ...p.channel, ...newSettings } };
+    });
+
+    try {
+      await updateDynamicLinks(cid, newSettings);
+      const labels: Record<string, string> = {
+        dynamicLinks: 'Links Dinâmicos',
+        dlBotButtons: 'Botões do Bot',
+        dlBotCaptions: 'Legendas do Bot',
+        dlBotReactions: 'Reações do Bot'
+      };
+      toast(`${labels[field] || field} ${value ? 'ativados' : 'desativados'}`, value ? 'success' : 'info');
+    } catch {
+      setData(data);
+      toast(`Erro ao atualizar configuração`, 'error');
     }
   }, [toast, channelId, data]);
 
@@ -491,98 +522,31 @@ function DashboardContent() {
     }
   }, [toast, channelId, data]);
 
-  const getGreeting = () => {
+  const getGreeting = useCallback(() => {
     const h = new Date().getHours();
     if (h < 12) return 'Bom dia';
     if (h < 18) return 'Boa tarde';
     return 'Boa noite';
-  };
+  }, []);
 
-  const getGreetingEmoji = () => {
+  const getGreetingEmoji = useCallback(() => {
     const h = new Date().getHours();
     if (h < 6) return '🌙';
     if (h < 12) return '☀️';
     if (h < 18) return '🌤️';
     return '🌙';
-  };
+  }, []);
 
   const [showDisconnect, setShowDisconnect] = useState(false);
   const [showDisconnectSuccess, setShowDisconnectSuccess] = useState(false);
-  const [transferInput, setTransferInput] = useState('');
-  const [showTransferConfirm, setShowTransferConfirm] = useState(false);
-  const [showTransferSuccess, setShowTransferSuccess] = useState(false);
-  const [transferErrorMessage, setTransferErrorMessage] = useState('');
-  const [isTransferring, setIsTransferring] = useState(false);
-  const [transferNewOwnerName, setTransferNewOwnerName] = useState('');
-  const [transferNewOwnerId, setTransferNewOwnerId] = useState<number | null>(null);
-  const [showTransferError, setShowTransferError] = useState(false);
 
-  const handleDisconnect = () => {
+  const handleDisconnect = useCallback(() => {
     setShowDisconnect(true);
-  };
-
-  const handleTransferClick = async () => {
-    const newOwner = transferInput.trim();
-    if (!newOwner) {
-      toast('Digite o ID ou Username do novo dono', 'error');
-      return;
-    }
-
-    setIsTransferring(true);
-    setTransferErrorMessage('');
-    setShowTransferError(false);
-
-    try {
-      const resp = await fetchUserInfo(newOwner);
-      const isSuccess = resp && (resp.success || resp.succes) && resp.user;
-
-      if (isSuccess) {
-        setTransferNewOwnerName(resp.user.first_name);
-        setTransferNewOwnerId(resp.user.id);
-        setShowTransferConfirm(true);
-      } else {
-        setTransferErrorMessage(`Não foi possível encontrar nenhum usuário com o ID ou Username "${newOwner}". Por favor, verifique e tente novamente.`);
-        setShowTransferError(true);
-      }
-    } catch {
-      setTransferErrorMessage(`Ocorreu um erro ao buscar as informações do usuário. Tente novamente.`);
-      setShowTransferError(true);
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  const confirmTransfer = async () => {
-    const cid = parseInt(String(channelId), 10);
-    try {
-      if (!data?.channel?.ownerId) throw new Error("Owner ID not found");
-      if (!transferNewOwnerId) throw new Error("New owner ID not found");
-
-      await transferChannel(data.channel.ownerId, transferNewOwnerId, cid);
-      setShowTransferSuccess(true);
-      setTransferInput('');
-      setShowTransferConfirm(false);
-      setTransferNewOwnerName('');
-      setTransferNewOwnerId(null);
-    } catch (err: any) {
-      if (err instanceof Error) {
-        try {
-          const parsedErr = JSON.parse(err.message);
-          setTransferErrorMessage(parsedErr.message || 'Erro ao passar a posse para o novo usuário.');
-        } catch {
-          setTransferErrorMessage(err.message || 'Erro ao passar a posse para o novo usuário.');
-        }
-      } else {
-        setTransferErrorMessage('Erro desconhecido ao transferir o canal');
-      }
-      setShowTransferConfirm(false);
-      setShowTransferError(true);
-    }
-  };
+  }, []);
 
   const [isDisconnecting, setIsDisconnecting] = useState(false);
 
-  const confirmDisconnect = async () => {
+  const confirmDisconnect = useCallback(async () => {
     setIsDisconnecting(true);
     try {
       if (!channelId) throw new Error("ID do canal não encontrado");
@@ -602,9 +566,9 @@ function DashboardContent() {
       setIsDisconnecting(false);
       setShowDisconnect(false);
     }
-  };
+  }, [channelId, toast]);
 
-  const handleSendNotice = async () => {
+  const handleSendNotice = useCallback(async () => {
     if (!noticeMessage.trim()) {
       toast('A mensagem não pode estar vazia', 'error');
       return;
@@ -632,53 +596,52 @@ function DashboardContent() {
     } finally {
       setIsSendingNotice(false);
     }
-  };
+  }, [noticeMessage, noticeImageUrl, noticeTarget, noticeButtons, toast]);
 
-  const handleAddNoticeButton = () => {
-    setNoticeButtons([...noticeButtons, { text: '', type: 'url', value: '' }]);
-  };
+  const handleAddNoticeButton = useCallback(() => {
+    setNoticeButtons(prev => [...prev, { text: '', type: 'url', value: '' }]);
+  }, []);
 
-  const updateNoticeButton = (index: number, field: keyof NoticeButton, value: string) => {
-    const newBtns = [...noticeButtons];
-    newBtns[index] = { ...newBtns[index], [field]: value };
-    setNoticeButtons(newBtns);
-  };
+  const updateNoticeButton = useCallback((index: number, field: keyof NoticeButton, value: string) => {
+    setNoticeButtons(prev => {
+      const newBtns = [...prev];
+      newBtns[index] = { ...newBtns[index], [field]: value };
+      return newBtns;
+    });
+  }, []);
 
-  const removeNoticeButton = (index: number) => {
-    setNoticeButtons(noticeButtons.filter((_, i) => i !== index));
-  };
+  const removeNoticeButton = useCallback((index: number) => {
+    setNoticeButtons(prev => prev.filter((_, i) => i !== index));
+  }, []);
 
-  const navigateToChannel = (id: number) => {
-    const isAdmin = isAdminDashRoute();
-    if (isAdmin) {
+  const navigateToChannel = useCallback((id: number) => {
+    if (isAdminDashRoute()) {
       sessionStorage.setItem('navSource', 'admin');
     } else {
       sessionStorage.removeItem('navSource');
     }
     window.location.href = `/dashboard/${id}`;
-  };
+  }, []);
+
+  const onSelectAdminUser = useCallback((id: number | null) => {
+    setAdminSelectedUserId(id);
+    if (id) sessionStorage.setItem('lastAdminUserId', id.toString());
+    else sessionStorage.removeItem('lastAdminUserId');
+  }, []);
 
   useEffect(() => {
-    if (!loading && (data || adminData)) {
-      gsap.fromTo('.tab-content-wrapper', 
-        { opacity: 0, y: 5 }, 
-        { opacity: 1, y: 0, duration: 0.2, ease: 'power2.out' }
-      );
-    }
+    // Tab switch effect handled via CSS entrance animations
   }, [activeTab, adminActiveTab, loading]);
 
   if (authState === 'error') {
     let displayMessage = authError || 'Não foi possível autenticar. Tente novamente pelo Telegram.';
     
-    // Tentar extrair mensagem amigável caso seja um JSON de erro da API
     try {
       if (displayMessage.startsWith('{')) {
         const parsed = JSON.parse(displayMessage);
         displayMessage = parsed.message || parsed.error || displayMessage;
       }
-    } catch (e) {
-      // Se não for JSON, mantém a mensagem original
-    }
+    } catch (e) {}
 
     return (
       <div className="app-layout">
@@ -782,11 +745,7 @@ function DashboardContent() {
                 activeTab={adminActiveTab}
                 navigateToChannel={navigateToChannel}
                 selectedUserId={adminSelectedUserId}
-                onSelectUser={(id) => {
-                  setAdminSelectedUserId(id);
-                  if (id) sessionStorage.setItem('lastAdminUserId', id.toString());
-                  else sessionStorage.removeItem('lastAdminUserId');
-                }}
+                onSelectUser={onSelectAdminUser}
                 noticeMessage={noticeMessage}
                 setNoticeMessage={setNoticeMessage}
                 noticeImageUrl={noticeImageUrl}
@@ -806,12 +765,12 @@ function DashboardContent() {
           {(!isAdmin && (!channel || isChannelsRoute())) && (
             <div className="space-y-4">
               {isChannelsRoute() && (
-                <div className="welcome-card">
-                  <div className="welcome-greeting">
-                    <span className="welcome-emoji">{getGreetingEmoji()}</span>
+                <div className="card" style={{ padding: '20px' }}>
+                  <div className="flex items-center gap-3">
+                    <span className="text-2xl">{getGreetingEmoji()}</span>
                     <div className="min-w-0 flex-1">
-                      <h2 className="welcome-title">{getGreeting()}, <span style={{ color: 'var(--accent)' }}>{displayName}</span></h2>
-                      <p className="welcome-sub">Selecione um canal para gerenciar suas configurações.</p>
+                      <h2 className="text-[16px] font-bold">{getGreeting()}, <span style={{ color: 'var(--accent)' }}>{displayName}</span></h2>
+                      <p className="text-[12px]" style={{ color: 'var(--hint)' }}>Selecione um canal para gerenciar suas configurações.</p>
                     </div>
                   </div>
                 </div>
@@ -871,10 +830,6 @@ function DashboardContent() {
                 displayName={displayName}
                 getGreeting={getGreeting}
                 getGreetingEmoji={getGreetingEmoji}
-                transferInput={transferInput}
-                setTransferInput={setTransferInput}
-                isTransferring={isTransferring}
-                handleTransferClick={handleTransferClick}
                 handleDisconnect={handleDisconnect}
                 showDisconnect={showDisconnect}
                 setShowDisconnect={setShowDisconnect}
@@ -882,15 +837,6 @@ function DashboardContent() {
                 confirmDisconnect={confirmDisconnect}
                 showDisconnectSuccess={showDisconnectSuccess}
                 setShowDisconnectSuccess={setShowDisconnectSuccess}
-                showTransferConfirm={showTransferConfirm}
-                setShowTransferConfirm={setShowTransferConfirm}
-                confirmTransfer={confirmTransfer}
-                transferNewOwnerName={transferNewOwnerName}
-                showTransferError={showTransferError}
-                setShowTransferError={setShowTransferError}
-                transferErrorMessage={transferErrorMessage}
-                showTransferSuccess={showTransferSuccess}
-                setShowTransferSuccess={setShowTransferSuccess}
               />
             </div>
           )}
@@ -927,44 +873,127 @@ function DashboardContent() {
                   <div className="flex-1 min-w-0">
                     <h3 className="text-[15px] font-semibold truncate">Configurações de Reações</h3>
                     <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
-                      {channel.defaultCaption.messagePermission.reactions ? 'Ativadas' : 'Desativadas'}
+                      {channel.defaultCaption?.messagePermission?.reactions ? 'Ativadas' : 'Desativadas'}
                     </p>
                   </div>
-                  <span className={`badge ${channel.defaultCaption.messagePermission.reactions ? 'badge-accent' : 'badge-ghost'}`}>
-                    {channel.defaultCaption.messagePermission.reactions ? 'ON' : 'OFF'}
+                  <span className={`badge ${channel.defaultCaption?.messagePermission?.reactions ? 'badge-accent' : 'badge-ghost'}`}>
+                    {channel.defaultCaption?.messagePermission?.reactions ? 'ON' : 'OFF'}
                   </span>
                 </div>
                 <div className="space-y-2">
                   <div
-                    className={`perm-row ${channel.defaultCaption.messagePermission.reactions ? 'on' : ''}`}
-                    onClick={() => handleMsgPerm('reactions', !channel.defaultCaption.messagePermission.reactions)}
+                    className={`perm-row ${channel.defaultCaption?.messagePermission?.reactions ? 'on' : ''}`}
+                    onClick={() => handleMsgPerm('reactions', !channel.defaultCaption?.messagePermission?.reactions)}
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <span
                         className="flex-shrink-0"
                         style={{
-                          color: channel.defaultCaption.messagePermission.reactions ? 'var(--accent)' : 'var(--hint)',
-                          opacity: channel.defaultCaption.messagePermission.reactions ? 1 : 0.4
+                          color: channel.defaultCaption?.messagePermission?.reactions ? 'var(--accent)' : 'var(--hint)',
+                          opacity: channel.defaultCaption?.messagePermission?.reactions ? 1 : 0.4
                         }}
                       >
                         <Zap size={16} />
                       </span>
                       <span className="text-[13px] font-medium">Ativar Reações em Posts</span>
                     </div>
-                    <div className={`toggle ${channel.defaultCaption.messagePermission.reactions ? 'on' : ''}`} />
+                    <div className={`toggle ${channel.defaultCaption?.messagePermission?.reactions ? 'on' : ''}`} />
                   </div>
                 </div>
               </div>
+
+              {/* Links Dinâmicos */}
+              <div className="card">
+                <div className="section-header">
+                  <div className="section-icon purple">
+                    <Link2 size={18} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-[15px] font-semibold truncate">Links Dinâmicos</h3>
+                    <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
+                      Transforma links em botões automaticamente
+                    </p>
+                  </div>
+                  <span className={`badge ${channel.dynamicLinks ? 'badge-accent' : 'badge-ghost'}`}>
+                    {channel.dynamicLinks ? 'ON' : 'OFF'}
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  <div
+                    className={`perm-row ${channel.dynamicLinks ? 'on' : ''}`}
+                    onClick={() => handleDynamicLinks('dynamicLinks', !channel.dynamicLinks)}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span
+                        className="flex-shrink-0"
+                        style={{
+                          color: channel.dynamicLinks ? 'var(--accent)' : 'var(--hint)',
+                          opacity: channel.dynamicLinks ? 1 : 0.4
+                        }}
+                      >
+                        <ExternalLink size={16} />
+                      </span>
+                      <span className="text-[13px] font-medium">Ativar Links Dinâmicos</span>
+                    </div>
+                    <div className={`toggle ${channel.dynamicLinks ? 'on' : ''}`} />
+                  </div>
+
+                  {/* Sub-toggles (só aparecem se o principal estiver ON) */}
+                  {channel.dynamicLinks && (
+                    <div className="pl-6 space-y-2 mt-2 border-l-2 border-[var(--border)] ml-4 animate-in fade-in slide-in-from-left-2 duration-300">
+                      <div className="text-[10px] font-bold opacity-40 uppercase mb-2 tracking-wider">Regras de Exceção</div>
+                      
+                      <div
+                        className={`perm-row ${channel.dlBotButtons ? 'on' : ''}`}
+                        onClick={() => handleDynamicLinks('dlBotButtons', !channel.dlBotButtons)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <MousePointerClick size={14} className={channel.dlBotButtons ? 'text-[var(--accent)]' : 'text-[var(--hint)]'} />
+                          <span className="text-[12px]">Manter Botões do Bot</span>
+                        </div>
+                        <div className={`toggle sm ${channel.dlBotButtons ? 'on' : ''}`} />
+                      </div>
+
+                      <div
+                        className={`perm-row ${channel.dlBotCaptions ? 'on' : ''}`}
+                        onClick={() => handleDynamicLinks('dlBotCaptions', !channel.dlBotCaptions)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Type size={14} className={channel.dlBotCaptions ? 'text-[var(--accent)]' : 'text-[var(--hint)]'} />
+                          <span className="text-[12px]">Manter Legendas do Bot</span>
+                        </div>
+                        <div className={`toggle sm ${channel.dlBotCaptions ? 'on' : ''}`} />
+                      </div>
+
+                      <div
+                        className={`perm-row ${channel.dlBotReactions ? 'on' : ''}`}
+                        onClick={() => handleDynamicLinks('dlBotReactions', !channel.dlBotReactions)}
+                      >
+                        <div className="flex items-center gap-3">
+                          <Zap size={14} className={channel.dlBotReactions ? 'text-[var(--accent)]' : 'text-[var(--hint)]'} />
+                          <span className="text-[12px]">Manter Reações do Bot</span>
+                        </div>
+                        <div className={`toggle sm ${channel.dlBotReactions ? 'on' : ''}`} />
+                      </div>
+                      
+                      <p className="text-[10px] opacity-40 italic mt-2">
+                        * Estas regras só se aplicam se um link dinâmico for detectado na postagem.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <PermissionsCard
                 title="Permissões de Mensagem"
                 icon={<MessageCircle size={18} />}
-                permission={channel.defaultCaption.messagePermission}
+                permission={channel.defaultCaption?.messagePermission}
                 onToggle={handleMsgPerm}
               />
               <PermissionsCard
                 title="Permissões de Botões"
                 icon={<MousePointerClick size={18} />}
-                permission={channel.defaultCaption.buttonsPermission}
+                permission={channel.defaultCaption?.buttonsPermission}
                 onToggle={handleBtnPerm}
               />
             </div>
@@ -975,20 +1004,14 @@ function DashboardContent() {
       {!isChannels && !isAdmin && (
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
       )}
-      
-      <BackgroundEffect />
     </div>
   );
-}
-
-import { ReactLenis } from 'lenis/react';
+});
 
 export default function App() {
   return (
-    <ReactLenis root options={{ lerp: 0.1, duration: 1.5, smoothWheel: true }}>
-      <ToastProvider>
-        <DashboardContent />
-      </ToastProvider>
-    </ReactLenis>
+    <ToastProvider>
+      <DashboardContent />
+    </ToastProvider>
   );
 }
