@@ -8,7 +8,7 @@
 
 /* --- LIGHT --- */
 [data-theme="light"] {
-  --bg: #f8f9ff; /* Soft blue-white */
+  --bg: #faf6ee; /* Gold Lightest */
   --card: rgba(255, 255, 255, 0.7);
   --card-elevated: rgba(255, 255, 255, 0.9);
   --text: #1e1b4b; /* Deep Indigo text */

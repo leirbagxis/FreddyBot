@@ -2,13 +2,14 @@ import { useState, useMemo, useTransition, useEffect, Dispatch, SetStateAction }
 import { AdminDashboardData, User, Channel } from '../types';
 import { AdminNoticeTab } from './AdminNoticeTab';
 import { AdminConfigTab } from './AdminConfigTab';
+import { AdminAuditTab } from './AdminAuditTab';
 import { NoticeButton, updateUserAdmin, updateUserBlacklist } from '../api';
-import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings, ShieldAlert, ShieldCheck, UserX, UserCheck } from 'lucide-react';
+import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings, ShieldAlert, ShieldCheck, UserX, UserCheck, Zap } from 'lucide-react';
 import { useToast } from './Toast';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
-  activeTab: 'users' | 'channels' | 'notice' | 'config';
+  activeTab: 'users' | 'channels' | 'notice' | 'config' | 'audit';
   navigateToChannel: (id: number) => void;
   selectedUserId: number | null;
   onSelectUser: (id: number | null) => void;
@@ -17,8 +18,10 @@ interface AdminDashboardProps {
   setNoticeMessage: Dispatch<SetStateAction<string>>;
   noticeImageUrl: string;
   setNoticeImageUrl: Dispatch<SetStateAction<string>>;
-  noticeTarget: 'channels' | 'users' | 'all';
-  setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all'>>;
+  noticeTarget: 'channels' | 'users' | 'all' | 'single';
+  setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all' | 'single'>>;
+  noticeTargetId: string;
+  setNoticeTargetId: Dispatch<SetStateAction<string>>;
   noticeButtons: NoticeButton[];
   handleAddNoticeButton: () => void;
   updateNoticeButton: (index: number, field: keyof NoticeButton, value: string) => void;
@@ -36,6 +39,7 @@ export function AdminDashboard({
   noticeMessage, setNoticeMessage,
   noticeImageUrl, setNoticeImageUrl,
   noticeTarget, setNoticeTarget,
+  noticeTargetId, setNoticeTargetId,
   noticeButtons, handleAddNoticeButton,
   updateNoticeButton, removeNoticeButton,
   handleSendNotice,
@@ -328,6 +332,8 @@ export function AdminDashboard({
           setNoticeImageUrl={setNoticeImageUrl}
           noticeTarget={noticeTarget}
           setNoticeTarget={setNoticeTarget}
+          noticeTargetId={noticeTargetId}
+          setNoticeTargetId={setNoticeTargetId}
           noticeButtons={noticeButtons}
           handleAddNoticeButton={handleAddNoticeButton}
           updateNoticeButton={updateNoticeButton}
@@ -354,6 +360,11 @@ export function AdminDashboard({
       {localActiveTab === 'users' && !adminSelectedUser && renderUsersTab()}
       {localActiveTab === 'users' && adminSelectedUser && renderUserDetail()}
       {localActiveTab === 'channels' && renderChannelsTab()}
+      {localActiveTab === 'audit' && (
+        <div className="tab-content-wrapper">
+          <AdminAuditTab navigateToChannel={navigateToChannel} />
+        </div>
+      )}
       {localActiveTab === 'notice' && renderNoticeTab()}
       {localActiveTab === 'config' && (
         <div className="tab-content-wrapper">

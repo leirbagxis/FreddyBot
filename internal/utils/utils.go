@@ -29,6 +29,13 @@ func NormalizePort(p string) string {
 	return p
 }
 
+func MinInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
 func MarkdownToTelegramHTML(text string) string {
 	// Bloco de código ``` \n texto \n ``` (processado primeiro para evitar conflitos)
 	blockRegex := regexp.MustCompile("```([\\s\\S]*?)```")

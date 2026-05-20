@@ -15,15 +15,32 @@ func ProcessTextWithFormattingTelego(text string, entities []telego.MessageEntit
 		return ""
 	}
 
-	if IsMarkdown(text) {
-		return DetectParseMode(text)
-	}
-
+	hasManualEntities := false
 	if len(entities) > 0 {
-		return ProcessEntitiesOnlyTelego(text, entities)
+		for _, e := range entities {
+			// Ignora entidades automáticas na verificação
+			if e.Type != "url" && e.Type != "email" && e.Type != "phone_number" && e.Type != "hashtag" && e.Type != "cashtag" && e.Type != "bot_command" {
+				hasManualEntities = true
+				break
+			}
+		}
 	}
 
-	return DetectParseMode(text)
+	var result string
+	// Se o usuário formatou algo explicitamente via UI do Telegram (negrito, itálico, links embutidos, etc)
+	if hasManualEntities {
+		result = ProcessEntitiesOnlyTelego(text, entities)
+	} else if IsMarkdown(text) {
+		// Se usou sintaxe Markdown crua (ex: [texto](url))
+		result = DetectParseMode(text)
+	} else if len(entities) > 0 {
+		// Fallback para entidades automáticas (URLs puras que o Telegram detectou sozinho)
+		result = ProcessEntitiesOnlyTelego(text, entities)
+	} else {
+		result = DetectParseMode(text)
+	}
+
+	return result
 }
 
 // ProcessEntitiesOnlyTelego is the telego version of ProcessEntitiesOnly

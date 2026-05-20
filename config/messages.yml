@@ -46,7 +46,7 @@
     
     💡 Ativar as <b>Legendas Automáticas</b> no seu canal é simples:
     
-    1️⃣ <b>Adicione o bot</b> {botUsername} ao seu canal.
+    1️⃣ <b>Adicione o bot</b> @{botUser} ao seu canal.
     2️⃣ Conceda as seguintes permissões:
       ✔️ Editar mensagens
       ✔️ Fixar mensagens

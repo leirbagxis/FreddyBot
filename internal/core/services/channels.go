@@ -96,13 +96,6 @@ func (s *ChannelService) GetChannelWithRelations(ctx context.Context, channelID 
 }
 
 func (s *ChannelService) UpdateChannelBasicInfoAndFirstButton(ctx context.Context, channel *models.Channel) error {
-	// Apenas um proxy para o repo, mas com invalidação de cache
-	// Nota: O repo não tem um método específico para isso agora, 
-	// mas UpdateOwnerChannel ou Updates genérico no repo pode ser usado.
-	// Vou usar o DB direto via repo se necessário ou adicionar ao repo.
-	// Por simplicidade, vou usar o UpdateOwnerChannel se as cores baterem ou adicionar Updates ao repo.
-	
-	// Na verdade, vou adicionar um método Update ao repository.
 	if err := s.channelRepo.UpdateChannel(ctx, channel); err != nil {
 		return errors.Internal(err)
 	}

@@ -72,6 +72,7 @@ func sendMaintenanceResponseTelego(ctx *telegohandler.Context, upt telego.Update
 			InlineQueryID: upt.InlineQuery.ID,
 			Results: []telego.InlineQueryResult{
 				&telego.InlineQueryResultArticle{
+					Type:  "article",
 					ID:    "maintenance",
 					Title: "⚙️ Manutenção em andamento",
 					InputMessageContent: &telego.InputTextMessageContent{

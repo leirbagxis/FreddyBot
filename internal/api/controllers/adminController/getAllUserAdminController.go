@@ -26,6 +26,7 @@ func NewUsersAdminController(app *container.AppContainer) *UsersAdminController 
 type NoticeRequest struct {
 	Message  string `json:"message"`
 	Target   string `json:"target"`
+	TargetID int64  `json:"targetId"`
 	ImageUrl string `json:"imageUrl"`
 	Buttons  []struct {
 		Text  string `json:"text"`
@@ -124,6 +125,22 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 	}
 
 	switch notice.Target {
+
+	case "single":
+		if notice.TargetID == 0 {
+			logger.Error("API", "TargetID ausente para envio individual")
+			return
+		}
+
+		header := "# 📨 <b>MENSAGEM DO SUPORTE</b>\n\n"
+		text := header + utils.MarkdownToTelegramHTML(notice.Message)
+
+		c.container.BroadcastQueue <- container.BroadcastJob{
+			ChatID:   notice.TargetID,
+			Text:     text,
+			ImageUrl: notice.ImageUrl,
+			Buttons:  buttons,
+		}
 
 	case "users":
 		users, err := c.container.UserService.GetAllUsersWithChannels(ctx)

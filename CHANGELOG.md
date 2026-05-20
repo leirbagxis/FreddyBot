@@ -2,25 +2,32 @@
 
 All notable changes to this project will be documented in this file.
 
-## [1.3.0] - 2026-05-19
+## [1.4.0] - 2026-05-20
 
 ### Added
-- **Migração para Telego Framework**: Refatoração completa do motor do bot para utilizar o framework `telego`, proporcionando maior estabilidade e tipos nativos.
-- **Placeholder Dinâmico `{usernameBot}`**: Implementação de substituição em tempo real do nome de usuário do bot nas legendas globais durante o cadastro de novos canais.
-- **Proteção Legal e Docs**: Adição de arquivo de `LICENSE` (Proprietário) e atualização completa do `README.md` com instruções de deploy focadas em PostgreSQL e variáveis de ambiente.
-- **Limpeza Profunda de Cache**: Implementação de purga automática de sessões e metadados tanto no Redis quanto na memória RAM local ao excluir ou desconectar um canal.
+- **Auditoria Ativa e Gerenciamento em Massa**:
+  - Nova aba **Auditoria** no Dashboard Admin para varredura em tempo real de permissões de bots legados (@XavolaBot).
+  - Implementação de **Deleção em Massa (Bulk Delete)** de canais diretamente pela interface de auditoria, com confirmação de segurança.
+  - Otimização da varredura com **20 workers paralelos** no backend, garantindo respostas rápidas mesmo para grandes volumes de dados.
+- **Suporte e Comunicação Direta**:
+  - Nova funcionalidade de **Mensagem Individual** na aba Broadcast, permitindo contatar usuários específicos via ID.
+  - Injeção automática de cabeçalho oficial (`# 📨 MENSAGEM DO SUPORTE`) em disparos individuais.
+  - Comando bot **`/getid`**: Facilidade para administradores capturarem o File ID de qualquer mídia (foto, vídeo, gif) para uso imediato em campanhas de broadcast.
+- **Preview de Mídia Real (Dashboard)**:
+  - Implementação de um **Media Proxy** seguro no backend (`/api/admin/media-proxy`) que permite ao Dashboard exibir imagens reais do Telegram sem expor o Token do bot ao navegador.
+  - Ajuste inteligente no preview para detectar links externos vs. File IDs e exibir a imagem completa sem recortes (`object-contain`).
 
 ### Fixed
-- **Prioridade de Interceptação**: Reordenação de handlers para garantir que fluxos ativos (ex: Sticker Separador) não sejam roubados pelo PostBuilder.
-- **Renderização de Tags**: Adição de fallbacks automáticos para a tag `{channelName}`, evitando textos vazios em canais recém-criados.
-- **Persistência de Modelos**: Correção no salvamento do Sticker Separador com geração obrigatória de UUID.
-- **Parsing de YAML**: Ajuste no parser de mensagens para lidar com chaves simples e caracteres especiais de forma mais resiliente.
+- **Compatibilidade PostgreSQL**:
+  - Implementação de **Limpeza Manual em Cascata** no repositório de canais através de transações SQL. Isso resolve erros de violação de chave estrangeira (`23503`) no Postgres, garantindo que botões e legendas sejam limpos antes da remoção do canal.
+  - Normalização de tipos booleanos e IDs para suporte transparente entre SQLite (dev) e Postgres (prod).
+- **Fim do Hardcode**: Removidas todas as referências fixas a @LegendasBrBot do código-fonte e do banco de dados inicial, substituindo-as por placeholders dinâmicos como `{botUser}` e `{usernameBot}`.
 
 ### Changed
-- **Arquitetura de Middlewares**: Migração dos middlewares globais (Blacklist, Manutenção, SaveUser) para o padrão Telego.
-- **Inicialização de Banco**: Injeção de templates padrão para legendas globais diretamente no `ServerConfig` durante o primeiro boot.
+- **Modularização do Core Admin**: O arquivo massivo `admin.go` foi fragmentado em múltiplos arquivos especializados (`admin_users.go`, `admin_channels.go`, `admin_broadcast.go`, `admin_utils.go`), facilitando a manutenção e futuras expansões.
+- **Padronização de Mensagens**: Unificação do estilo visual e uso de emojis em todo o arquivo `messages.yml`.
 
-## [Unreleased]
+## [1.3.1] - 2026-05-19
 
 ### Added
 - **Design Dashboard (Sentri Soft + Liquid Glass)**:
@@ -44,6 +51,8 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **Arquitetura de Componentes**: Mover estados locais (como inputs de transferência) para dentro dos componentes filhos, reduzindo a carga no componente principal `App.tsx`.
 - **Simplificação de UX**: Remoção do sistema de "Revelar Link" e HUD de Telemetria complexo em favor de uma interface mais direta e rápida.
+
+## [1.3.0] - 2026-05-19
 
 ## [1.2.0] - 2026-05-15
 

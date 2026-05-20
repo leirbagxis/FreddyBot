@@ -126,6 +126,7 @@ func HandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHandler {
 		text, kb := parser.GetMessageTelego("claim-ownership-require-message", vars)
 
 		article := &telego.InlineQueryResultArticle{
+			Type:        "article",
 			ID:          fmt.Sprintf("claim_success_%d", from.ID),
 			Title:       "✅ Canal Encontrado",
 			Description: fmt.Sprintf("Canal %d - Confirme a propriedade", channelID),
@@ -221,6 +222,7 @@ func AcceptClaimHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 
 func buildErrorArticleTelego(userID int64, idSuffix, title, message string) *telego.InlineQueryResultArticle {
 	return &telego.InlineQueryResultArticle{
+		Type:  "article",
 		ID:    fmt.Sprintf("error_%s_%d", idSuffix, userID),
 		Title: title,
 		InputMessageContent: &telego.InputTextMessageContent{

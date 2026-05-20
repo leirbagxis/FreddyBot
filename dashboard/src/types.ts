@@ -83,6 +83,12 @@ export interface AdminDashboardData {
   channels: Channel[];
 }
 
+export interface AuditResult {
+  userId: number;
+  firstName: string;
+  channels: Channel[];
+}
+
 export interface DashboardData {
   channel: Channel;
   user: User;

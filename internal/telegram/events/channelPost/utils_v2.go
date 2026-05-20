@@ -1,6 +1,8 @@
 package channelpost
 
 import (
+	"fmt"
+	"html"
 	"regexp"
 	"strconv"
 	"strings"
@@ -107,11 +109,29 @@ func DetectParseMode(text string) string {
 		return ""
 	}
 
-	res := text
+	// Escapar caracteres HTML ANTES de aplicar as regexes de Markdown
+	// Isso garante que '&' vire '&amp;', mas as tags que inserirmos depois (<b>, <i>) fiquem intactas.
+	res := html.EscapeString(text)
 
 	// Link: [text](url) -> <a href="url">text</a>
-	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\((https?://[^\s)]+)\)`)
-	res = linkRegex.ReplaceAllString(res, `<a href="$2">$1</a>`)
+	// Regex flexível: permite capturar links sem http:// e com qualquer caractere no texto
+	linkRegex := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
+	res = linkRegex.ReplaceAllStringFunc(res, func(m string) string {
+		matches := linkRegex.FindStringSubmatch(m)
+		if len(matches) == 3 {
+			text := matches[1]
+			url := strings.TrimSpace(matches[2])
+			if url == "" {
+				return m
+			}
+			// Adicionar prefixo se não houver
+			if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "tg://") {
+				url = "https://" + url
+			}
+			return fmt.Sprintf(`<a href="%s">%s</a>`, url, text)
+		}
+		return m
+	})
 
 	// Bold: *text* -> <b>text</b>
 	boldRegex := regexp.MustCompile(`\*([^\*\n]+)\*`)

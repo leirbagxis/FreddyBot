@@ -12,8 +12,10 @@ interface AdminNoticeTabProps {
     setNoticeMessage: Dispatch<SetStateAction<string>>;
     noticeImageUrl: string;
     setNoticeImageUrl: Dispatch<SetStateAction<string>>;
-    noticeTarget: 'channels' | 'users' | 'all';
-    setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all'>>;
+    noticeTarget: 'channels' | 'users' | 'all' | 'single';
+    setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all' | 'single'>>;
+    noticeTargetId: string;
+    setNoticeTargetId: Dispatch<SetStateAction<string>>;
     noticeButtons: NoticeButton[];
     handleAddNoticeButton: () => void;
     updateNoticeButton: (index: number, field: keyof NoticeButton, value: string) => void;
@@ -26,6 +28,7 @@ export function AdminNoticeTab({
     noticeMessage, setNoticeMessage,
     noticeImageUrl, setNoticeImageUrl,
     noticeTarget, setNoticeTarget,
+    noticeTargetId, setNoticeTargetId,
     noticeButtons, handleAddNoticeButton,
     updateNoticeButton, removeNoticeButton,
     handleSendNotice, isSendingNotice
@@ -35,9 +38,17 @@ export function AdminNoticeTab({
     const maxChars = noticeImageUrl.trim() ? 1024 : 4096;
     const isOverLimit = noticeMessage.length > maxChars;
     const hasEmptyButtons = noticeButtons.some(b => !b.text.trim() || !b.value.trim());
-    const isReady = noticeMessage.trim().length > 0 && !isOverLimit && !hasEmptyButtons;
+    const isReady = noticeMessage.trim().length > 0 && !isOverLimit && !hasEmptyButtons && (noticeTarget !== 'single' || noticeTargetId.trim().length > 5);
 
     const renderPreview = () => {
+        // Lógica para detectar se é uma URL externa ou um File ID do Telegram
+        let previewUrl = noticeImageUrl;
+        if (noticeImageUrl && !noticeImageUrl.startsWith('http') && noticeImageUrl.length > 20) {
+            previewUrl = `/api/admin/media-proxy/${noticeImageUrl}`;
+        }
+
+        const headerHtml = noticeTarget === 'single' ? '# 📨 <b>MENSAGEM DO SUPORTE</b><br/><br/>' : '';
+
         // Convert some basic markdown to HTML for preview
         let htmlContent = noticeMessage
             .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
@@ -50,9 +61,9 @@ export function AdminNoticeTab({
         return (
             <div className="bg-[var(--surface)] shadow-sm p-3 rounded-2xl rounded-bl-sm max-w-[320px] w-full mx-auto text-[14px] text-[var(--text)] leading-relaxed">
                 {noticeImageUrl && (
-                    <img src={noticeImageUrl} alt="Preview" className="w-full rounded-xl mb-2 object-cover max-h-[200px] bg-[var(--background)]" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                    <img src={previewUrl} alt="Preview" className="w-full rounded-xl mb-2 object-contain max-h-[350px] bg-[var(--background)]" onError={(e) => (e.currentTarget.style.display = 'none')} />
                 )}
-                <div dangerouslySetInnerHTML={{ __html: htmlContent || '<span class="text-[var(--hint)] opacity-50 font-medium">Sua mensagem aparecerá aqui...</span>' }} className="mb-2 break-words" />
+                <div dangerouslySetInnerHTML={{ __html: headerHtml + (htmlContent || '<span class="text-[var(--hint)] opacity-50 font-medium">Sua mensagem aparecerá aqui...</span>') }} className="mb-2 break-words" />
                 {noticeButtons.length > 0 && (
                     <div className="flex flex-col gap-1.5 mt-3 pt-2 border-t border-[var(--border)]">
                         {noticeButtons.map((btn, i) => (
@@ -130,8 +141,32 @@ export function AdminNoticeTab({
                         >
                             <Users size={16} /> Usuários
                         </button>
+                        <button
+                            onClick={() => setNoticeTarget('single')}
+                            className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border ${noticeTarget === 'single'
+                                ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
+                                : 'bg-[var(--surface)] border(--border)] text-[var(--hint)] hover:bg-[var(--border)]'
+                                } transition-all font-semibold text-sm`}
+                        >
+                            <MousePointerClick size={16} /> Individual
+                        </button>
                     </div>
                 </div>
+
+                {noticeTarget === 'single' && (
+                    <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
+                        <label className="text-[13px] font-semibold text-[var(--hint)] flex items-center gap-1.5">
+                            ID do Usuário Alvo
+                        </label>
+                        <input
+                            type="number"
+                            placeholder="Ex: 12345678"
+                            value={noticeTargetId}
+                            onChange={(e) => setNoticeTargetId(e.target.value)}
+                            className="w-full bg-[var(--background)] text-[var(--text)] border border-[var(--border)] rounded-lg p-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] transition-colors placeholder:text-[var(--hint)]"
+                        />
+                    </div>
+                )}
 
                 <div className="space-y-3 pt-3 border-t border-[var(--border)] mt-2">
                     <div className="flex items-center justify-between">

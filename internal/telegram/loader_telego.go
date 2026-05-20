@@ -70,6 +70,7 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	adminGroup.Handle(admin.ToggleMaintenceHandlerTelego(c), telegohandler.CommandEqual("maintence"))
 	adminGroup.Handle(admin.GetBackUpHandlerTelego(c), telegohandler.CommandEqual("backup"))
 	adminGroup.Handle(admin.CheckBotAdminHandlerTelego(c), telegohandler.CommandEqual("checkbot"))
+	adminGroup.Handle(admin.GetMediaIDHandlerTelego(c), telegohandler.CommandEqual("getid"))
 
 	// Message Handlers for active sessions (Text and Sticker inputs)
 	bh.Handle(callbackMyChannel.SetStickerSeparatorHandlerTelego(c), matchAwaitingStickerSeparatorTelego(c))

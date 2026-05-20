@@ -35,6 +35,7 @@ const tabs: Tab[] = [
 const adminTabs: Tab[] = [
   { id: 'users', label: 'Usuários', icon: <Users size={22} /> },
   { id: 'channels', label: 'Canais', icon: <Hash size={22} /> },
+  { id: 'audit', label: 'Auditoria', icon: <Zap size={22} /> },
   { id: 'notice', label: 'Broadcast', icon: <MessageSquare size={22} /> },
   { id: 'config', label: 'Configurações', icon: <Settings size={22} /> },
 ];
@@ -66,7 +67,7 @@ const DashboardContent = memo(function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('geral');
-  const [adminActiveTab, setAdminActiveTab] = useState<'users' | 'channels' | 'notice' | 'config'>('users');
+  const [adminActiveTab, setAdminActiveTab] = useState<'users' | 'channels' | 'notice' | 'config' | 'audit'>('users');
   const [adminSelectedUserId, setAdminSelectedUserId] = useState<number | null>(null);
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [authState, setAuthState] = useState<AuthState>('idle');
@@ -77,7 +78,8 @@ const DashboardContent = memo(function DashboardContent() {
   const [adminData, setAdminData] = useState<AdminDashboardData | null>(null);
   const [noticeMessage, setNoticeMessage] = useState('');
   const [noticeImageUrl, setNoticeImageUrl] = useState('');
-  const [noticeTarget, setNoticeTarget] = useState<'channels' | 'users' | 'all'>('all');
+  const [noticeTarget, setNoticeTarget] = useState<'channels' | 'users' | 'all' | 'single'>('all');
+  const [noticeTargetId, setNoticeTargetId] = useState<string>('');
   const [noticeButtons, setNoticeButtons] = useState<NoticeButton[]>([]);
   const [isSendingNotice, setIsSendingNotice] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -583,6 +585,7 @@ const DashboardContent = memo(function DashboardContent() {
         message: noticeMessage,
         imageUrl: noticeImageUrl,
         target: noticeTarget,
+        targetId: noticeTarget === 'single' ? parseInt(noticeTargetId, 10) : undefined,
         buttons: noticeButtons
       };
 
@@ -590,6 +593,7 @@ const DashboardContent = memo(function DashboardContent() {
       toast('Mensagem enviada com sucesso!', 'success');
       setNoticeMessage('');
       setNoticeImageUrl('');
+      setNoticeTargetId('');
       setNoticeButtons([]);
     } catch (err: any) {
       toast(err.message || 'Erro ao enviar mensagem', 'error');
@@ -752,6 +756,8 @@ const DashboardContent = memo(function DashboardContent() {
                 setNoticeImageUrl={setNoticeImageUrl}
                 noticeTarget={noticeTarget}
                 setNoticeTarget={setNoticeTarget}
+                noticeTargetId={noticeTargetId}
+                setNoticeTargetId={setNoticeTargetId}
                 noticeButtons={noticeButtons}
                 handleAddNoticeButton={handleAddNoticeButton}
                 updateNoticeButton={updateNoticeButton}

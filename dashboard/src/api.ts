@@ -202,8 +202,9 @@ export interface NoticeButton {
 
 export interface NoticeRequest {
     message: string;
-    target: 'channels' | 'users' | 'all';
-    imageUrl?: string;
+    target: 'channels' | 'users' | 'all' | 'single';
+    targetId?: number;
+    imageUrl: string;
     buttons: NoticeButton[];
 }
 
@@ -249,5 +250,16 @@ export const updateUserAdmin = async (userId: number) => {
 export const updateUserBlacklist = async (userId: number) => {
     return apiFetch(`/api/admin/users/${userId}/blacklist`, {
         method: 'POST',
+    });
+};
+
+export const fetchAuditCheckBot = async () => {
+    return apiFetch('/api/admin/audit/checkbot');
+};
+
+export const bulkDeleteChannels = async (userId: number, channelIds: number[]) => {
+    return apiFetch('/api/admin/audit/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ userId, channelIds }),
     });
 };

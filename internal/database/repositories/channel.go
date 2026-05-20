@@ -117,17 +117,64 @@ func (r *ChannelRepository) UpdateOwnerChannel(ctx context.Context, channelID, o
 }
 
 func (r *ChannelRepository) DeleteChannelWithRelations(ctx context.Context, userId, channelId int64) error {
-	result := r.db.WithContext(ctx).
-		Where("owner_id = ? AND id = ?", userId, channelId).
-		Delete(&models.Channel{})
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// 1. Verificar se o canal existe e pertence ao usuário (ou se é admin bypassando userId se necessário)
+		// Aqui mantemos a lógica original de filtragem por userId e channelId
+		var channel models.Channel
+		if err := tx.Where("owner_id = ? AND id = ?", userId, channelId).First(&channel).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("channel not found")
+			}
+			return err
+		}
 
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return errors.New("channel not found")
-	}
-	return nil
+		// 2. Limpar dados dependentes manualmente para evitar violações de FK no Postgres
+		// GORM OnDelete:CASCADE nem sempre é refletido no banco se as tabelas já existiam.
+
+		// Limpar Botões
+		if err := tx.Where("owner_channel_id = ?", channelId).Delete(&models.Button{}).Error; err != nil {
+			return err
+		}
+
+		// Limpar Separadores
+		if err := tx.Where("owner_channel_id = ?", channelId).Delete(&models.Separator{}).Error; err != nil {
+			return err
+		}
+
+		// Limpar Custom Captions e seus botões
+		var customCaptions []models.CustomCaption
+		if err := tx.Where("owner_channel_id = ?", channelId).Find(&customCaptions).Error; err == nil {
+			for _, cc := range customCaptions {
+				if err := tx.Where("custom_caption_id = ?", cc.CaptionID).Delete(&models.CustomCaptionButton{}).Error; err != nil {
+					return err
+				}
+			}
+			if err := tx.Where("owner_channel_id = ?", channelId).Delete(&models.CustomCaption{}).Error; err != nil {
+				return err
+			}
+		}
+
+		// Limpar Default Caption e suas permissões
+		var defaultCaption models.DefaultCaption
+		if err := tx.Where("owner_channel_id = ?", channelId).First(&defaultCaption).Error; err == nil {
+			if err := tx.Where("owner_caption_id = ?", defaultCaption.CaptionID).Delete(&models.MessagePermission{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Where("owner_caption_id = ?", defaultCaption.CaptionID).Delete(&models.ButtonsPermission{}).Error; err != nil {
+				return err
+			}
+			if err := tx.Delete(&defaultCaption).Error; err != nil {
+				return err
+			}
+		}
+
+		// 3. Por fim, deletar o canal
+		if err := tx.Delete(&channel).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 func (r *ChannelRepository) GetAllChannelsByUserID(ctx context.Context, userID int64) ([]models.Channel, error) {

@@ -46,7 +46,6 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		// Se o usuário estiver configurando um sticker separador, o PostBuilder não deve interceptar
 		awaitingStickerChannel, _ := c.CacheService.GetAwaitingStickerSeparator(context.Background(), update.Message.From.ID)
 		if awaitingStickerChannel != 0 && update.Message.Sticker != nil {
-			logger.Bot("PostBuilder: User %d is configuring a sticker separator. Ignoring.", update.Message.From.ID)
 			return nil
 		}
 
@@ -94,7 +93,6 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			MediaFileID: mediaID,
 			Step:        "",
 		}
-		logger.Bot("PostBuilder: Saving initial state for user %d", update.Message.From.ID)
 		c.CacheService.SetPostBuilderState(context.Background(), update.Message.From.ID, state)
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
@@ -134,22 +132,42 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 		state.Step = ""
 	case "awaiting_reactions":
 		parts := strings.Split(text, ",")
+		var finalReactions []string
 		valid := true
+
+		// Mapear entidades para facilitar a busca por posição
+		entityMap := make(map[int]string)
+		for _, e := range update.Message.Entities {
+			if e.Type == "custom_emoji" {
+				entityMap[e.Offset] = e.CustomEmojiID
+			}
+		}
+
+		currentOffset := 0
 		for _, p := range parts {
-			p = strings.TrimSpace(p)
-			if p == "" {
+			trimmed := strings.TrimSpace(p)
+			if trimmed == "" {
+				currentOffset += len(p) + 1
 				continue
 			}
-			if !isEmoji(p) {
+
+			// Verificar se nesta posição do texto original existe uma entidade de emoji customizado
+			pos := strings.Index(text[currentOffset:], trimmed) + currentOffset
+			if eid, ok := entityMap[pos]; ok {
+				finalReactions = append(finalReactions, "eid:"+eid)
+			} else if isEmoji(trimmed) {
+				finalReactions = append(finalReactions, trimmed)
+			} else {
 				valid = false
 				break
 			}
+			currentOffset += len(p) + 1
 		}
 
 		if !valid {
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 				ChatID:    update.Message.Chat.ChatID(),
-				Text:      "❌ Apenas emojis são permitidos como reações. Tente novamente:",
+				Text:      "❌ Apenas emojis (padrão ou customizados) são permitidos como reações. Tente novamente:",
 				ParseMode: telego.ModeHTML,
 				ReplyParameters: &telego.ReplyParameters{
 					MessageID: update.Message.MessageID,
@@ -158,7 +176,7 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 			return nil
 		}
 
-		state.Reactions = text
+		state.Reactions = strings.Join(finalReactions, ",")
 		state.Step = ""
 	case "awaiting_button":
 		lines := strings.Split(text, "\n")
@@ -176,6 +194,16 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 		name := strings.TrimSpace(lines[0])
 		url := strings.TrimSpace(lines[1])
 
+		// Extrair CustomEmojiID do nome (primeira linha)
+		var customEmojiID string
+		firstLineLen := len(lines[0])
+		for _, entity := range update.Message.Entities {
+			if entity.Type == "custom_emoji" && entity.Offset < firstLineLen {
+				customEmojiID = entity.CustomEmojiID
+				break
+			}
+		}
+
 		if !strings.HasPrefix(url, "http") {
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 				ChatID: update.Message.Chat.ChatID(),
@@ -187,7 +215,7 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 			return nil
 		}
 
-		state.Buttons = append(state.Buttons, cache.PostBuilderButton{Text: name, URL: url})
+		state.Buttons = append(state.Buttons, cache.PostBuilderButton{Text: name, URL: url, CustomEmojiID: customEmojiID})
 		state.Step = ""
 	default:
 		return nil
@@ -213,7 +241,19 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 	sb.WriteString(fmt.Sprintf("📝 <b>Título:</b> %s\n", state.Title))
 	sb.WriteString(fmt.Sprintf("📄 <b>Corpo:</b> %s\n", state.Body))
 	sb.WriteString(fmt.Sprintf("👣 <b>Rodapé:</b> %s\n", state.Footer))
-	sb.WriteString(fmt.Sprintf("🎭 <b>Reações:</b> %s\n", state.Reactions))
+	// Formatar reações para exibição no menu
+	displayReactions := state.Reactions
+	if strings.Contains(displayReactions, "eid:") {
+		parts := strings.Split(displayReactions, ",")
+		for i, p := range parts {
+			if strings.HasPrefix(p, "eid:") {
+				parts[i] = "🖼️" // Placeholder para emoji customizado
+			}
+		}
+		displayReactions = strings.Join(parts, ", ")
+	}
+
+	sb.WriteString(fmt.Sprintf("🎭 <b>Reações:</b> %s\n", displayReactions))
 	sb.WriteString(fmt.Sprintf("🔘 <b>Botões:</b> %d\n\n", len(state.Buttons)))
 	sb.WriteString("Escolha o que deseja editar:")
 
@@ -386,7 +426,7 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			}
 
 			if channel.DefaultCaption != nil {
-				state.Body = channel.DefaultCaption.Caption
+				state.Body = channelpost.DetectParseMode(channel.DefaultCaption.Caption)
 			}
 			state.Reactions = channel.Reactions
 
@@ -637,22 +677,27 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 	bot := ctx.Bot()
 
 	if state.Title != "" {
-		sb.WriteString(channelpost.DetectParseMode(state.Title) + "\n\n")
+		sb.WriteString(state.Title + "\n\n")
 	}
 	if state.Body != "" {
-		sb.WriteString(channelpost.DetectParseMode(state.Body) + "\n\n")
+		sb.WriteString(state.Body + "\n\n")
 	}
 	if state.Footer != "" {
-		sb.WriteString(channelpost.DetectParseMode(state.Footer))
+		sb.WriteString(state.Footer)
 	}
 	caption := sb.String()
+
+	// Safeguard: se houver Markdown não convertido e não contiver tags HTML básicas
+	if channelpost.IsMarkdown(caption) && !strings.Contains(caption, "<a href=") && !strings.Contains(caption, "<b>") && !strings.Contains(caption, "<tg-emoji") {
+		caption = channelpost.DetectParseMode(caption)
+	}
 
 	var kb telego.ReplyMarkup
 	if len(state.Buttons) > 0 || state.Reactions != "" {
 		ikb := &telego.InlineKeyboardMarkup{}
 		for _, btn := range state.Buttons {
 			ikb.InlineKeyboard = append(ikb.InlineKeyboard, []telego.InlineKeyboardButton{
-				{Text: btn.Text, URL: btn.URL},
+				{Text: btn.Text, URL: btn.URL, IconCustomEmojiID: btn.CustomEmojiID},
 			})
 		}
 
@@ -660,19 +705,24 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 			reactions := strings.Split(state.Reactions, ",")
 			var reactionRow []telego.InlineKeyboardButton
 			for _, r := range reactions {
-				emoji := strings.TrimSpace(r)
-				if emoji != "" {
-					reactionRow = append(reactionRow, telego.InlineKeyboardButton{
-						Text:         emoji,
-						CallbackData: "vote:" + emoji,
-					})
+				val := strings.TrimSpace(r)
+				if val != "" {
+					btn := telego.InlineKeyboardButton{
+						CallbackData: "vote:" + val,
+					}
+					if strings.HasPrefix(val, "eid:") {
+						btn.IconCustomEmojiID = strings.TrimPrefix(val, "eid:")
+						btn.Text = " " // Texto mínimo para botões com ícone
+					} else {
+						btn.Text = val
+					}
+					reactionRow = append(reactionRow, btn)
 				}
 			}
 			if len(reactionRow) > 0 {
 				ikb.InlineKeyboard = append(ikb.InlineKeyboard, reactionRow)
 			}
 		}
-
 		kb = ikb
 	}
 
@@ -769,8 +819,6 @@ func ChosenInlineResultHandlerTelego(c *container.AppContainer) telegohandler.Ch
 		sessionID := result.ResultID
 		inlineMessageID := result.InlineMessageID
 
-		logger.Bot("📥 ChosenInlineResult recebido: SessionID=%s, InlineMessageID=%s", sessionID, inlineMessageID)
-
 		if sessionID != "" && inlineMessageID != "" {
 			key := fmt.Sprintf("pb_inline_map:%s", inlineMessageID)
 			err := c.CacheService.Set(context.Background(), key, sessionID, 24*time.Hour)
@@ -798,10 +846,12 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 
 		state, err := c.CacheService.GetPostBuilderSession(context.Background(), id)
 		if err != nil || state == nil {
+			logger.Warn("BOT", "InlineHandler: Sessão %s não encontrada ou expirada", id)
 			_ = bot.AnswerInlineQuery(context.Background(), &telego.AnswerInlineQueryParams{
 				InlineQueryID: inlineQuery.ID,
 				Results: []telego.InlineQueryResult{
 					&telego.InlineQueryResultArticle{
+						Type:  "article",
 						ID:    "not_found",
 						Title: "❌ Postagem não encontrada",
 						InputMessageContent: &telego.InputTextMessageContent{
@@ -816,15 +866,20 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 
 		var sb strings.Builder
 		if state.Title != "" {
-			sb.WriteString(channelpost.DetectParseMode(state.Title) + "\n\n")
+			sb.WriteString(state.Title + "\n\n")
 		}
 		if state.Body != "" {
-			sb.WriteString(channelpost.DetectParseMode(state.Body) + "\n\n")
+			sb.WriteString(state.Body + "\n\n")
 		}
 		if state.Footer != "" {
-			sb.WriteString(channelpost.DetectParseMode(state.Footer))
+			sb.WriteString(state.Footer)
 		}
 		caption := sb.String()
+
+		// Safeguard: se houver Markdown não convertido e não contiver tags HTML básicas (links/bold)
+		if channelpost.IsMarkdown(caption) && !strings.Contains(caption, "<a href=") && !strings.Contains(caption, "<b>") && !strings.Contains(caption, "<tg-emoji") {
+			caption = channelpost.DetectParseMode(caption)
+		}
 
 		displayCaption := caption
 		if displayCaption == "" {
@@ -836,7 +891,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			kb = &telego.InlineKeyboardMarkup{}
 			for _, btn := range state.Buttons {
 				kb.InlineKeyboard = append(kb.InlineKeyboard, []telego.InlineKeyboardButton{
-					{Text: btn.Text, URL: btn.URL},
+					{Text: btn.Text, URL: btn.URL, IconCustomEmojiID: btn.CustomEmojiID},
 				})
 			}
 
@@ -844,12 +899,18 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 				reactions := strings.Split(state.Reactions, ",")
 				var reactionRow []telego.InlineKeyboardButton
 				for _, r := range reactions {
-					emoji := strings.TrimSpace(r)
-					if emoji != "" {
-						reactionRow = append(reactionRow, telego.InlineKeyboardButton{
-							Text:         emoji,
-							CallbackData: "vote:" + emoji,
-						})
+					val := strings.TrimSpace(r)
+					if val != "" {
+						btn := telego.InlineKeyboardButton{
+							CallbackData: "vote:" + val,
+						}
+						if strings.HasPrefix(val, "eid:") {
+							btn.IconCustomEmojiID = strings.TrimPrefix(val, "eid:")
+							btn.Text = " "
+						} else {
+							btn.Text = val
+						}
+						reactionRow = append(reactionRow, btn)
 					}
 				}
 				if len(reactionRow) > 0 {
@@ -862,6 +923,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 		switch state.MediaType {
 		case "photo":
 			res := &telego.InlineQueryResultCachedPhoto{
+				Type:        "photo",
 				ID:          id,
 				PhotoFileID: state.MediaFileID,
 				Caption:     caption,
@@ -873,6 +935,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		case "video":
 			res := &telego.InlineQueryResultCachedVideo{
+				Type:        "video",
 				ID:          id,
 				VideoFileID: state.MediaFileID,
 				Title:       "Video Post",
@@ -885,6 +948,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		case "animation":
 			res := &telego.InlineQueryResultCachedMpeg4Gif{
+				Type:        "mpeg4_gif",
 				ID:          id,
 				Mpeg4FileID: state.MediaFileID,
 				Caption:     caption,
@@ -896,6 +960,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		case "audio":
 			res := &telego.InlineQueryResultCachedAudio{
+				Type:        "audio",
 				ID:          id,
 				AudioFileID: state.MediaFileID,
 				Caption:     caption,
@@ -907,6 +972,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		case "document":
 			res := &telego.InlineQueryResultCachedDocument{
+				Type:           "document",
 				ID:             id,
 				DocumentFileID: state.MediaFileID,
 				Title:          "Document Post",
@@ -919,6 +985,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		case "sticker":
 			res := &telego.InlineQueryResultCachedSticker{
+				Type:          "sticker",
 				ID:            id,
 				StickerFileID: state.MediaFileID,
 			}
@@ -928,6 +995,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		default:
 			res := &telego.InlineQueryResultArticle{
+				Type:  "article",
 				ID:    id,
 				Title: "Post Builder",
 				InputMessageContent: &telego.InputTextMessageContent{
@@ -941,11 +1009,13 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			result = res
 		}
 
-		_ = bot.AnswerInlineQuery(context.Background(), &telego.AnswerInlineQueryParams{
+		if err := bot.AnswerInlineQuery(context.Background(), &telego.AnswerInlineQueryParams{
 			InlineQueryID: inlineQuery.ID,
 			Results:       []telego.InlineQueryResult{result},
 			CacheTime:     0,
-		})
+		}); err != nil {
+			logger.Error("BOT", "Erro ao responder Inline Query: %v", err)
+		}
 
 		return nil
 	}

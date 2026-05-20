@@ -1,0 +1,61 @@
+package admincontroller
+
+import (
+	"context"
+	"fmt"
+	"net/http"
+
+	"github.com/gin-gonic/gin"
+	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
+)
+
+type MediaController struct {
+	container *container.AppContainer
+}
+
+func NewMediaController(c *container.AppContainer) *MediaController {
+	return &MediaController{container: c}
+}
+
+func (c *MediaController) GetMediaPreview(ctx *gin.Context) {
+	fileID := ctx.Param("fileId")
+	if fileID == "" {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "fileId is required"})
+		return
+	}
+
+	bot := c.container.TelegoBot
+	file, err := bot.GetFile(context.Background(), &telego.GetFileParams{FileID: fileID})
+	if err != nil {
+		logger.Error("API", "Erro ao obter file do Telegram: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get file info from Telegram"})
+		return
+	}
+
+	telegramURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.TelegramBotToken, file.FilePath)
+
+	// Fazer o download da imagem do Telegram e servir os bytes
+	resp, err := http.Get(telegramURL)
+	if err != nil {
+		logger.Error("API", "Erro ao baixar arquivo do Telegram: %v", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to download file from Telegram"})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		ctx.JSON(http.StatusBadGateway, gin.H{"error": "Telegram returned non-200 status"})
+		return
+	}
+
+	// Copiar headers relevantes (especialmente Content-Type)
+	contentType := resp.Header.Get("Content-Type")
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
+	ctx.DataFromReader(http.StatusOK, resp.ContentLength, contentType, resp.Body, nil)
+}
