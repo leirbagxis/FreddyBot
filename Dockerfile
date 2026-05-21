@@ -1,5 +1,5 @@
 # Estágio 1: Build da Dashboard (Frontend)
-FROM node:20-alpine AS frontend-builder
+FROM node:24-alpine AS frontend-builder
 WORKDIR /app/dashboard
 COPY dashboard/package*.json ./
 RUN npm install
@@ -7,7 +7,7 @@ COPY dashboard/ ./
 RUN npm run build
 
 # Estágio 2: Build do Servidor (Go)
-FROM golang:1.24.4-alpine AS builder
+FROM golang:1.25.7-alpine AS builder
 WORKDIR /app
 
 RUN apk add --no-cache git
