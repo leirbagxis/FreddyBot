@@ -20,7 +20,7 @@ import { AdminSidebar } from './components/AdminSidebar';
 import { ToastProvider, useToast } from './components/Toast';
 import { useTheme } from './hooks/useTheme';
 import {
-  Users, Hash, Sun, Moon, ExternalLink, MousePointerClick, Link2,
+  Users, Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
   AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings
 } from 'lucide-react';
@@ -484,13 +484,35 @@ const DashboardContent = memo(function DashboardContent() {
     }
   }, [toast, channelId]);
 
-  const handleUpdateNewPack = useCallback(async (text: string) => {
+  const handleUpdateNewPack = useCallback(async (settings: {
+    caption: string;
+    messageButtons: boolean;
+    stickerButtons: boolean;
+    messagePosition: 'above' | 'below';
+    replyToSticker: boolean;
+  }) => {
     const cid = parseInt(String(channelId), 10);
     try {
-      await updateNewPackCaption(cid, text);
+      await updateNewPackCaption(cid, {
+        newPackCaption: settings.caption,
+        newPackMessageButtons: settings.messageButtons,
+        newPackStickerButtons: settings.stickerButtons,
+        newPackMessagePosition: settings.messagePosition,
+        newPackReplyToSticker: settings.replyToSticker,
+      });
       setData(p => {
         if (!p) return p;
-        return { ...p, channel: { ...p.channel, newPackCaption: text } };
+        return {
+          ...p,
+          channel: {
+            ...p.channel,
+            newPackCaption: settings.caption,
+            newPackMessageButtons: settings.messageButtons,
+            newPackStickerButtons: settings.stickerButtons,
+            newPackMessagePosition: settings.messagePosition,
+            newPackReplyToSticker: settings.replyToSticker,
+          }
+        };
       });
       toast('New Pack atualizada', 'success');
     } catch {
@@ -633,6 +655,22 @@ const DashboardContent = memo(function DashboardContent() {
     else sessionStorage.removeItem('lastAdminUserId');
   }, []);
 
+  const openAdminUserDetail = useCallback((id: number) => {
+    setAdminSelectedUserId(id);
+    sessionStorage.setItem('lastAdminUserId', id.toString());
+    setAdminActiveTab('users');
+    setIsSidebarOpen(false);
+  }, []);
+
+  const openSupportNoticeForUser = useCallback((id: number) => {
+    setAdminSelectedUserId(id);
+    sessionStorage.setItem('lastAdminUserId', id.toString());
+    setNoticeTarget('single');
+    setNoticeTargetId(id.toString());
+    setAdminActiveTab('notice');
+    setIsSidebarOpen(false);
+  }, []);
+
   useEffect(() => {
     // Tab switch effect handled via CSS entrance animations
   }, [activeTab, adminActiveTab, loading]);
@@ -736,8 +774,8 @@ const DashboardContent = memo(function DashboardContent() {
             <h1 className="text-[15px] font-bold truncate">{displayName}</h1>
             <p className="text-xs truncate" style={{ color: 'var(--hint)' }}>{isChannels ? 'Meus Canais' : (isAdmin ? 'Painel Admin' : channel?.title)}</p>
           </div>
-          <button className="theme-switch" onClick={toggleTheme} title="Alternar tema">
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          <button className="theme-switch" onClick={toggleTheme} title={`Tema atual: ${theme === 'telegram' ? 'Telegram' : theme === 'dark' ? 'Escuro' : 'Claro'}`}>
+            {theme === 'telegram' ? <Send size={17} /> : theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
           </button>
         </div>
 
@@ -750,6 +788,8 @@ const DashboardContent = memo(function DashboardContent() {
                 navigateToChannel={navigateToChannel}
                 selectedUserId={adminSelectedUserId}
                 onSelectUser={onSelectAdminUser}
+                onOpenUserDetail={openAdminUserDetail}
+                onMessageUser={openSupportNoticeForUser}
                 noticeMessage={noticeMessage}
                 setNoticeMessage={setNoticeMessage}
                 noticeImageUrl={noticeImageUrl}
@@ -850,7 +890,14 @@ const DashboardContent = memo(function DashboardContent() {
           {!isChannels && !isAdmin && activeTab === 'legendas' && channel && (
             <div className="space-y-4 tab-content-wrapper">
               <CaptionCard caption={channel.defaultCaption} onUpdate={handleUpdateCaption} />
-              <NewPackCaptionCard caption={channel.newPackCaption} onUpdate={handleUpdateNewPack} />
+              <NewPackCaptionCard
+                caption={channel.newPackCaption}
+                messageButtons={channel.newPackMessageButtons ?? true}
+                stickerButtons={channel.newPackStickerButtons ?? true}
+                messagePosition={channel.newPackMessagePosition ?? 'above'}
+                replyToSticker={channel.newPackReplyToSticker ?? false}
+                onUpdate={handleUpdateNewPack}
+              />
               <ReactionsCard reactions={channel.reactions} onUpdate={handleUpdateReactions} />
             </div>
           )}

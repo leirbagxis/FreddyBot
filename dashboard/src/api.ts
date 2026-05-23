@@ -77,10 +77,16 @@ export const updateDefaultCaption = async (channelId: number, caption: string) =
     });
 };
 
-export const updateNewPackCaption = async (channelId: number, newPackCaption: string) => {
+export const updateNewPackCaption = async (channelId: number, payload: {
+    newPackCaption: string;
+    newPackMessageButtons?: boolean;
+    newPackStickerButtons?: boolean;
+    newPackMessagePosition?: 'above' | 'below';
+    newPackReplyToSticker?: boolean;
+}) => {
     return apiFetch(`/api/channel/${channelId}/newpackcaption`, {
         method: 'PUT',
-        body: JSON.stringify({ newPackCaption }),
+        body: JSON.stringify(payload),
     });
 };
 
@@ -225,10 +231,18 @@ export const fetchServerConfig = async () => {
     });
 };
 
-export const updateServerConfig = async (maintence: boolean, forceJoin: boolean, globalDefaultCaption: string, globalNewPackCaption: string) => {
+export const updateServerConfig = async (payload: {
+    maintence: boolean;
+    forceJoin: boolean;
+    globalDefaultCaption: string;
+    globalNewPackCaption: string;
+    fixedPostBuilderEnabled: boolean;
+    fixedPostBuilderKey: string;
+    fixedPostBuilderPayload: string;
+}) => {
     return apiFetch(`/api/admin/config`, {
         method: 'PUT',
-        body: JSON.stringify({ maintence, forceJoin, globalDefaultCaption, globalNewPackCaption }),
+        body: JSON.stringify(payload),
     });
 };
 

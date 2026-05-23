@@ -112,3 +112,55 @@ Implementar uma exceção no `StageTransform` para `MessageTypeAudio`. Se houver
 - Mensagens de áudio voltam a usar a estratégia "replace".
 - Demais mídias permanecem com a estratégia "append".
 
+# Decisão
+
+## Data
+2026-05-21
+
+## Contexto
+Foi necessário criar uma postagem PostBuilder permanente, editável pela Dashboard Admin, com chave fixa e sem expiração no Redis.
+
+## Decisão tomada
+Persistir a configuração no `ServerConfig` (`fixedPostBuilderEnabled`, `fixedPostBuilderKey`, `fixedPostBuilderPayload`) e sincronizar o payload para Redis em `pb_session:<key>` sem TTL. A chave padrão definida foi `legendasbot`.
+
+## Motivo
+O banco passa a ser a fonte de verdade editável e durável, enquanto o Redis mantém compatibilidade com o fluxo inline existente `@bot pb <key>` sem expiração.
+
+## Impacto
+A Dashboard Admin pode ativar/desativar e editar a postagem fixa. O PostBuilder normal continua usando IDs aleatórios com TTL de 24h.
+
+
+# Decisão
+
+## Data
+2026-05-22
+
+## Contexto
+O fluxo de New Pack ganhou dois controles para definir se o botão do pack aparece na mensagem editada pelo bot e/ou no sticker enviado. Canais antigos e entradas antigas em cache Redis não possuem esses campos.
+
+## Decisão tomada
+Representar os campos internos do modelo Go como ponteiros booleanos (`*bool`) e tratar `nil` como `true` no mapper e no handler de New Pack.
+
+## Motivo
+Preservar o comportamento anterior para bancos e caches existentes sem impedir que o usuário salve `false` explicitamente pela dashboard.
+
+## Impacto
+Canais antigos continuam exibindo botões por padrão. Quando o usuário desativa uma opção pela dashboard, o valor `false` passa a ser persistido e respeitado pelo bot.
+
+
+# Decisão
+
+## Data
+2026-05-22
+
+## Contexto
+O New Pack ganhou configuração para posicionar a mensagem acima ou abaixo do sticker. Canais antigos e caches antigos não possuem esse campo.
+
+## Decisão tomada
+Persistir `newPackMessagePosition` com valores `above` e `below`, usando `above` como default quando o campo estiver vazio ou ausente.
+
+## Motivo
+Preservar o comportamento anterior para canais existentes, enquanto permite que o usuário opte pelo envio da mensagem abaixo do sticker pela dashboard.
+
+## Impacto
+Canais existentes continuam editando a mensagem de espera. Canais configurados como `below` enviam uma nova mensagem após o sticker e tentam apagar a mensagem de espera.

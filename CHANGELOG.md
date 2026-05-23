@@ -2,6 +2,54 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.0] - 2026-05-23
+
+### Added
+- **Admin Dashboard**:
+  - Adicionado atalho no detalhe do usuario para abrir o disparo individual de suporte com o ID preenchido.
+  - Resultados da auditoria CheckBot agora permitem abrir diretamente o detalhe do usuario afetado.
+  - Filtro de usuarios por quantidade de canais agora funciona como minimo e ordena os resultados por quantidade crescente.
+  - Nova experiencia visual para auditoria sem resultados, com estado vazio mais claro.
+- **Configuracoes Globais e PostBuilder Fixo**:
+  - Adicionada configuracao administrativa para PostBuilder fixo com chave estavel e payload persistente.
+  - Adicionada sincronizacao do PostBuilder fixo com Redis e recuperacao automatica do payload padrao quando invalido.
+  - Adicionada injecao de configuracoes globais padrao em bancos existentes.
+- **NewPack**:
+  - Comando NewPack agora aceita `!newpack` e `/newpack`.
+  - Adicionadas variaveis `$title`, `$name`, `$titulo`, `$link`, `$count`, `$total` e `$stickers`.
+  - Adicionadas opcoes para controlar botoes na mensagem, botoes no sticker, posicao da mensagem e marcacao do sticker.
+  - Adicionado suporte a links Markdown renderizados em HTML na mensagem final do NewPack.
+- **Dashboard e Tema**:
+  - Adicionado modo de tema Telegram usando `themeParams` do WebApp, alem dos modos claro e escuro.
+- **Build e Infraestrutura**:
+  - Atualizado Makefile com alvos separados para build, run, Docker build e Docker run.
+  - Atualizado Dockerfile para usar `npm ci`, imagens base explicitas e o binario `Release`.
+
+### Fixed
+- **PostBuilder**:
+  - Corrigido tratamento de botoes com custom emoji para evitar duplicidade entre emoji customizado e fallback textual.
+  - Inline results do PostBuilder usam fallback de emoji normal quando custom emoji nao e suportado.
+  - Respostas inline do PostBuilder agora sao pessoais para reduzir cache compartilhado incorreto.
+- **NewPack**:
+  - Corrigida renderizacao de links embutidos com variaveis dinamicas, incluindo `$link`.
+  - Link preview do NewPack agora respeita as permissoes de mensagem do canal.
+- **Admin e Banco**:
+  - Corrigida exibicao de captions globais no painel admin.
+  - Corrigida persistencia/injecao de default caption e NewPack caption em bancos ja existentes.
+- **Seguranca Operacional**:
+  - Edicoes de posts de canal agora sao ignoradas explicitamente, evitando processamento durante manutencao ou blacklist.
+  - Middleware de manutencao passa a tratar `edited_channel_post` como fluxo de canal, sem responder indevidamente ao usuario.
+
+### Changed
+- **Build Local**:
+  - `make build` agora apenas compila o dashboard e servidor.
+  - `make run` passa a ser o comando explicito para compilar e executar o bot.
+  - `make clean` remove o binario `Release` e o build do dashboard.
+- **Rastreabilidade**:
+  - Planos de implementacao foram movidos para `.agent/plans/done/` conforme o fluxo do AGENTS.md.
+- **Repositorio**:
+  - Removido binario rastreado `FreddyBot`; builds locais devem gerar `Release`.
+
 ## [1.4.0] - 2026-05-20
 
 ### Added

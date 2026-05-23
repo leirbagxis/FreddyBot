@@ -2,13 +2,15 @@ package container
 
 import (
 	"context"
+	"encoding/json"
 	"time"
 
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
+	"github.com/leirbagxis/FreddyBot/internal/database"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 	"gorm.io/gorm"
 )
 
@@ -26,7 +28,7 @@ type BroadcastJob struct {
 }
 
 type AppContainer struct {
-	DB  *gorm.DB
+	DB        *gorm.DB
 	TelegoBot *telego.Bot
 
 	BroadcastQueue chan BroadcastJob
@@ -81,8 +83,45 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		SessionManager: cache.NewSessionManager(cacheService),
 	}
 
+	container.syncFixedPostBuilderSession(context.Background())
 	container.startBroadcastWorkers(5)
 	return container
+}
+
+func (c *AppContainer) syncFixedPostBuilderSession(ctx context.Context) {
+	config, err := c.ServerService.GetConfig(ctx)
+	if err != nil {
+		logger.Error("APP", "Erro ao carregar PostBuilder fixo: %v", err)
+		return
+	}
+
+	if config.FixedPostBuilderKey == "" {
+		return
+	}
+
+	if !config.FixedPostBuilderEnabled {
+		_ = c.CacheService.DeletePostBuilderSession(ctx, config.FixedPostBuilderKey)
+		return
+	}
+
+	var state cache.PostBuilderState
+	if err := json.Unmarshal([]byte(config.FixedPostBuilderPayload), &state); err != nil {
+		logger.Warn("APP", "Payload do PostBuilder fixo inválida, restaurando padrão: %v", err)
+		config.FixedPostBuilderPayload = database.DefaultFixedPostBuilderPayload()
+		config.FixedPostBuilderEnabled = true
+		if err := c.ServerService.SaveConfig(ctx, config); err != nil {
+			logger.Error("APP", "Erro ao salvar reparo do PostBuilder fixo: %v", err)
+			return
+		}
+		if err := json.Unmarshal([]byte(config.FixedPostBuilderPayload), &state); err != nil {
+			logger.Error("APP", "Payload padrão do PostBuilder fixo inválida: %v", err)
+			return
+		}
+	}
+
+	if err := c.CacheService.SetPostBuilderSession(ctx, config.FixedPostBuilderKey, state, 0); err != nil {
+		logger.Error("APP", "Erro ao sincronizar PostBuilder fixo no Redis: %v", err)
+	}
 }
 
 func (c *AppContainer) startBroadcastWorkers(workerCount int) {

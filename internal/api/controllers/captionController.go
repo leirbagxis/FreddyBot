@@ -51,7 +51,7 @@ func (c *CaptionController) UpdateNewPackCaptionController(ctx *gin.Context) {
 		return
 	}
 
-	var captionData types.CaptionDefaultUpdateRequest
+	var captionData types.NewPackCaptionUpdateRequest
 	if err := ctx.ShouldBindJSON(&captionData); err != nil {
 		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return

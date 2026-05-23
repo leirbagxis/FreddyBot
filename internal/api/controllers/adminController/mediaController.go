@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/container"
@@ -38,7 +39,8 @@ func (c *MediaController) GetMediaPreview(ctx *gin.Context) {
 	telegramURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.TelegramBotToken, file.FilePath)
 
 	// Fazer o download da imagem do Telegram e servir os bytes
-	resp, err := http.Get(telegramURL)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(telegramURL)
 	if err != nil {
 		logger.Error("API", "Erro ao baixar arquivo do Telegram: %v", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to download file from Telegram"})

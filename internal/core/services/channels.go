@@ -5,11 +5,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
+	"github.com/mymmrac/telego"
 )
 
 type ChannelService struct {
@@ -139,12 +139,20 @@ func (s *ChannelService) GetAllChannelsPaginated(ctx context.Context, limit, off
 
 func (s *ChannelService) CreateChannelWithDefaults(ctx context.Context, channelID int64, title, inviteURL, newPackCaption, defaultCaption string, ownerID int64) (*models.Channel, error) {
 	captionID := uuid.NewString()
+	newPackMessageButtons := true
+	newPackStickerButtons := true
+	newPackMessagePosition := "above"
+	newPackReplyToSticker := false
 	channel := &models.Channel{
-		ID:             channelID,
-		Title:          title,
-		InviteURL:      inviteURL,
-		NewPackCaption: newPackCaption,
-		OwnerID:        ownerID,
+		ID:                     channelID,
+		Title:                  title,
+		InviteURL:              inviteURL,
+		NewPackCaption:         newPackCaption,
+		NewPackMessageButtons:  &newPackMessageButtons,
+		NewPackStickerButtons:  &newPackStickerButtons,
+		NewPackMessagePosition: &newPackMessagePosition,
+		NewPackReplyToSticker:  &newPackReplyToSticker,
+		OwnerID:                ownerID,
 		DefaultCaption: &models.DefaultCaption{
 			CaptionID: captionID,
 			Caption:   defaultCaption,

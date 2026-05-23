@@ -221,10 +221,26 @@ func (r *ChannelRepository) UpdateDefaultCaption(ctx context.Context, channelID 
 	return result.RowsAffected, result.Error
 }
 
-func (r *ChannelRepository) UpdateNewPackCaption(ctx context.Context, channelID int64, caption string) (int64, error) {
+func (r *ChannelRepository) UpdateNewPackSettings(ctx context.Context, channelID int64, caption string, messageButtons, stickerButtons *bool, messagePosition *string, replyToSticker *bool) (int64, error) {
+	updates := map[string]interface{}{
+		"new_pack_caption": caption,
+	}
+	if messageButtons != nil {
+		updates["new_pack_message_buttons"] = *messageButtons
+	}
+	if stickerButtons != nil {
+		updates["new_pack_sticker_buttons"] = *stickerButtons
+	}
+	if messagePosition != nil {
+		updates["new_pack_message_position"] = *messagePosition
+	}
+	if replyToSticker != nil {
+		updates["new_pack_reply_to_sticker"] = *replyToSticker
+	}
+
 	result := r.db.WithContext(ctx).Model(&models.Channel{}).
 		Where("id = ?", channelID).
-		Update("new_pack_caption", caption)
+		Updates(updates)
 	return result.RowsAffected, result.Error
 }
 

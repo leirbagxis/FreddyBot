@@ -51,12 +51,24 @@ func (s *CaptionService) UpdateDefaultCaption(ctx context.Context, channelID int
 	return rowsAffected, nil
 }
 
-func (s *CaptionService) UpdateNewPackCaption(ctx context.Context, channelID int64, captionData types.CaptionDefaultUpdateRequest) (int64, error) {
-	if len(captionData.Caption) > 4096 {
+func (s *CaptionService) UpdateNewPackCaption(ctx context.Context, channelID int64, captionData types.NewPackCaptionUpdateRequest) (int64, error) {
+	caption := captionData.Text()
+	if strings.TrimSpace(caption) == "" {
+		return 0, errors.BadRequest("Caption obrigatória")
+	}
+	if len(caption) > 4096 {
 		return 0, errors.BadRequest("Caption muito longa (máximo 4096 caracteres)")
 	}
 
-	rowsAffected, err := s.channelRepo.UpdateNewPackCaption(ctx, channelID, captionData.Caption)
+	if captionData.NewPackMessagePosition != nil {
+		position := strings.TrimSpace(*captionData.NewPackMessagePosition)
+		if position != "above" && position != "below" {
+			return 0, errors.BadRequest("Posição da mensagem do New Pack inválida")
+		}
+		*captionData.NewPackMessagePosition = position
+	}
+
+	rowsAffected, err := s.channelRepo.UpdateNewPackSettings(ctx, channelID, caption, captionData.NewPackMessageButtons, captionData.NewPackStickerButtons, captionData.NewPackMessagePosition, captionData.NewPackReplyToSticker)
 	if err != nil {
 		return 0, errors.Internal(err)
 	}

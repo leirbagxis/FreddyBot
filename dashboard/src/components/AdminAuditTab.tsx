@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, Hash, ShieldAlert, ChevronRight, User as UserIcon, Zap, Trash2 } from 'lucide-react';
+import { Hash, ShieldAlert, ChevronRight, User as UserIcon, Zap, Trash2, ShieldCheck, CheckCircle2, Sparkles } from 'lucide-react';
 import { fetchAuditCheckBot, bulkDeleteChannels } from '../api';
 import { AuditResult, Channel } from '../types';
 import { useToast } from './Toast';
@@ -7,9 +7,10 @@ import { ConfirmModal } from './ConfirmModal';
 
 interface AdminAuditTabProps {
     navigateToChannel: (id: number) => void;
+    onOpenUser: (id: number) => void;
 }
 
-export function AdminAuditTab({ navigateToChannel }: AdminAuditTabProps) {
+export function AdminAuditTab({ navigateToChannel, onOpenUser }: AdminAuditTabProps) {
     const [loading, setLoading] = useState(false);
     const [deletingId, setDeletingId] = useState<number | null>(null);
     const [results, setResults] = useState<AuditResult[] | null>(null);
@@ -21,11 +22,12 @@ export function AdminAuditTab({ navigateToChannel }: AdminAuditTabProps) {
         try {
             const res = await fetchAuditCheckBot();
             if (res.success) {
-                setResults(res.data);
-                if (res.data.length === 0) {
-                    toast("Nenhum canal com @XavolaBot encontrado!", "success");
+                const auditResults = Array.isArray(res.data) ? res.data : [];
+                setResults(auditResults);
+                if (auditResults.length === 0) {
+                    toast("Varredura concluída: nenhum canal com @XavolaBot.", "success");
                 } else {
-                    toast(`Auditoria concluída: ${res.data.length} usuários afetados`, "info");
+                    toast(`Auditoria concluída: ${auditResults.length} usuários afetados`, "info");
                 }
             } else {
                 throw new Error(res.message || "Erro na auditoria");
@@ -100,13 +102,18 @@ export function AdminAuditTab({ navigateToChannel }: AdminAuditTabProps) {
                     {results.map((result) => (
                         <div key={result.userId} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
                             <div className="flex items-center justify-between px-1 bg-[var(--surface)] p-3 rounded-2xl border border-[var(--border)] shadow-sm">
-                                <div className="flex items-center gap-3">
+                                <button
+                                    className="flex min-w-0 flex-1 items-center gap-3 text-left transition-opacity hover:opacity-80"
+                                    onClick={() => onOpenUser(result.userId)}
+                                    title="Abrir usuário"
+                                >
                                     <div className="section-icon purple sm"><UserIcon size={14} /></div>
-                                    <div className="flex flex-col">
-                                        <span className="font-bold text-sm">{result.firstName}</span>
-                                        <span className="text-[10px] opacity-40">ID: {result.userId} • {result.channels.length} canais</span>
+                                    <div className="flex min-w-0 flex-col">
+                                        <span className="truncate text-sm font-bold">{result.firstName}</span>
+                                        <span className="truncate text-[10px] opacity-40">ID: {result.userId} • {result.channels.length} canais</span>
                                     </div>
-                                </div>
+                                    <ChevronRight size={16} className="stat-arrow" />
+                                </button>
                                 <button 
                                     className={`btn btn-danger sm ${deletingId === result.userId ? 'loading' : ''}`}
                                     disabled={deletingId !== null}
@@ -150,9 +157,39 @@ export function AdminAuditTab({ navigateToChannel }: AdminAuditTabProps) {
             )}
 
             {results && results.length === 0 && !loading && (
-                <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '40px 24px', color: 'var(--hint)' }}>
-                    <Zap size={32} style={{ opacity: 0.5, marginBottom: 12 }} />
-                    <p className="text-sm font-medium">Tudo limpo! Nenhum canal encontrado com o bot antigo.</p>
+                <div className="card animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ padding: '28px 20px' }}>
+                    <div className="flex flex-col items-center text-center">
+                        <div className="section-icon green mb-4" style={{ width: 68, height: 68, borderRadius: 20 }}>
+                            <ShieldCheck size={34} />
+                        </div>
+
+                        <div className="inline-flex items-center gap-1.5 mb-3 px-3 py-1 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[11px] font-bold" style={{ color: 'var(--success)' }}>
+                            <CheckCircle2 size={13} />
+                            Auditoria concluida
+                        </div>
+
+                        <h3 className="text-lg font-bold mb-2">Nenhum XavolaBot encontrado</h3>
+                        <p className="text-sm leading-relaxed max-w-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
+                            A varredura terminou e nenhum canal do banco possui o bot legado com permissões de administrador.
+                        </p>
+
+                        <div className="grid gap-2 w-full max-w-sm">
+                            <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left">
+                                <div className="section-icon green sm"><CheckCircle2 size={14} /></div>
+                                <div className="min-w-0">
+                                    <p className="text-[12px] font-bold">Canais verificados</p>
+                                    <p className="text-[10px] opacity-50">Nenhuma permissão legada detectada.</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left">
+                                <div className="section-icon purple sm"><Sparkles size={14} /></div>
+                                <div className="min-w-0">
+                                    <p className="text-[12px] font-bold">Nenhuma ação necessária</p>
+                                    <p className="text-[10px] opacity-50">A lista de limpeza permanece vazia.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
 

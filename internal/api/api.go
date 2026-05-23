@@ -26,7 +26,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, tb *telego.Bot) error {
 	router := gin.Default() // Usar Default para ter Logger e Recovery
 
 	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"*"},
+		AllowOrigins:     config.CORSAllowOrigins,
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"},
 		AllowHeaders:     []string{"Content-Type", "Authorization", "x-telegram-init-data"},
 		ExposeHeaders:    []string{"Content-Length"},

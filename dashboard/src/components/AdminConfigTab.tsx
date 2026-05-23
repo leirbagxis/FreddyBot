@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, ShieldCheck, Construction, FileText, PackagePlus, Save } from 'lucide-react';
+import { Settings, ShieldCheck, Construction, FileText, PackagePlus, Save, KeyRound, Code2 } from 'lucide-react';
 import { fetchServerConfig, updateServerConfig } from '../api';
 import { ServerConfig } from '../types';
 import { useToast } from './Toast';
@@ -13,6 +13,9 @@ export function AdminConfigTab() {
     // Estados locais para os editores para evitar re-render pesado da tab inteira a cada caractere
     const [globalDefault, setGlobalDefault] = useState('');
     const [globalNewPack, setGlobalNewPack] = useState('');
+    const [fixedPostEnabled, setFixedPostEnabled] = useState(true);
+    const [fixedPostKey, setFixedPostKey] = useState('legendasbot');
+    const [fixedPostPayload, setFixedPostPayload] = useState('');
 
     const toast = useToast();
 
@@ -27,6 +30,9 @@ export function AdminConfigTab() {
                         setConfig(serverData);
                         setGlobalDefault(serverData.globalDefaultCaption || '');
                         setGlobalNewPack(serverData.globalNewPackCaption || '');
+                        setFixedPostEnabled(Boolean(serverData.fixedPostBuilderEnabled));
+                        setFixedPostKey(serverData.fixedPostBuilderKey || 'legendasbot');
+                        setFixedPostPayload(serverData.fixedPostBuilderPayload || '');
                     }
                 }
             } catch (err) {
@@ -46,21 +52,24 @@ export function AdminConfigTab() {
             maintence: overrides.maintence ?? config.maintence,
             forceJoin: overrides.forceJoin ?? config.forceJoin,
             globalDefaultCaption: overrides.globalDefaultCaption ?? globalDefault,
-            globalNewPackCaption: overrides.globalNewPackCaption ?? globalNewPack
+            globalNewPackCaption: overrides.globalNewPackCaption ?? globalNewPack,
+            fixedPostBuilderEnabled: overrides.fixedPostBuilderEnabled ?? fixedPostEnabled,
+            fixedPostBuilderKey: overrides.fixedPostBuilderKey ?? fixedPostKey,
+            fixedPostBuilderPayload: overrides.fixedPostBuilderPayload ?? fixedPostPayload
         };
         
         setSaving(true);
         try {
-            const res = await updateServerConfig(
-                payload.maintence, 
-                payload.forceJoin, 
-                payload.globalDefaultCaption, 
-                payload.globalNewPackCaption
-            );
+            const res = await updateServerConfig(payload);
             if (res.success) {
                 const serverData = res.data || res.config;
                 if (serverData) {
                     setConfig(serverData);
+                    setGlobalDefault(serverData.globalDefaultCaption || '');
+                    setGlobalNewPack(serverData.globalNewPackCaption || '');
+                    setFixedPostEnabled(Boolean(serverData.fixedPostBuilderEnabled));
+                    setFixedPostKey(serverData.fixedPostBuilderKey || 'legendasbot');
+                    setFixedPostPayload(serverData.fixedPostBuilderPayload || '');
                 }
                 toast('Configurações atualizadas com sucesso', 'success');
             }
@@ -71,8 +80,14 @@ export function AdminConfigTab() {
         }
     };
 
-    const handleToggle = (field: 'maintence' | 'forceJoin') => {
+    const handleToggle = (field: 'maintence' | 'forceJoin' | 'fixedPostBuilderEnabled') => {
         if (!config) return;
+        if (field === 'fixedPostBuilderEnabled') {
+            const next = !fixedPostEnabled;
+            setFixedPostEnabled(next);
+            handleSave({ fixedPostBuilderEnabled: next });
+            return;
+        }
         handleSave({ [field]: !config[field] });
     };
 
@@ -177,6 +192,63 @@ export function AdminConfigTab() {
                         onChange={setGlobalNewPack}
                         placeholder="Texto inicial para novos packs..."
                     />
+                </div>
+            </div>
+
+
+            {/* PostBuilder Fixo */}
+            <div className="card">
+                <div className="section-header">
+                    <div className="section-icon purple">
+                        <Code2 size={18} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-[15px] font-semibold truncate">PostBuilder Fixo</h3>
+                        <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
+                            Post permanente usado no inline com chave fixa.
+                        </p>
+                    </div>
+                </div>
+
+                <div className={`perm-row ${fixedPostEnabled ? 'on' : ''}`} onClick={() => !saving && handleToggle('fixedPostBuilderEnabled')}>
+                    <div className="flex items-center gap-3">
+                        <span className="text-[13px] font-medium">Status da postagem fixa</span>
+                    </div>
+                    <div className={`toggle ${fixedPostEnabled ? 'on' : ''}`} />
+                </div>
+
+                <div className="mt-4 space-y-3">
+                    <label className="block">
+                        <span className="text-[12px] font-bold flex items-center gap-2 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                            <KeyRound size={14} />
+                            Key fixa
+                        </span>
+                        <input
+                            value={fixedPostKey}
+                            onChange={(e) => setFixedPostKey(e.target.value)}
+                            className="w-full rounded-2xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3 text-sm outline-none"
+                            placeholder="legendasbot"
+                            disabled={saving}
+                        />
+                    </label>
+
+                    <label className="block">
+                        <span className="text-[12px] font-bold flex items-center gap-2 mb-2" style={{ color: 'var(--text-secondary)' }}>
+                            <Code2 size={14} />
+                            Payload JSON
+                        </span>
+                        <textarea
+                            value={fixedPostPayload}
+                            onChange={(e) => setFixedPostPayload(e.target.value)}
+                            className="w-full min-h-[260px] rounded-2xl border border-[var(--border)] bg-[var(--input-bg)] px-4 py-3 text-xs font-mono leading-relaxed outline-none resize-y"
+                            placeholder='{ "media_type": "photo", "media_file_id": "..." }'
+                            disabled={saving}
+                        />
+                    </label>
+
+                    <p className="text-[11px] leading-relaxed" style={{ color: 'var(--hint)' }}>
+                        Uso inline: <code>@FreddyCaptionBot pb {fixedPostKey || 'legendasbot'}</code>. Quando desativado, a chave e removida do Redis.
+                    </p>
                 </div>
             </div>
 

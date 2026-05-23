@@ -4,6 +4,9 @@ export interface ServerConfig {
   forceJoin: boolean;
   globalDefaultCaption: string;
   globalNewPackCaption: string;
+  fixedPostBuilderEnabled: boolean;
+  fixedPostBuilderKey: string;
+  fixedPostBuilderPayload: string;
   created_at: string;
   updated_at: string;
 }
@@ -50,6 +53,10 @@ export interface Channel {
   id: number;
   title: string;
   newPackCaption: string;
+  newPackMessageButtons: boolean;
+  newPackStickerButtons: boolean;
+  newPackMessagePosition: 'above' | 'below';
+  newPackReplyToSticker: boolean;
   inviteUrl: string;
   ownerId: number;
   reactions: string;

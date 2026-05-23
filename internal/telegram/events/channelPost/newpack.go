@@ -3,13 +3,14 @@ package channelpost
 import (
 	"context"
 	"fmt"
+	"html"
 	"regexp"
 	"strings"
 	"sync"
 
-	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 // Estado por canal: quando recebeu !newpack e está aguardando sticker
@@ -19,7 +20,7 @@ type newPackState struct {
 }
 
 var newPackStates sync.Map // map[int64]newPackState
-var cmdNewPackRegex = regexp.MustCompile(`^!newpack`)
+var cmdNewPackRegex = regexp.MustCompile(`^[!/]newpack(?:\s|$)`)
 
 func TryHandleNewPackTelego(ctx context.Context, b *telego.Bot, channel dbmodels.Channel, post telego.Message) (handled bool, err error) {
 	channelID := post.Chat.ID
@@ -38,6 +39,7 @@ func TryHandleNewPackTelego(ctx context.Context, b *telego.Bot, channel dbmodels
 			Text:      "Envie-me um sticker do seu pack...",
 		})
 		if err != nil {
+			logger.Error("BOT", "falha ao solicitar sticker newpack: %v", err)
 			newPackStates.Delete(channelID)
 			mgm.SetNewPackActive(channelID, false)
 			return true, err
@@ -88,32 +90,23 @@ func TryHandleNewPackTelego(ctx context.Context, b *telego.Bot, channel dbmodels
 			tpl = "$titulo\n$link"
 		}
 
-		caption := renderNewPackTemplate(tpl, title, link)
-		
+		stickerCount := len(pack.Stickers)
+		caption := renderNewPackTemplate(tpl, title, link, stickerCount)
+		captionHTML := renderNewPackHTML(caption)
+		messageButtons := newPackButtonEnabled(channel.NewPackMessageButtons)
+		stickerButtons := newPackButtonEnabled(channel.NewPackStickerButtons)
+		messagePosition := newPackMessagePosition(channel.NewPackMessagePosition)
+		replyToSticker := newPackReplyToSticker(channel.NewPackReplyToSticker) && messagePosition == "below"
+
+		logger.Bot("🧩 NewPack canal=%d set=%s title=%q stickers=%d msgButton=%v stickerButton=%v position=%s replySticker=%v", channelID, setName, title, stickerCount, messageButtons, stickerButtons, messagePosition, replyToSticker)
+		logger.Bot("🧩 NewPack template bruto: %q", tpl)
+		logger.Bot("🧩 NewPack caption renderizada: %q", caption)
+		logger.Bot("🧩 NewPack HTML final: %q", captionHTML)
+
 		pm := GetPermissionManager()
 		perms := pm.CheckPermissions(&channel, MessageTypeText)
 		disableLP := !perms.CanUseLinkPreview
-
-		editParams := telego.EditMessageTextParams{
-			ChatID:    telego.ChatID{ID: channelID},
-			MessageID: state.MessageID,
-			Text:      DetectParseMode(caption),
-			ParseMode: telego.ModeHTML,
-		}
-
-		if disableLP {
-			editParams.LinkPreviewOptions = &telego.LinkPreviewOptions{
-				IsDisabled: true,
-			}
-		}
-
-		_, err = b.EditMessageText(context.Background(), &editParams)
-
-		if err != nil {
-			newPackStates.Delete(channelID)
-			mgm.SetNewPackActive(channelID, false)
-			return true, err
-		}
+		logger.Bot("🧩 NewPack link preview habilitado=%v", !disableLP)
 
 		kb := telego.InlineKeyboardMarkup{
 			InlineKeyboard: [][]telego.InlineKeyboardButton{
@@ -123,23 +116,64 @@ func TryHandleNewPackTelego(ctx context.Context, b *telego.Bot, channel dbmodels
 			},
 		}
 
-		_, err = b.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
-			ChatID:      telego.ChatID{ID: channelID},
-			MessageID:   state.MessageID,
-			ReplyMarkup: &kb,
-		})
-		if err != nil {
-			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
+		if messagePosition == "below" {
+			sendParams := telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: channelID},
+				Text:      captionHTML,
+				ParseMode: telego.ModeHTML,
+			}
+			if disableLP {
+				sendParams.LinkPreviewOptions = &telego.LinkPreviewOptions{IsDisabled: true}
+			}
+			if messageButtons {
+				sendParams.ReplyMarkup = &kb
+			}
+			if replyToSticker {
+				sendParams.ReplyParameters = &telego.ReplyParameters{MessageID: post.MessageID, AllowSendingWithoutReply: true}
+			}
+
+			if _, err = b.SendMessage(context.Background(), &sendParams); err != nil {
+				logger.Error("BOT", "falha ao enviar mensagem newpack abaixo: %v | html=%q", err, captionHTML)
+				newPackStates.Delete(channelID)
+				mgm.SetNewPackActive(channelID, false)
+				return true, err
+			}
+
+			if err := b.DeleteMessage(context.Background(), &telego.DeleteMessageParams{ChatID: telego.ChatID{ID: channelID}, MessageID: state.MessageID}); err != nil {
+				logger.Error("BOT", "falha ao apagar mensagem de espera newpack: %v", err)
+			}
+		} else {
+			editParams := telego.EditMessageTextParams{
+				ChatID:    telego.ChatID{ID: channelID},
+				MessageID: state.MessageID,
+				Text:      captionHTML,
+				ParseMode: telego.ModeHTML,
+			}
+			if disableLP {
+				editParams.LinkPreviewOptions = &telego.LinkPreviewOptions{IsDisabled: true}
+			}
+			if messageButtons {
+				editParams.ReplyMarkup = &kb
+			}
+
+			if _, err = b.EditMessageText(context.Background(), &editParams); err != nil {
+				logger.Error("BOT", "falha ao editar mensagem newpack: %v | html=%q", err, captionHTML)
+				newPackStates.Delete(channelID)
+				mgm.SetNewPackActive(channelID, false)
+				return true, err
+			}
 		}
 
-		_, err = b.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
-			ChatID:      telego.ChatID{ID: channelID},
-			MessageID:   post.MessageID,
-			ReplyMarkup: &kb,
-		})
+		if stickerButtons {
+			_, err = b.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
+				ChatID:      telego.ChatID{ID: channelID},
+				MessageID:   post.MessageID,
+				ReplyMarkup: &kb,
+			})
 
-		if err != nil {
-			logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
+			if err != nil {
+				logger.Error("BOT", "falha ao editar reply markup newpack: %v", err)
+			}
 		}
 
 		if channel.Separator != nil && channel.Separator.SeparatorID != "" {
@@ -157,9 +191,79 @@ func TryHandleNewPackTelego(ctx context.Context, b *telego.Bot, channel dbmodels
 	return false, nil
 }
 
-func renderNewPackTemplate(tpl, title, link string) string {
+func newPackButtonEnabled(value *bool) bool {
+	if value == nil {
+		return true
+	}
+	return *value
+}
+
+func newPackMessagePosition(value *string) string {
+	if value == nil || *value != "below" {
+		return "above"
+	}
+	return "below"
+}
+
+func newPackReplyToSticker(value *bool) bool {
+	if value == nil {
+		return false
+	}
+	return *value
+}
+
+func renderNewPackTemplate(tpl, title, link string, stickerCount int) string {
+	count := fmt.Sprintf("%d", stickerCount)
 	res := strings.ReplaceAll(tpl, "$titulo", title)
+	res = strings.ReplaceAll(res, "$title", title)
 	res = strings.ReplaceAll(res, "$name", title)
 	res = strings.ReplaceAll(res, "$link", link)
+	res = strings.ReplaceAll(res, "$count", count)
+	res = strings.ReplaceAll(res, "$total", count)
+	res = strings.ReplaceAll(res, "$stickers", count)
+	return res
+}
+
+func renderNewPackHTML(text string) string {
+	if text == "" {
+		return ""
+	}
+
+	res := html.EscapeString(text)
+	linkRegex := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
+	links := make([]string, 0)
+	res = linkRegex.ReplaceAllStringFunc(res, func(m string) string {
+		matches := linkRegex.FindStringSubmatch(m)
+		if len(matches) != 3 {
+			return m
+		}
+
+		label := matches[1]
+		url := strings.TrimSpace(matches[2])
+		if url == "" {
+			return m
+		}
+		if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "tg://") {
+			url = "https://" + url
+		}
+
+		token := fmt.Sprintf("NEWPACKLINKTOKEN%d", len(links))
+		links = append(links, fmt.Sprintf(`<a href="%s">%s</a>`, url, label))
+		return token
+	})
+
+	boldRegex := regexp.MustCompile(`\*([^\*\n]+)\*`)
+	res = boldRegex.ReplaceAllString(res, "<b>$1</b>")
+
+	italicRegex := regexp.MustCompile(`_([^_\n]+)_`)
+	res = italicRegex.ReplaceAllString(res, "<i>$1</i>")
+
+	codeRegex := regexp.MustCompile("`([^`\\n]+)`")
+	res = codeRegex.ReplaceAllString(res, "<code>$1</code>")
+
+	for i, link := range links {
+		res = strings.ReplaceAll(res, fmt.Sprintf("NEWPACKLINKTOKEN%d", i), link)
+	}
+
 	return res
 }

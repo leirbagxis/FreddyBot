@@ -7,13 +7,15 @@ import (
 	"strings"
 	"time"
 	"unicode"
+	"unicode/utf16"
+	"unicode/utf8"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func isEmoji(s string) bool {
@@ -23,6 +25,72 @@ func isEmoji(s string) bool {
 		}
 	}
 	return true
+}
+
+func utf16CodeUnitLen(text string) int {
+	units := 0
+	for _, r := range text {
+		units += len(utf16.Encode([]rune{r}))
+	}
+	return units
+}
+
+func stripLeadingEmojiFallback(label string) string {
+	label = strings.TrimSpace(label)
+	if label == "" {
+		return ""
+	}
+
+	first, size := utf8.DecodeRuneInString(label)
+	if first == utf8.RuneError && size == 0 {
+		return ""
+	}
+	if unicode.IsLetter(first) || unicode.IsDigit(first) {
+		return label
+	}
+
+	end := size
+	for end < len(label) {
+		r, rSize := utf8.DecodeRuneInString(label[end:])
+		if r == '\ufe0e' || r == '\ufe0f' || unicode.Is(unicode.Mn, r) {
+			end += rSize
+			continue
+		}
+		if r == '\u200d' {
+			end += rSize
+			if end < len(label) {
+				_, nextSize := utf8.DecodeRuneInString(label[end:])
+				end += nextSize
+			}
+			continue
+		}
+		break
+	}
+
+	return strings.TrimSpace(label[end:])
+}
+
+func buildPostBuilderURLButton(btn cache.PostBuilderButton, useCustomEmoji bool) telego.InlineKeyboardButton {
+	label := strings.TrimSpace(btn.Text)
+	button := telego.InlineKeyboardButton{
+		Text: label,
+		URL:  btn.URL,
+	}
+
+	if btn.CustomEmojiID == "" || !useCustomEmoji {
+		if button.Text == "" {
+			button.Text = " "
+		}
+		return button
+	}
+
+	button.IconCustomEmojiID = btn.CustomEmojiID
+	button.Text = stripLeadingEmojiFallback(label)
+	if button.Text == "" {
+		button.Text = " "
+	}
+
+	return button
 }
 
 func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
@@ -96,9 +164,9 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		c.CacheService.SetPostBuilderState(context.Background(), update.Message.From.ID, state)
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    update.Message.Chat.ChatID(),
-			Text:      "✨ Media detectada! Deseja usar o <b>Post Builder</b> para criar uma postagem personalizada?",
-			ParseMode: telego.ModeHTML,
+			ChatID:      update.Message.Chat.ChatID(),
+			Text:        "✨ Media detectada! Deseja usar o <b>Post Builder</b> para criar uma postagem personalizada?",
+			ParseMode:   telego.ModeHTML,
 			ReplyMarkup: kb,
 			ReplyParameters: &telego.ReplyParameters{
 				MessageID: update.Message.MessageID,
@@ -191,12 +259,14 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 			})
 			return nil
 		}
-		name := strings.TrimSpace(lines[0])
+		rawName := lines[0]
+		name := strings.TrimSpace(rawName)
 		url := strings.TrimSpace(lines[1])
 
-		// Extrair CustomEmojiID do nome (primeira linha)
+		// Extrair CustomEmojiID do nome (primeira linha). Mantemos o emoji textual
+		// como fallback para resultados inline, onde IconCustomEmojiID pode ser ignorado.
 		var customEmojiID string
-		firstLineLen := len(lines[0])
+		firstLineLen := utf16CodeUnitLen(rawName)
 		for _, entity := range update.Message.Entities {
 			if entity.Type == "custom_emoji" && entity.Offset < firstLineLen {
 				customEmojiID = entity.CustomEmojiID
@@ -283,9 +353,9 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 
 	if len(replyToMessageID) > 0 && replyToMessageID[0] != 0 {
 		msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			Text:      sb.String(),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        sb.String(),
+			ParseMode:   telego.ModeHTML,
 			ReplyMarkup: kb,
 			ReplyParameters: &telego.ReplyParameters{
 				MessageID: replyToMessageID[0],
@@ -300,10 +370,10 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 
 	if state.MenuMessageID != 0 {
 		_, err := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			MessageID: state.MenuMessageID,
-			Text:      sb.String(),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   state.MenuMessageID,
+			Text:        sb.String(),
+			ParseMode:   telego.ModeHTML,
 			ReplyMarkup: kb,
 		})
 		if err == nil {
@@ -312,9 +382,9 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 	}
 
 	msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: chatID},
-		Text:      sb.String(),
-		ParseMode: telego.ModeHTML,
+		ChatID:      telego.ChatID{ID: chatID},
+		Text:        sb.String(),
+		ParseMode:   telego.ModeHTML,
 		ReplyMarkup: kb,
 	})
 
@@ -354,10 +424,10 @@ func showButtonManagerTelego(ctx *telegohandler.Context, chatID, userID int64, c
 
 	if state.MenuMessageID != 0 {
 		_, err := bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			MessageID: state.MenuMessageID,
-			Text:      sb.String(),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   state.MenuMessageID,
+			Text:        sb.String(),
+			ParseMode:   telego.ModeHTML,
 			ReplyMarkup: kb,
 		})
 		if err == nil {
@@ -366,9 +436,9 @@ func showButtonManagerTelego(ctx *telegohandler.Context, chatID, userID int64, c
 	}
 
 	msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: chatID},
-		Text:      sb.String(),
-		ParseMode: telego.ModeHTML,
+		ChatID:      telego.ChatID{ID: chatID},
+		Text:        sb.String(),
+		ParseMode:   telego.ModeHTML,
 		ReplyMarkup: kb,
 	})
 
@@ -519,9 +589,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			}
 
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-				ChatID:    telego.ChatID{ID: chatID},
-				Text:      text,
-				ParseMode: telego.ModeHTML,
+				ChatID:      telego.ChatID{ID: chatID},
+				Text:        text,
+				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: kb,
 			})
 		case "pb-edit-title":
@@ -607,9 +677,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			}
 
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-				ChatID:    telego.ChatID{ID: chatID},
-				Text:      fmt.Sprintf("✅ <b>Postagem salva com sucesso!</b>\n\nUtilize o modo inline para enviar:\n<code>@%s pb %s</code>", botInfo.Username, id),
-				ParseMode: telego.ModeHTML,
+				ChatID:      telego.ChatID{ID: chatID},
+				Text:        fmt.Sprintf("✅ <b>Postagem salva com sucesso!</b>\n\nUtilize o modo inline para enviar:\n<code>@%s pb %s</code>", botInfo.Username, id),
+				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: kb,
 			})
 			c.CacheService.DeletePostBuilderState(context.Background(), userID)
@@ -646,9 +716,9 @@ func handleSendToChannelsTelego(ctx *telegohandler.Context, chatID, userID int64
 
 	kb := &telego.InlineKeyboardMarkup{InlineKeyboard: rows}
 	_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: chatID},
-		Text:      "📢 <b>Enviar para Canal</b>\n\nSelecione o canal para o qual deseja enviar esta postagem:",
-		ParseMode: telego.ModeHTML,
+		ChatID:      telego.ChatID{ID: chatID},
+		Text:        "📢 <b>Enviar para Canal</b>\n\nSelecione o canal para o qual deseja enviar esta postagem:",
+		ParseMode:   telego.ModeHTML,
 		ReplyMarkup: kb,
 	})
 }
@@ -697,7 +767,7 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 		ikb := &telego.InlineKeyboardMarkup{}
 		for _, btn := range state.Buttons {
 			ikb.InlineKeyboard = append(ikb.InlineKeyboard, []telego.InlineKeyboardButton{
-				{Text: btn.Text, URL: btn.URL, IconCustomEmojiID: btn.CustomEmojiID},
+				buildPostBuilderURLButton(btn, true),
 			})
 		}
 
@@ -891,7 +961,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			kb = &telego.InlineKeyboardMarkup{}
 			for _, btn := range state.Buttons {
 				kb.InlineKeyboard = append(kb.InlineKeyboard, []telego.InlineKeyboardButton{
-					{Text: btn.Text, URL: btn.URL, IconCustomEmojiID: btn.CustomEmojiID},
+					buildPostBuilderURLButton(btn, false),
 				})
 			}
 
@@ -1013,6 +1083,7 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 			InlineQueryID: inlineQuery.ID,
 			Results:       []telego.InlineQueryResult{result},
 			CacheTime:     0,
+			IsPersonal:    true,
 		}); err != nil {
 			logger.Error("BOT", "Erro ao responder Inline Query: %v", err)
 		}

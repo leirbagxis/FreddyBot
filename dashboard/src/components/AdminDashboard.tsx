@@ -4,7 +4,7 @@ import { AdminNoticeTab } from './AdminNoticeTab';
 import { AdminConfigTab } from './AdminConfigTab';
 import { AdminAuditTab } from './AdminAuditTab';
 import { NoticeButton, updateUserAdmin, updateUserBlacklist } from '../api';
-import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings, ShieldAlert, ShieldCheck, UserX, UserCheck, Zap } from 'lucide-react';
+import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings, ShieldAlert, ShieldCheck, UserX, UserCheck, Zap, MessageSquare } from 'lucide-react';
 import { useToast } from './Toast';
 
 interface AdminDashboardProps {
@@ -13,6 +13,8 @@ interface AdminDashboardProps {
   navigateToChannel: (id: number) => void;
   selectedUserId: number | null;
   onSelectUser: (id: number | null) => void;
+  onOpenUserDetail: (id: number) => void;
+  onMessageUser: (id: number) => void;
   // Notice tab props
   noticeMessage: string;
   setNoticeMessage: Dispatch<SetStateAction<string>>;
@@ -36,6 +38,8 @@ export function AdminDashboard({
   navigateToChannel,
   selectedUserId,
   onSelectUser,
+  onOpenUserDetail,
+  onMessageUser,
   noticeMessage, setNoticeMessage,
   noticeImageUrl, setNoticeImageUrl,
   noticeTarget, setNoticeTarget,
@@ -70,11 +74,28 @@ export function AdminDashboard({
   const usersList = localUsers;
   
   const filteredUsers = useMemo(() => {
-    return usersList.filter(u => {
+    const minChannelCount = parseInt(adminChannelCountFilter, 10);
+    const hasChannelCountFilter = !Number.isNaN(minChannelCount);
+
+    const filtered = usersList.filter(u => {
       const name = (u.firstName || (u as any).first_name || '').toLowerCase();
       const matchesSearch = name.includes(adminSearch.toLowerCase()) || u.id.toString().includes(adminSearch);
-      const matchesCount = adminChannelCountFilter ? (u.channels?.length || 0) === parseInt(adminChannelCountFilter, 10) : true;
+      const matchesCount = hasChannelCountFilter ? (u.channels?.length || 0) >= minChannelCount : true;
       return matchesSearch && matchesCount;
+    });
+
+    if (!hasChannelCountFilter) return filtered;
+
+    return [...filtered].sort((a, b) => {
+      const channelDiff = (a.channels?.length || 0) - (b.channels?.length || 0);
+      if (channelDiff !== 0) return channelDiff;
+
+      const aName = (a.firstName || (a as any).first_name || '').toLowerCase();
+      const bName = (b.firstName || (b as any).first_name || '').toLowerCase();
+      const nameDiff = aName.localeCompare(bName);
+      if (nameDiff !== 0) return nameDiff;
+
+      return a.id - b.id;
     });
   }, [usersList, adminSearch, adminChannelCountFilter]);
 
@@ -139,7 +160,14 @@ export function AdminDashboard({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          <button
+            className="btn btn-primary w-full"
+            onClick={() => onMessageUser(adminSelectedUser.id)}
+          >
+            <MessageSquare size={18} />
+            Mensagem de Suporte
+          </button>
           <button 
             className={`btn ${adminSelectedUser.is_admin ? 'btn-secondary' : 'btn-primary'} w-full`}
             onClick={() => handleToggleAdmin(adminSelectedUser.id)}
@@ -222,7 +250,7 @@ export function AdminDashboard({
             <Hash className="absolute left-4 top-1/2 transform -translate-y-1/2" size={18} style={{ color: 'var(--hint)' }} />
             <input
               type="number"
-              placeholder="Filtrar por qtd. de canais"
+              placeholder="Mostrar a partir de qtd. de canais"
               className="admin-search-input input"
               value={adminChannelCountFilter}
               onChange={(e) => {
@@ -362,7 +390,7 @@ export function AdminDashboard({
       {localActiveTab === 'channels' && renderChannelsTab()}
       {localActiveTab === 'audit' && (
         <div className="tab-content-wrapper">
-          <AdminAuditTab navigateToChannel={navigateToChannel} />
+          <AdminAuditTab navigateToChannel={navigateToChannel} onOpenUser={onOpenUserDetail} />
         </div>
       )}
       {localActiveTab === 'notice' && renderNoticeTab()}

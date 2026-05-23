@@ -12,8 +12,6 @@ import (
 
 var secreteKey = []byte(config.SecreteKey)
 
-const issuer = "t.me/legendasbrbot"
-
 type Role string
 
 const (
@@ -47,7 +45,7 @@ func GenerateToken(userID int64, role Role, tv int64, ttl time.Duration) (string
 		Role:   role,
 		TV:     tv,
 		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    issuer,
+			Issuer:    config.JWTIssuer,
 			Subject:   fmt.Sprintf("%d", userID),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now.Add(-10 * time.Second)),
@@ -76,7 +74,7 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 		return nil, errors.New("invalid token")
 	}
 
-	if claims.Issuer != issuer {
+	if claims.Issuer != config.JWTIssuer {
 		return nil, errors.New("invalid issuer")
 	}
 

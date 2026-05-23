@@ -4,17 +4,44 @@ import { RichTextEditor } from './RichTextEditor';
 
 interface Props {
   caption: string;
-  onUpdate?: (text: string) => void;
+  messageButtons: boolean;
+  stickerButtons: boolean;
+  messagePosition: 'above' | 'below';
+  replyToSticker: boolean;
+  onUpdate?: (settings: { caption: string; messageButtons: boolean; stickerButtons: boolean; messagePosition: 'above' | 'below'; replyToSticker: boolean }) => void;
 }
 
-export const NewPackCaptionCard = memo(({ caption, onUpdate }: Props) => {
+export const NewPackCaptionCard = memo(({ caption, messageButtons, stickerButtons, messagePosition, replyToSticker, onUpdate }: Props) => {
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(caption);
+  const [messageBtn, setMessageBtn] = useState(messageButtons);
+  const [stickerBtn, setStickerBtn] = useState(stickerButtons);
+  const [position, setPosition] = useState<'above' | 'below'>(messagePosition);
+  const [replySticker, setReplySticker] = useState(replyToSticker);
+  const [showHelp, setShowHelp] = useState(false);
 
   useEffect(() => { setText(caption); }, [caption]);
+  useEffect(() => { setMessageBtn(messageButtons); }, [messageButtons]);
+  useEffect(() => { setStickerBtn(stickerButtons); }, [stickerButtons]);
+  useEffect(() => { setPosition(messagePosition); }, [messagePosition]);
+  useEffect(() => { setReplySticker(replyToSticker); }, [replyToSticker]);
 
-  const save = () => { if (text.trim()) { onUpdate?.(text); setEditing(false); } };
-  const cancel = () => { setText(caption); setEditing(false); };
+  const save = () => {
+    if (text.trim()) {
+      onUpdate?.({ caption: text, messageButtons: messageBtn, stickerButtons: stickerBtn, messagePosition: position, replyToSticker: position === 'below' && replySticker });
+      setShowHelp(false);
+      setEditing(false);
+    }
+  };
+  const cancel = () => {
+    setText(caption);
+    setMessageBtn(messageButtons);
+    setStickerBtn(stickerButtons);
+    setPosition(messagePosition);
+    setReplySticker(replyToSticker);
+    setShowHelp(false);
+    setEditing(false);
+  };
 
   return (
     <div className="card">
@@ -39,9 +66,72 @@ export const NewPackCaptionCard = memo(({ caption, onUpdate }: Props) => {
             rows={8}
             placeholder="Template..."
           />
-          <div className="flex items-center gap-2 py-1" style={{ color: 'var(--hint)' }}>
-            <Info size={13} className="flex-shrink-0" />
-            <span className="text-xs">Use <strong>$title</strong> e <strong>$link</strong> como variáveis</span>
+          <div className="space-y-2">
+            <div
+              className={`perm-row ${messageBtn ? 'on' : ''}`}
+              onClick={() => setMessageBtn(v => !v)}
+            >
+              <div>
+                <span className="text-[13px] font-medium">Botão na mensagem do bot</span>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--hint)' }}>Mostra o botão do pack na mensagem editada.</p>
+              </div>
+              <div className={`toggle ${messageBtn ? 'on' : ''}`} />
+            </div>
+
+            <div
+              className={`perm-row ${stickerBtn ? 'on' : ''}`}
+              onClick={() => setStickerBtn(v => !v)}
+            >
+              <div>
+                <span className="text-[13px] font-medium">Botão no sticker do pack</span>
+                <p className="text-[11px] mt-0.5" style={{ color: 'var(--hint)' }}>Mostra o botão abaixo do sticker enviado.</p>
+              </div>
+              <div className={`toggle ${stickerBtn ? 'on' : ''}`} />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                className={`btn btn-sm ${position === 'above' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPosition('above')}
+              >
+                Mensagem acima
+              </button>
+              <button
+                type="button"
+                className={`btn btn-sm ${position === 'below' ? 'btn-primary' : 'btn-secondary'}`}
+                onClick={() => setPosition('below')}
+              >
+                Mensagem abaixo
+              </button>
+            </div>
+
+            {position === 'below' && (
+              <div
+                className={`perm-row ${replySticker ? 'on' : ''}`}
+                onClick={() => setReplySticker(v => !v)}
+              >
+                <div>
+                  <span className="text-[13px] font-medium">Marcar Sticker</span>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--hint)' }}>Envia a mensagem respondendo ao sticker do pack.</p>
+                </div>
+                <div className={`toggle ${replySticker ? 'on' : ''}`} />
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-start gap-2 py-1" style={{ color: 'var(--hint)' }}>
+            <button
+              type="button"
+              className={`icon-btn ${showHelp ? 'accent' : ''}`}
+              onClick={() => setShowHelp(v => !v)}
+              title="Variáveis disponíveis"
+            >
+              <Info size={13} />
+            </button>
+            {showHelp && (
+              <span className="text-xs pt-1">Use <strong>$name</strong>, <strong>$title</strong>, <strong>$link</strong> e <strong>$count</strong>. Ex: [abrir pack]($link)</span>
+            )}
           </div>
           <div className="flex items-center justify-end gap-2">
             <button className="btn btn-secondary btn-sm" onClick={cancel}>

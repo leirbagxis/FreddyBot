@@ -4,6 +4,22 @@ type CaptionDefaultUpdateRequest struct {
 	Caption string `json:"caption" binding:"required"`
 }
 
+type NewPackCaptionUpdateRequest struct {
+	Caption                string  `json:"caption"`
+	NewPackCaption         string  `json:"newPackCaption"`
+	NewPackMessageButtons  *bool   `json:"newPackMessageButtons"`
+	NewPackStickerButtons  *bool   `json:"newPackStickerButtons"`
+	NewPackMessagePosition *string `json:"newPackMessagePosition"`
+	NewPackReplyToSticker  *bool   `json:"newPackReplyToSticker"`
+}
+
+func (r NewPackCaptionUpdateRequest) Text() string {
+	if r.NewPackCaption != "" {
+		return r.NewPackCaption
+	}
+	return r.Caption
+}
+
 type ReactionsUpdateRequest struct {
 	Reactions string `json:"reactions"`
 }

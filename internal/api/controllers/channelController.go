@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
@@ -131,12 +132,18 @@ func (c *ChannelController) GetSeparator(ctx *gin.Context) {
 		return
 	}
 
-	resp, err := http.Get(stickerData.SeparatorURL)
-	if err != nil || resp.StatusCode != http.StatusOK {
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(stickerData.SeparatorURL)
+	if err != nil {
 		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao buscar conteúdo do sticker"))
 		return
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao buscar conteúdo do sticker"))
+		return
+	}
 
 	contentType := mime.TypeByExtension(ext)
 	if contentType == "" {

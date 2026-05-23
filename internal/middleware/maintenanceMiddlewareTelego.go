@@ -3,16 +3,16 @@ package middleware
 import (
 	"context"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func CheckMaintenanceMiddlewareTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, upt telego.Update) error {
-		if upt.ChannelPost != nil {
+		if upt.ChannelPost != nil || upt.EditedChannelPost != nil {
 			return ctx.Next(upt)
 		}
 

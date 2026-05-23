@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
 
 /* ===== THEME VARIABLES (SENTRI COLORS ONLY) ===== */
 :root {
@@ -77,6 +77,44 @@
   --overlay: rgba(0, 0, 0, 0.7);
   --input-bg-rgb: 15, 23, 42;
   --input-bg: rgba(0, 0, 0, 0.4);
+  --lime: #c2ef4e;
+}
+
+
+/* --- TELEGRAM FALLBACK --- */
+[data-theme="telegram"] {
+  --bg: #faf6ee;
+  --card: rgba(255, 255, 255, 0.7);
+  --card-elevated: rgba(255, 255, 255, 0.9);
+  --text: #1e1b4b;
+  --text-secondary: #475569;
+  --hint: #94a3b8;
+  --accent: #2481cc;
+  --accent-rgb: 36, 129, 204;
+  --accent-soft: rgba(36, 129, 204, 0.1);
+  --accent-hover: rgba(36, 129, 204, 0.16);
+  --accent-text: #ffffff;
+  --link: #2481cc;
+  --danger: #ef4444;
+  --danger-soft: rgba(239, 68, 68, 0.08);
+  --success: #10b981;
+  --success-soft: rgba(16, 185, 129, 0.08);
+  --warning: #f59e0b;
+  --warning-soft: rgba(245, 158, 11, 0.08);
+  --border: rgba(36, 129, 204, 0.12);
+  --border-active: #2481cc;
+  --surface-rgb: 255, 255, 255;
+  --surface: rgba(255, 255, 255, 0.45);
+  --surface-hover: rgba(255, 255, 255, 0.65);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.02);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.04);
+  --shadow-lg: 0 12px 32px rgba(0,0,0,0.06);
+  --nav-bg: rgba(248, 249, 255, 0.85);
+  --toggle-bg: #e2e8f0;
+  --toggle-knob: #ffffff;
+  --overlay: rgba(0, 0, 0, 0.3);
+  --input-bg-rgb: 255, 255, 255;
+  --input-bg: rgba(255, 255, 255, 0.5);
   --lime: #c2ef4e;
 }
 

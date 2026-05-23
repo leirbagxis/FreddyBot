@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 // ✅ SISTEMA DE FILA UNIFICADO
@@ -97,6 +97,11 @@ func (mq *MessageQueue) AddTelegoToQueue(pCtx *ProcessingContextTelego, pipeline
 
 func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
+		if update.EditedChannelPost != nil {
+			logger.Bot("⏭️ Edição de post de canal ignorada: %d", update.EditedChannelPost.MessageID)
+			return nil
+		}
+
 		if update.ChannelPost != nil {
 			logger.Bot("🚀 [%d] Novo post recebido no canal %d (Telego)", update.ChannelPost.MessageID, update.ChannelPost.Chat.ID)
 		}

@@ -3,13 +3,16 @@ package models
 import "time"
 
 type ServerConfig struct {
-	ID                     uint      `gorm:"primaryKey" json:"id"`
-	Maintence              bool      `gorm:"default:false" json:"maintence"`
-	ForceJoin              bool      `gorm:"default:false" json:"forceJoin"`
-	GlobalDefaultCaption   string    `json:"globalDefaultCaption"`
-	GlobalNewPackCaption   string    `json:"globalNewPackCaption"`
-	CreatedAt              time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt              time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                      uint      `gorm:"primaryKey" json:"id"`
+	Maintence               bool      `gorm:"default:false" json:"maintence"`
+	ForceJoin               bool      `gorm:"default:false" json:"forceJoin"`
+	GlobalDefaultCaption    string    `json:"globalDefaultCaption"`
+	GlobalNewPackCaption    string    `json:"globalNewPackCaption"`
+	FixedPostBuilderEnabled bool      `gorm:"default:true" json:"fixedPostBuilderEnabled"`
+	FixedPostBuilderKey     string    `gorm:"default:legendasbot" json:"fixedPostBuilderKey"`
+	FixedPostBuilderPayload string    `gorm:"type:text" json:"fixedPostBuilderPayload"`
+	CreatedAt               time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt               time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type User struct {
@@ -25,25 +28,29 @@ type User struct {
 }
 
 type Channel struct {
-	ID               int64           `gorm:"primaryKey" json:"id"` // ID do Telegram
-	Title            string          `json:"title"`
-	NewPackCaption   string          `json:"newPackCaption"`
-	InviteURL        string          `json:"inviteUrl"`
-	OwnerID          int64           `gorm:"index" json:"ownerId"`
-	Owner            *User           `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
-	DefaultCaption   *DefaultCaption `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"defaultCaption,omitempty"`
-	Buttons          []Button        `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"buttons"`
-	Separator        *Separator      `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"separator,omitempty"`
-	CustomCaptions   []CustomCaption `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"customCaptions"`
-	TokenVersion     int64           `gorm:"not null;default:1"`
-	Reactions        string          `json:"reactions"`
-	ReactionPosition int             `gorm:"default:0" json:"reactionPosition"`
-	DynamicLinks     bool            `gorm:"default:false" json:"dynamicLinks"`
-	DLBotButtons     bool            `gorm:"default:true" json:"dlBotButtons"`
-	DLBotCaptions    bool            `gorm:"default:true" json:"dlBotCaptions"`
-	DLBotReactions   bool            `gorm:"default:true" json:"dlBotReactions"`
-	CreatedAt        time.Time       `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt        time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
+	ID                     int64           `gorm:"primaryKey" json:"id"` // ID do Telegram
+	Title                  string          `json:"title"`
+	NewPackCaption         string          `json:"newPackCaption"`
+	NewPackMessageButtons  *bool           `gorm:"default:true" json:"newPackMessageButtons"`
+	NewPackStickerButtons  *bool           `gorm:"default:true" json:"newPackStickerButtons"`
+	NewPackMessagePosition *string         `gorm:"default:above" json:"newPackMessagePosition"`
+	NewPackReplyToSticker  *bool           `gorm:"default:false" json:"newPackReplyToSticker"`
+	InviteURL              string          `json:"inviteUrl"`
+	OwnerID                int64           `gorm:"index" json:"ownerId"`
+	Owner                  *User           `gorm:"foreignKey:OwnerID" json:"owner,omitempty"`
+	DefaultCaption         *DefaultCaption `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"defaultCaption,omitempty"`
+	Buttons                []Button        `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"buttons"`
+	Separator              *Separator      `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"separator,omitempty"`
+	CustomCaptions         []CustomCaption `gorm:"foreignKey:OwnerChannelID;constraint:OnDelete:CASCADE;" json:"customCaptions"`
+	TokenVersion           int64           `gorm:"not null;default:1"`
+	Reactions              string          `json:"reactions"`
+	ReactionPosition       int             `gorm:"default:0" json:"reactionPosition"`
+	DynamicLinks           bool            `gorm:"default:false" json:"dynamicLinks"`
+	DLBotButtons           bool            `gorm:"default:true" json:"dlBotButtons"`
+	DLBotCaptions          bool            `gorm:"default:true" json:"dlBotCaptions"`
+	DLBotReactions         bool            `gorm:"default:true" json:"dlBotReactions"`
+	CreatedAt              time.Time       `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt              time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
 }
 
 type DefaultCaption struct {

@@ -322,22 +322,29 @@ func (s *Service) DeletePostBuilderState(ctx context.Context, userID int64) erro
 }
 
 func (s *Service) SavePostBuilderSession(ctx context.Context, state PostBuilderState) (string, error) {
-	client := GetRedisClient()
-
 	id := generateShortID(8)
+	if err := s.SetPostBuilderSession(ctx, id, state, 24*time.Hour); err != nil {
+		return "", err
+	}
+	return id, nil
+}
+
+func (s *Service) SetPostBuilderSession(ctx context.Context, id string, state PostBuilderState, expiration time.Duration) error {
+	client := GetRedisClient()
 	key := fmt.Sprintf("pb_session:%s", id)
 
 	data, err := json.Marshal(state)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	err = client.Set(ctx, key, data, 24*time.Hour).Err()
-	if err != nil {
-		return "", err
-	}
+	return client.Set(ctx, key, data, expiration).Err()
+}
 
-	return id, nil
+func (s *Service) DeletePostBuilderSession(ctx context.Context, id string) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("pb_session:%s", id)
+	return client.Del(ctx, key).Err()
 }
 
 func (s *Service) GetPostBuilderSession(ctx context.Context, id string) (*PostBuilderState, error) {

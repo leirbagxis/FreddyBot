@@ -89,7 +89,7 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 		Path:     "/",
 		MaxAge:   43200, // 12h
 		HttpOnly: true,
-		Secure:   true,
+		Secure:   config.AppEnv != "dev",
 		SameSite: http.SameSiteStrictMode,
 	})
 

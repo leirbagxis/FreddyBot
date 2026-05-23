@@ -29,19 +29,23 @@ func ToChannelDTO(c *models.Channel) ChannelDTO {
 		return ChannelDTO{}
 	}
 	dto := ChannelDTO{
-		ID:               c.ID,
-		Title:            c.Title,
-		NewPackCaption:   c.NewPackCaption,
-		InviteURL:        c.InviteURL,
-		OwnerID:          c.OwnerID,
-		Reactions:        c.Reactions,
-		ReactionPosition: c.ReactionPosition,
-		DynamicLinks:     c.DynamicLinks,
-		DLBotButtons:     c.DLBotButtons,
-		DLBotCaptions:    c.DLBotCaptions,
-		DLBotReactions:   c.DLBotReactions,
-		CreatedAt:        c.CreatedAt,
-		UpdatedAt:        c.UpdatedAt,
+		ID:                     c.ID,
+		Title:                  c.Title,
+		NewPackCaption:         c.NewPackCaption,
+		NewPackMessageButtons:  boolValueOrDefault(c.NewPackMessageButtons, true),
+		NewPackStickerButtons:  boolValueOrDefault(c.NewPackStickerButtons, true),
+		NewPackMessagePosition: stringValueOrDefault(c.NewPackMessagePosition, "above"),
+		NewPackReplyToSticker:  boolValueOrDefault(c.NewPackReplyToSticker, false),
+		InviteURL:              c.InviteURL,
+		OwnerID:                c.OwnerID,
+		Reactions:              c.Reactions,
+		ReactionPosition:       c.ReactionPosition,
+		DynamicLinks:           c.DynamicLinks,
+		DLBotButtons:           c.DLBotButtons,
+		DLBotCaptions:          c.DLBotCaptions,
+		DLBotReactions:         c.DLBotReactions,
+		CreatedAt:              c.CreatedAt,
+		UpdatedAt:              c.UpdatedAt,
 	}
 
 	if c.DefaultCaption != nil {
@@ -61,6 +65,20 @@ func ToChannelDTO(c *models.Channel) ChannelDTO {
 	}
 
 	return dto
+}
+
+func boolValueOrDefault(value *bool, fallback bool) bool {
+	if value == nil {
+		return fallback
+	}
+	return *value
+}
+
+func stringValueOrDefault(value *string, fallback string) string {
+	if value == nil || *value == "" {
+		return fallback
+	}
+	return *value
 }
 
 func ToDefaultCaptionDTO(dc *models.DefaultCaption) *DefaultCaptionDTO {
