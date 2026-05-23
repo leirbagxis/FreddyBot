@@ -55,6 +55,10 @@ function isChannelsRoute(): boolean {
   return window.location.pathname.startsWith('/me/channels');
 }
 
+function isRootRoute(): boolean {
+  return window.location.pathname === '/' || window.location.pathname === '';
+}
+
 function isAdminDashRoute(): boolean {
   return window.location.pathname.startsWith('/admin/dash');
 }
@@ -93,7 +97,8 @@ const DashboardContent = memo(function DashboardContent() {
 
   const channelId = getChannelIdFromUrl();
   const isAdmin = isAdminDashRoute();
-  const isChannels = isChannelsRoute();
+  const isRoot = isRootRoute();
+  const isChannels = isChannelsRoute() || isRoot;
   const isSpecificChannel = !isAdmin && !isChannels && !!channelId;
 
   const handleBack = useCallback(() => {
@@ -145,6 +150,25 @@ const DashboardContent = memo(function DashboardContent() {
       const userID = tg?.initDataUnsafe?.user?.id || 0;
 
       try {
+        if (isRootRoute()) {
+          setAuthState('authenticated');
+          setData({
+            channel: null as any,
+            user: {
+              id: 0,
+              first_name: 'Convidado',
+              username: '',
+              is_admin: false,
+              is_blacklisted: false,
+              isContribute: false,
+              created_at: '',
+              updated_at: '',
+              channels: []
+            }
+          });
+          return;
+        }
+
         const authRes = await login(initData, userID);
         if (!authRes.success) throw new Error(authRes.message || 'Falha no login');
 
@@ -716,7 +740,7 @@ const DashboardContent = memo(function DashboardContent() {
 
   const channel = data?.channel;
   const user = data?.user;
-  const displayName = tgUser?.first_name || user?.firstName || 'Administrador';
+  const displayName = tgUser?.first_name || user?.firstName || user?.first_name || 'Administrador';
   const initials = displayName[0]?.toUpperCase() || '?';
 
   return (
@@ -810,7 +834,7 @@ const DashboardContent = memo(function DashboardContent() {
 
           {(!isAdmin && (!channel || isChannelsRoute())) && (
             <div className="space-y-4">
-              {isChannelsRoute() && (
+              {isChannels && (
                 <div className="card" style={{ padding: '20px' }}>
                   <div className="flex items-center gap-3">
                     <span className="text-2xl">{getGreetingEmoji()}</span>
@@ -823,9 +847,9 @@ const DashboardContent = memo(function DashboardContent() {
               )}
 
               <div className="space-y-3">
-                {isChannelsRoute() && <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--hint)' }}>Canais Encontrados</h3>}
+                {isChannels && <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--hint)' }}>Canais Encontrados</h3>}
 
-                {user?.channels && user?.channels.length > 0 && isChannelsRoute() ? (
+                {user?.channels && user?.channels.length > 0 && isChannels ? (
                   user?.channels.map((c: Channel) => (
                     <button key={c.id} className="card stat-card-clickable" style={{ display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left', padding: '16px' }} onClick={() => navigateToChannel(c.id)}>
                       <div className="section-icon purple mr-3"><Hash size={20} /></div>

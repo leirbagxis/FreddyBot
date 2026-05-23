@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.1] - 2026-05-23
+
+### Fixed
+- **Media Groups**:
+  - Preservada a formatacao original da legenda em albums de foto/video, incluindo negrito, italico, links e demais entidades do Telegram.
+  - Corrigido o alvo da edicao de captions em albums para aplicar a legenda final na mesma midia que ja tinha legenda original, evitando legendas duplicadas em fotos diferentes.
+- **Dashboard**:
+  - A rota raiz `/` agora renderiza a dashboard em modo convidado, com lista de canais vazia e nome `Convidado`, sem falhar com init data invalido fora do Telegram.
+
 ## [1.5.0] - 2026-05-23
 
 ### Added

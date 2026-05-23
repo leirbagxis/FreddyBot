@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 func ProcessTextDispatchTelego(pCtx *ProcessingContextTelego) error {
 	post := pCtx.Update.ChannelPost
-	
+
 	if !pCtx.Permissions.CanEdit {
 		if pCtx.FinalKeyboard != nil {
 			_, err := pCtx.Bot.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
@@ -67,7 +67,7 @@ func ProcessMediaDispatchTelego(pCtx *ProcessingContextTelego) error {
 		Caption:   pCtx.FormattedText,
 		ParseMode: telego.ModeHTML,
 	}
-	
+
 	if pCtx.FinalKeyboard != nil {
 		params.ReplyMarkup = pCtx.FinalKeyboard
 	}
@@ -107,6 +107,13 @@ func ProcessMediaGroupDispatchTelego(pCtx *ProcessingContextTelego) error {
 	}
 
 	targetMessage := pCtx.GroupMessages[0]
+	for _, message := range pCtx.GroupMessages {
+		if message.HasCaption {
+			targetMessage = message
+			break
+		}
+	}
+
 	params := &telego.EditMessageCaptionParams{
 		ChatID:    telego.ChatID{ID: pCtx.Channel.ID},
 		MessageID: targetMessage.MessageID,
@@ -122,7 +129,7 @@ func ProcessMediaGroupDispatchTelego(pCtx *ProcessingContextTelego) error {
 		logger.Bot("✅ Media Group %s (Photos/Videos) processed", pCtx.MediaGroupID)
 		HandleSeparatorAfterDispatchTelego(pCtx)
 	}
-	
+
 	return err
 }
 

@@ -1,10 +1,10 @@
 package channelpost
 
 import (
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 func StageTransformTelego(c *container.AppContainer) StageTelego {
@@ -21,9 +21,7 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 			for _, m := range pCtx.GroupMessages {
 				if m.HasCaption {
 					baseText = m.Caption
-					if post.MessageID == m.MessageID {
-						entities = post.CaptionEntities
-					}
+					entities = m.CaptionEntities
 					break
 				}
 			}
@@ -69,11 +67,11 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 				cleanBase := removeHashtag(formattedBase, hashtag)
 				formattedBase = cleanBase
 				dbCaption = DetectParseMode(custom.Caption)
-				
+
 				if len(custom.Buttons) > 0 {
 					finalButtons = convertCustomButtons(custom.Buttons)
 				}
-				
+
 				if pCtx.MessageType == MessageTypeText && !custom.LinkPreview {
 					pCtx.DisableLinkPreview = true
 				}
