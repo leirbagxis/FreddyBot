@@ -164,3 +164,20 @@ Preservar o comportamento anterior para canais existentes, enquanto permite que 
 
 ## Impacto
 Canais existentes continuam editando a mensagem de espera. Canais configurados como `below` enviam uma nova mensagem após o sticker e tentam apagar a mensagem de espera.
+
+# Decisão
+
+## Data
+2026-05-26
+
+## Contexto
+Admins precisam auditar problemas por canal, incluindo postagens ignoradas, erros de edição, permissões ausentes e ações do PostBuilder. Logs apenas em stdout não oferecem histórico filtrável na dashboard.
+
+## Decisão tomada
+Salvar eventos estruturados na tabela `channel_events`, com campos indexáveis para filtros e `metadata` JSON textual para detalhes variáveis. A Dashboard Admin passa a consumir `/api/admin/logs` com paginação. Eventos do fluxo de canal e do PostBuilder compartilham a mesma estrutura usando `source`.
+
+## Motivo
+PostgreSQL já é a fonte operacional do projeto e atende bem o volume esperado quando os eventos são resumidos, paginados e indexados. Evita introduzir uma stack de observabilidade mais pesada antes de haver necessidade real.
+
+## Impacto
+Admins passam a consultar histórico por canal diretamente na dashboard. O logging é best-effort e não bloqueia o bot. A primeira retenção padrão remove eventos com mais de 90 dias durante a inicialização.

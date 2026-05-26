@@ -90,6 +90,46 @@ export interface AdminDashboardData {
   channels: Channel[];
 }
 
+
+export interface ChannelEvent {
+  id: string;
+  channelId: number;
+  channelTitle: string;
+  ownerId: number;
+  actorId: number;
+  source: string;
+  eventType: string;
+  status: string;
+  messageType: string;
+  telegramMessageId: number;
+  sessionId: string;
+  errorMessage: string;
+  metadata: string;
+  created_at: string;
+}
+
+export interface AdminLogsResponse {
+  events: ChannelEvent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface AdminLogsFilters {
+  channelId?: string;
+  ownerId?: string;
+  actorId?: string;
+  source?: string;
+  eventType?: string;
+  status?: string;
+  sessionId?: string;
+  q?: string;
+  dateFrom?: string;
+  dateTo?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export interface AuditResult {
   userId: number;
   firstName: string;

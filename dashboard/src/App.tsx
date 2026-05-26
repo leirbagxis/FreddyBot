@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, memo } from 'react';
-import { DashboardData, Button, TelegramUser, AdminDashboardData, Channel } from './types';
+import { DashboardData, Button, TelegramUser, AdminDashboardData, Channel, AuditResult } from './types';
 import {
   login, fetchDashboardData, fetchUserChannels, fetchAdminDashboard,
   updateMessagePermission, updateButtonsPermission,
   createButton, deleteButton, updateButton, updateLayoutButtons,
   updateDefaultCaption, updateNewPackCaption, updateReactions, 
   updateReactionPosition, updateDynamicLinks, transferChannel, fetchUserInfo,
-  sendAdminNotice, NoticeButton, NoticeRequest, disconnectChannel
+  sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot
 } from './api';
 import { PermissionsCard } from './components/PermissionsCard';
 import { ButtonGrid } from './components/ButtonGrid';
@@ -22,7 +22,7 @@ import { useTheme } from './hooks/useTheme';
 import {
   Users, Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
-  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings
+  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings, FileClock
 } from 'lucide-react';
 
 const tabs: Tab[] = [
@@ -36,6 +36,7 @@ const adminTabs: Tab[] = [
   { id: 'users', label: 'Usuários', icon: <Users size={22} /> },
   { id: 'channels', label: 'Canais', icon: <Hash size={22} /> },
   { id: 'audit', label: 'Auditoria', icon: <Zap size={22} /> },
+  { id: 'logs', label: 'Logs', icon: <FileClock size={22} /> },
   { id: 'notice', label: 'Broadcast', icon: <MessageSquare size={22} /> },
   { id: 'config', label: 'Configurações', icon: <Settings size={22} /> },
 ];
@@ -63,6 +64,17 @@ function isAdminDashRoute(): boolean {
   return window.location.pathname.startsWith('/admin/dash');
 }
 
+type AdminTabId = 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs';
+
+function getInitialAdminTabFromUrl(): AdminTabId {
+  const tab = new URLSearchParams(window.location.search).get('tab');
+  return tab === 'logs' ? 'logs' : 'users';
+}
+
+function getInitialLogsChannelIdFromUrl(): string {
+  return new URLSearchParams(window.location.search).get('channelId') || '';
+}
+
 type AuthState = 'idle' | 'authenticating' | 'authenticated' | 'error';
 
 const MemoizedAdminDashboard = memo(AdminDashboard);
@@ -71,7 +83,7 @@ const DashboardContent = memo(function DashboardContent() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('geral');
-  const [adminActiveTab, setAdminActiveTab] = useState<'users' | 'channels' | 'notice' | 'config' | 'audit'>('users');
+  const [adminActiveTab, setAdminActiveTab] = useState<AdminTabId>(() => getInitialAdminTabFromUrl());
   const [adminSelectedUserId, setAdminSelectedUserId] = useState<number | null>(null);
   const [tgUser, setTgUser] = useState<TelegramUser | null>(null);
   const [authState, setAuthState] = useState<AuthState>('idle');
@@ -82,11 +94,14 @@ const DashboardContent = memo(function DashboardContent() {
   const [adminData, setAdminData] = useState<AdminDashboardData | null>(null);
   const [noticeMessage, setNoticeMessage] = useState('');
   const [noticeImageUrl, setNoticeImageUrl] = useState('');
-  const [noticeTarget, setNoticeTarget] = useState<'channels' | 'users' | 'all' | 'single'>('all');
+  const [noticeTarget, setNoticeTarget] = useState<NoticeTarget>('all');
   const [noticeTargetId, setNoticeTargetId] = useState<string>('');
   const [noticeButtons, setNoticeButtons] = useState<NoticeButton[]>([]);
   const [isSendingNotice, setIsSendingNotice] = useState(false);
+  const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [initialLogsChannelId] = useState(() => getInitialLogsChannelIdFromUrl());
 
   useEffect(() => {
     const savedUid = sessionStorage.getItem('lastAdminUserId');
@@ -616,9 +631,25 @@ const DashboardContent = memo(function DashboardContent() {
     }
   }, [channelId, toast]);
 
+  const parseNoticeTargetIds = useCallback((raw: string) => {
+    return raw
+      .split(/[\s,;]+/)
+      .map(v => v.trim())
+      .filter(Boolean)
+      .map(v => Number.parseInt(v, 10))
+      .filter(v => Number.isFinite(v) && v !== 0);
+  }, []);
+
   const handleSendNotice = useCallback(async () => {
     if (!noticeMessage.trim()) {
       toast('A mensagem não pode estar vazia', 'error');
+      return;
+    }
+
+    const specificTarget = noticeTarget === 'single' || noticeTarget === 'user_ids' || noticeTarget === 'channel_ids';
+    const targetIds = specificTarget ? parseNoticeTargetIds(noticeTargetId) : [];
+    if (specificTarget && targetIds.length === 0) {
+      toast('Informe pelo menos um ID válido', 'error');
       return;
     }
 
@@ -631,7 +662,8 @@ const DashboardContent = memo(function DashboardContent() {
         message: noticeMessage,
         imageUrl: noticeImageUrl,
         target: noticeTarget,
-        targetId: noticeTarget === 'single' ? parseInt(noticeTargetId, 10) : undefined,
+        targetId: noticeTarget === 'single' ? targetIds[0] : undefined,
+        targetIds: noticeTarget === 'user_ids' || noticeTarget === 'channel_ids' ? targetIds : undefined,
         buttons: noticeButtons
       };
 
@@ -646,7 +678,29 @@ const DashboardContent = memo(function DashboardContent() {
     } finally {
       setIsSendingNotice(false);
     }
-  }, [noticeMessage, noticeImageUrl, noticeTarget, noticeButtons, toast]);
+  }, [noticeMessage, noticeImageUrl, noticeTarget, noticeTargetId, noticeButtons, parseNoticeTargetIds, toast]);
+
+  const handleRunAudit = useCallback(async () => {
+    setAuditLoading(true);
+    try {
+      const res = await fetchAuditCheckBot();
+      if (res.success) {
+        const auditData = Array.isArray(res.data) ? res.data : [];
+        setAuditResults(auditData);
+        if (auditData.length === 0) {
+          toast("Varredura concluída: nenhum canal com @XavolaBot.", "success");
+        } else {
+          toast(`Auditoria concluída: ${auditData.length} usuários afetados`, "info");
+        }
+      } else {
+        throw new Error(res.message || 'Erro na auditoria');
+      }
+    } catch (err: any) {
+      toast(err.message || 'Erro ao realizar auditoria', 'error');
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [toast]);
 
   const handleAddNoticeButton = useCallback(() => {
     setNoticeButtons(prev => [...prev, { text: '', type: 'url', value: '' }]);
@@ -828,6 +882,11 @@ const DashboardContent = memo(function DashboardContent() {
                 removeNoticeButton={removeNoticeButton}
                 handleSendNotice={handleSendNotice}
                 isSendingNotice={isSendingNotice}
+                auditResults={auditResults}
+                setAuditResults={setAuditResults}
+                auditLoading={auditLoading}
+                handleRunAudit={handleRunAudit}
+                initialLogsChannelId={initialLogsChannelId}
               />
             </div>
           )}

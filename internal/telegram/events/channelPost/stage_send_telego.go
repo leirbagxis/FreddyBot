@@ -7,13 +7,14 @@ import (
 	"time"
 
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 func StageSendTelego(c *container.AppContainer) StageTelego {
 	return func(pCtx *ProcessingContextTelego) error {
 		logger.Bot("📤 Iniciando envio final Telego (Tipo: %s, Album: %v)", pCtx.MessageType, pCtx.IsMediaGroup)
-		
+
 		err := processWithRetryTelego(pCtx.Ctx, func() error {
 			if pCtx.IsMediaGroup {
 				return ProcessMediaGroupDispatchTelego(pCtx)
@@ -32,9 +33,11 @@ func StageSendTelego(c *container.AppContainer) StageTelego {
 
 		if err != nil {
 			logger.Error("BOT", "❌ Falha final no envio Telego: %v", err)
+			recordChannelPostEvent(c, pCtx, "post_failed", services.ChannelEventStatusError, map[string]any{"album": pCtx.IsMediaGroup}, err)
 			return err
 		}
 
+		recordChannelPostEvent(c, pCtx, "post_processed", services.ChannelEventStatusSuccess, map[string]any{"album": pCtx.IsMediaGroup, "buttons": len(pCtx.FinalButtons), "has_caption": pCtx.FormattedText != ""}, nil)
 		logger.Bot("✅ Postagem Telego concluída com sucesso no canal %d", pCtx.Channel.ID)
 		return nil
 	}
@@ -47,7 +50,7 @@ func processWithRetryTelego(ctx context.Context, fn func() error) error {
 		if err == nil {
 			return nil
 		}
-		
+
 		if strings.Contains(err.Error(), "Too Many Requests") || strings.Contains(err.Error(), "429") {
 			retryAfter := extractRetryAfter(err.Error())
 			if retryAfter == 0 {

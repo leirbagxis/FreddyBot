@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.5.2] - 2026-05-26
+
+### Added
+- **Admin Logs por Canal**:
+  - Nova aba `Logs` na Dashboard Admin para consulta de eventos por canal com filtros, paginação e detalhes técnicos.
+  - Eventos persistentes para o fluxo de postagens do canal e para ações do PostBuilder, com metadata estruturada e histórico pesquisável.
+  - Atalho no comando `/info [channelID]` para abrir diretamente os logs filtrados do canal.
+
+### Fixed
+- **PostBuilder e Links**:
+  - Corrigido o tratamento de links Markdown embutidos no PostBuilder e no preview inline.
+  - Botões com `custom_emoji_id` passaram a respeitar o fallback esperado sem duplicar conteúdo textual.
+  - Link preview do NewPack passou a respeitar as permissões do canal.
+- **Admin e Fluxos de Canal**:
+  - A mensagem de despedida ao remover o bot de um canal foi padronizada para `Ate breve, bye 👋`.
+  - O fluxo de confirmação de adição de canal passou a usar o template centralizado de mensagens.
+
+### Changed
+- **Infraestrutura e Dashboard**:
+  - Atualização das ferramentas de build do Dockerfile e Makefile para refletir o estado atual do projeto.
+  - A Dashboard Admin agora preserva estados de auditoria e broadcast com melhor navegação entre usuários e canais.
+
 ## [1.5.1] - 2026-05-23
 
 ### Fixed

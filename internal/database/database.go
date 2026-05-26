@@ -80,6 +80,7 @@ func InitDB() *gorm.DB {
 		&models.User{},
 		&models.ServerConfig{},
 		&models.Channel{},
+		&models.ChannelEvent{},
 		&models.DefaultCaption{},
 		&models.MessagePermission{},
 		&models.ButtonsPermission{},

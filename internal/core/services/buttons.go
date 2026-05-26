@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -10,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
@@ -37,6 +37,7 @@ func NewButtonService(
 // --- BOTÕES DE CANAL (DEFAULT) ---
 
 func (s *ButtonService) CreateButton(ctx context.Context, channelID int64, buttonData types.ButtonCreateRequest) (*models.Button, error) {
+	buttonData.ButtonURL = utils.NormalizeTelegramURL(buttonData.ButtonURL)
 	if err := s.validateButtonData(buttonData); err != nil {
 		return nil, err
 	}
@@ -64,6 +65,7 @@ func (s *ButtonService) CreateButton(ctx context.Context, channelID int64, butto
 }
 
 func (s *ButtonService) UpdateButton(ctx context.Context, channelID int64, buttonID string, buttonData types.ButtonCreateRequest) (int64, error) {
+	buttonData.ButtonURL = utils.NormalizeTelegramURL(buttonData.ButtonURL)
 	if err := s.validateButtonData(buttonData); err != nil {
 		return 0, err
 	}
@@ -126,6 +128,7 @@ func (s *ButtonService) UpdateButtonsLayout(ctx context.Context, channelID int64
 // --- BOTÕES DE LEGENDA CUSTOMIZADA ---
 
 func (s *ButtonService) CreateCustomCaptionButton(ctx context.Context, channelID int64, captionID string, body types.ButtonCreateRequest) (*models.CustomCaptionButton, error) {
+	body.ButtonURL = utils.NormalizeTelegramURL(body.ButtonURL)
 	if err := s.validateButtonData(body); err != nil {
 		return nil, err
 	}
@@ -159,6 +162,7 @@ func (s *ButtonService) CreateCustomCaptionButton(ctx context.Context, channelID
 }
 
 func (s *ButtonService) UpdateCustomCaptionButton(ctx context.Context, channelID int64, captionID, buttonID string, body types.ButtonCreateRequest) (int64, error) {
+	body.ButtonURL = utils.NormalizeTelegramURL(body.ButtonURL)
 	if err := s.validateButtonData(body); err != nil {
 		return 0, err
 	}
@@ -329,11 +333,8 @@ func (s *ButtonService) validateButtonData(data types.ButtonCreateRequest) error
 		return errors.BadRequest("Nome do botão muito longo")
 	}
 
-	if data.ButtonURL != "" {
-		u, err := url.Parse(data.ButtonURL)
-		if err != nil || u.Scheme == "" || u.Host == "" {
-			return errors.BadRequest("URL inválida")
-		}
+	if data.ButtonURL != "" && !utils.IsValidButtonURL(data.ButtonURL) {
+		return errors.BadRequest("URL inválida")
 	}
 
 	return nil

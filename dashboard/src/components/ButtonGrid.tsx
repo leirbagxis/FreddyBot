@@ -58,19 +58,28 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, on
   const cellKey = (x: number, y: number) => `${x},${y}`;
 
   const processUrl = (url: string) => {
-    let u = url.trim();
-    if (u.startsWith('@')) return `https://t.me/${u.slice(1)}`;
-    if (u.startsWith('t.me/')) return `https://t.me/${u.slice(5)}`;
+    const u = url.trim();
+    const lower = u.toLowerCase();
+    if (u.startsWith('@')) return `https://t.me/${u.slice(1).replace(/^\/+/, '')}`;
+    if (lower.startsWith('t.me/')) return `https://t.me/${u.slice(5).replace(/^\/+/, '')}`;
+    if (lower.startsWith('telegram.me/')) return `https://t.me/${u.slice('telegram.me/'.length).replace(/^\/+/, '')}`;
+    if (!u.includes('://') && u.includes('.')) return `https://${u}`;
     return u;
   };
 
   const validateUrl = (url: string) => {
     const u = processUrl(url);
-    if (u.startsWith('https://t.me/')) {
-      const parts = u.split('t.me/');
-      if (parts.length > 1 && parts[1].length < 5) return false;
+    if (!u) return false;
+    try {
+      const parsed = new URL(u);
+      if (parsed.protocol === 'tg:') return true;
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+      if (!parsed.hostname) return false;
+      if ((parsed.hostname === 't.me' || parsed.hostname === 'telegram.me') && parsed.pathname.replace(/\//g, '') === '') return false;
+      return true;
+    } catch {
+      return false;
     }
-    return u.length > 0;
   };
 
   const cacheCells = useCallback(() => {

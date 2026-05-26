@@ -3,6 +3,9 @@ package utils
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"fmt"
+	"html"
+	"net/url"
 	"regexp"
 	"strings"
 )
@@ -11,12 +14,129 @@ func GenerateRSAKey() (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, 2048)
 }
 
+func NormalizeTelegramURL(raw string) string {
+	u := strings.TrimSpace(raw)
+	if u == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(u)
+	switch {
+	case strings.HasPrefix(u, "@"):
+		return "https://t.me/" + strings.TrimLeft(strings.TrimSpace(u[1:]), "/")
+	case strings.HasPrefix(lower, "t.me/"):
+		return "https://t.me/" + strings.TrimLeft(strings.TrimSpace(u[5:]), "/")
+	case strings.HasPrefix(lower, "telegram.me/"):
+		return "https://t.me/" + strings.TrimLeft(strings.TrimSpace(u[len("telegram.me/"):]), "/")
+	case !strings.Contains(u, "://") && strings.Contains(u, "."):
+		return "https://" + u
+	default:
+		return u
+	}
+}
+
+func IsValidButtonURL(raw string) bool {
+	u := NormalizeTelegramURL(raw)
+	if u == "" {
+		return false
+	}
+
+	parsed, err := url.Parse(u)
+	if err != nil || parsed.Scheme == "" {
+		return false
+	}
+
+	if parsed.Scheme == "tg" {
+		return true
+	}
+
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return false
+	}
+	if parsed.Host == "" {
+		return false
+	}
+	if (parsed.Host == "t.me" || parsed.Host == "telegram.me") && strings.Trim(parsed.Path, "/") == "" {
+		return false
+	}
+
+	return true
+}
+
 var (
-	htmlTagRegex = regexp.MustCompile(`<[^>]*>`)
+	htmlTagRegex      = regexp.MustCompile(`<[^>]*>`)
+	markdownLinkRegex = regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
 )
 
 func RemoveHTMLTags(input string) string {
 	return htmlTagRegex.ReplaceAllString(input, "")
+}
+
+func HasMarkdownLink(text string) bool {
+	return markdownLinkRegex.MatchString(text)
+}
+
+func markdownLinkHTML(label, rawURL, source string) string {
+	rawURL = strings.TrimSpace(rawURL)
+	if rawURL == "" {
+		return ""
+	}
+
+	normalizedURL := NormalizeTelegramURL(rawURL)
+	return fmt.Sprintf(`<a href="%s">%s</a>`, html.EscapeString(normalizedURL), label)
+}
+
+func NormalizeMarkdownLinks(text, source string) string {
+	if text == "" {
+		return ""
+	}
+
+	return markdownLinkRegex.ReplaceAllStringFunc(text, func(match string) string {
+		matches := markdownLinkRegex.FindStringSubmatch(match)
+		if len(matches) != 3 {
+			return match
+		}
+
+		linkHTML := markdownLinkHTML(matches[1], matches[2], source)
+		if linkHTML == "" {
+			return match
+		}
+		return linkHTML
+	})
+}
+
+func ProtectMarkdownLinks(text, source string) (string, map[string]string) {
+	links := make(map[string]string)
+	if text == "" {
+		return text, links
+	}
+
+	idx := 0
+	protected := markdownLinkRegex.ReplaceAllStringFunc(text, func(match string) string {
+		matches := markdownLinkRegex.FindStringSubmatch(match)
+		if len(matches) != 3 {
+			return match
+		}
+
+		linkHTML := markdownLinkHTML(matches[1], matches[2], source)
+		if linkHTML == "" {
+			return match
+		}
+
+		placeholder := fmt.Sprintf("FBMDLINKTOKEN%dTOKEN", idx)
+		idx++
+		links[placeholder] = linkHTML
+		return placeholder
+	})
+
+	return protected, links
+}
+
+func RestoreProtectedMarkdownLinks(text string, links map[string]string) string {
+	for placeholder, linkHTML := range links {
+		text = strings.ReplaceAll(text, placeholder, linkHTML)
+	}
+	return text
 }
 
 func NormalizePort(p string) string {
@@ -64,8 +184,7 @@ func MarkdownToTelegramHTML(text string) string {
 	// Sublinhado <u>texto</u> já é HTML, mantemos
 
 	// Links [texto](url)
-	linkRegex := regexp.MustCompile(`\[([^\]]+)\]\(([^)]+)\)`)
-	text = linkRegex.ReplaceAllString(text, `<a href="$2">$1</a>`)
+	text = NormalizeMarkdownLinks(text, "utils.MarkdownToTelegramHTML")
 
 	return text
 }

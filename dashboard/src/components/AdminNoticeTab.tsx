@@ -4,7 +4,7 @@ import {
     Trash2, Link2, MessageSquare, Plus, Image as ImageIcon
 } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
-import { NoticeButton } from '../api';
+import { NoticeButton, NoticeTarget } from '../api';
 import { ConfirmModal } from './ConfirmModal';
 
 interface AdminNoticeTabProps {
@@ -12,8 +12,8 @@ interface AdminNoticeTabProps {
     setNoticeMessage: Dispatch<SetStateAction<string>>;
     noticeImageUrl: string;
     setNoticeImageUrl: Dispatch<SetStateAction<string>>;
-    noticeTarget: 'channels' | 'users' | 'all' | 'single';
-    setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all' | 'single'>>;
+    noticeTarget: NoticeTarget;
+    setNoticeTarget: Dispatch<SetStateAction<NoticeTarget>>;
     noticeTargetId: string;
     setNoticeTargetId: Dispatch<SetStateAction<string>>;
     noticeButtons: NoticeButton[];
@@ -38,7 +38,8 @@ export function AdminNoticeTab({
     const maxChars = noticeImageUrl.trim() ? 1024 : 4096;
     const isOverLimit = noticeMessage.length > maxChars;
     const hasEmptyButtons = noticeButtons.some(b => !b.text.trim() || !b.value.trim());
-    const isReady = noticeMessage.trim().length > 0 && !isOverLimit && !hasEmptyButtons && (noticeTarget !== 'single' || noticeTargetId.trim().length > 5);
+    const specificTarget = noticeTarget === 'single' || noticeTarget === 'user_ids' || noticeTarget === 'channel_ids';
+    const isReady = noticeMessage.trim().length > 0 && !isOverLimit && !hasEmptyButtons && (!specificTarget || noticeTargetId.trim().length > 5);
 
     const renderPreview = () => {
         // Lógica para detectar se é uma URL externa ou um File ID do Telegram
@@ -47,7 +48,7 @@ export function AdminNoticeTab({
             previewUrl = `/api/admin/media-proxy/${noticeImageUrl}`;
         }
 
-        const headerHtml = noticeTarget === 'single' ? '# 📨 <b>MENSAGEM DO SUPORTE</b><br/><br/>' : '';
+        const headerHtml = noticeTarget === 'single' || noticeTarget === 'user_ids' ? '# 📨 <b>MENSAGEM DO SUPORTE</b><br/><br/>' : '';
 
         // Convert some basic markdown to HTML for preview
         let htmlContent = noticeMessage
@@ -113,58 +114,44 @@ export function AdminNoticeTab({
 
                 <div className="space-y-1.5">
                     <label className="text-[13px] font-semibold text-[var(--hint)]">Público-Alvo</label>
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
-                        <button
-                            onClick={() => setNoticeTarget('all')}
-                            className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border ${noticeTarget === 'all'
-                                ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
-                                : 'bg-[var(--surface)] border-[var(--border)] text-[var(--hint)] hover:bg-[var(--border)]'
-                                } transition-all font-semibold text-sm`}
-                        >
-                            <Globe size={16} /> Todos
-                        </button>
-                        <button
-                            onClick={() => setNoticeTarget('channels')}
-                            className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border ${noticeTarget === 'channels'
-                                ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
-                                : 'bg-[var(--surface)] border-[var(--border)] text-[var(--hint)] hover:bg-[var(--border)]'
-                                } transition-all font-semibold text-sm`}
-                        >
-                            <Hash size={16} /> Canais
-                        </button>
-                        <button
-                            onClick={() => setNoticeTarget('users')}
-                            className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border ${noticeTarget === 'users'
-                                ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
-                                : 'bg-[var(--surface)] border-[var(--border)] text-[var(--hint)] hover:bg-[var(--border)]'
-                                } transition-all font-semibold text-sm`}
-                        >
-                            <Users size={16} /> Usuários
-                        </button>
-                        <button
-                            onClick={() => setNoticeTarget('single')}
-                            className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border ${noticeTarget === 'single'
-                                ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
-                                : 'bg-[var(--surface)] border(--border)] text-[var(--hint)] hover:bg-[var(--border)]'
-                                } transition-all font-semibold text-sm`}
-                        >
-                            <MousePointerClick size={16} /> Individual
-                        </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-1.5">
+                        {[
+                            { id: 'all' as NoticeTarget, label: 'Todos', icon: <Globe size={16} /> },
+                            { id: 'channels' as NoticeTarget, label: 'Canais', icon: <Hash size={16} /> },
+                            { id: 'users' as NoticeTarget, label: 'Usuários', icon: <Users size={16} /> },
+                            { id: 'single' as NoticeTarget, label: 'Suporte', icon: <MousePointerClick size={16} /> },
+                            { id: 'user_ids' as NoticeTarget, label: 'Usuários ID', icon: <Users size={16} /> },
+                            { id: 'channel_ids' as NoticeTarget, label: 'Canais ID', icon: <Hash size={16} /> },
+                        ].map((item) => (
+                            <button
+                                key={item.id}
+                                onClick={() => setNoticeTarget(item.id)}
+                                className={`flex items-center justify-center gap-2 p-2.5 rounded-xl border ${noticeTarget === item.id
+                                    ? 'bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]'
+                                    : 'bg-[var(--surface)] border-[var(--border)] text-[var(--hint)] hover:bg-[var(--border)]'
+                                    } transition-all font-semibold text-sm`}
+                            >
+                                {item.icon} {item.label}
+                            </button>
+                        ))}
                     </div>
                 </div>
 
-                {noticeTarget === 'single' && (
+                {specificTarget && (
                     <div className="space-y-1.5 animate-in fade-in slide-in-from-top-2 duration-300">
                         <label className="text-[13px] font-semibold text-[var(--hint)] flex items-center gap-1.5">
-                            ID do Usuário Alvo
+                            {noticeTarget === 'channel_ids' ? 'IDs dos Canais Alvo' : noticeTarget === 'user_ids' ? 'IDs dos Usuários Alvo' : 'ID do Usuário Alvo'}
                         </label>
-                        <input
-                            type="number"
-                            placeholder="Ex: 12345678"
+                        <textarea
+                            placeholder={noticeTarget === 'channel_ids' ? 'Ex: -1001234567890, -1009876543210' : 'Ex: 12345678, 987654321'}
                             value={noticeTargetId}
                             onChange={(e) => setNoticeTargetId(e.target.value)}
-                            className="w-full bg-[var(--background)] text-[var(--text)] border border-[var(--border)] rounded-lg p-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] transition-colors placeholder:text-[var(--hint)]"
+                            rows={noticeTarget === 'single' ? 1 : 3}
+                            className="w-full bg-[var(--background)] text-[var(--text)] border border-[var(--border)] rounded-lg p-2.5 text-[13px] focus:outline-none focus:border-[var(--accent)] transition-colors placeholder:text-[var(--hint)] resize-none"
                         />
+                        <p className="text-[11px] text-[var(--hint)]">
+                            {noticeTarget === 'channel_ids' ? 'Canais especificos nao recebem o titulo de mensagem do suporte.' : 'Separe multiplos IDs por virgula, espaco ou quebra de linha.'}
+                        </p>
                     </div>
                 )}
 
@@ -262,7 +249,7 @@ export function AdminNoticeTab({
                 onClose={() => setIsConfirmOpen(false)}
                 onConfirm={handleSendNotice}
                 title="Confirmar Disparo em Massa"
-                message={`Você está prestes a enviar uma mensagem para ${noticeTarget === 'all' ? 'todos os usuários e canais cadastrados' : noticeTarget === 'channels' ? 'todos os canais cadastrados' : 'todos os usuários do bot'}. Tem certeza que deseja prosseguir?`}
+                message={`Você está prestes a enviar uma mensagem para ${noticeTarget === 'all' ? 'todos os usuários e canais cadastrados' : noticeTarget === 'channels' ? 'todos os canais cadastrados' : noticeTarget === 'users' ? 'todos os usuários do bot' : noticeTarget === 'channel_ids' ? 'os canais informados' : 'os usuários informados'}. Tem certeza que deseja prosseguir?`}
                 confirmText="Sim, Disparar Agora"
                 danger={true}
             />

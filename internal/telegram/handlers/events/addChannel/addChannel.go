@@ -6,13 +6,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler {
@@ -60,8 +61,8 @@ func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler
 		kb := &telego.InlineKeyboardMarkup{
 			InlineKeyboard: [][]telego.InlineKeyboardButton{
 				{
-					{Text: "✅ Sim, vincular", CallbackData: fmt.Sprintf("add-yes:%d", chatID)},
-					{Text: "❌ Não agora", CallbackData: fmt.Sprintf("add-not:%d", chatID)},
+					{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
+					{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
 				},
 			},
 		}
@@ -90,10 +91,12 @@ func UpdateChannelInfoHandlerTelego(c *container.AppContainer) telegohandler.Han
 		}
 
 		logger.Bot("UpdateChannelInfo: Atualizando metadados proativos para o canal %d", chatID)
-		
+
 		// Reutiliza a lógica de syncMetadata
 		titleChanged := update.MyChatMember.Chat.Title != "" && update.MyChatMember.Chat.Title != channel.Title
-		usernameChanged := update.MyChatMember.Chat.Username != "" && ("@" + update.MyChatMember.Chat.Username) != channel.InviteURL && !strings.HasPrefix(channel.InviteURL, "https://t.me/+")
+		usernameURL := utils.NormalizeTelegramURL("@" + update.MyChatMember.Chat.Username)
+		channelURL := utils.NormalizeTelegramURL(channel.InviteURL)
+		usernameChanged := update.MyChatMember.Chat.Username != "" && usernameURL != channelURL && !strings.HasPrefix(channelURL, "https://t.me/+")
 
 		if titleChanged || usernameChanged {
 			go func() {
@@ -126,7 +129,7 @@ func AddYesHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		chat, err := bot.GetChat(context.Background(), &telego.GetChatParams{ChatID: telego.ChatID{ID: chatID}})
 		if err != nil {
 			logger.Error("BOT", "Erro ao buscar chat %d: %v", chatID, err)
-			
+
 			text, kb := parser.GetMessageTelego("toadd-notfound-permissions-message", nil)
 			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      update.CallbackQuery.Message.GetChat().ChatID(),
@@ -168,7 +171,7 @@ func AddYesHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		channel, err := c.ChannelService.CreateChannelWithDefaults(context.Background(), chatID, chat.Title, inviteURL, globalNewPack, globalDefault, update.CallbackQuery.From.ID)
 		if err != nil {
 			logger.Error("BOT", "Erro ao vincular canal: %v", err)
-			
+
 			_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "❌ Erro ao vincular canal no banco de dados.",
@@ -255,4 +258,3 @@ func AddNotHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		return nil
 	}
 }
-

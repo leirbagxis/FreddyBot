@@ -7,14 +7,14 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	userModes "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func GetAllChannelsHandlerTelego(app *container.AppContainer) telegohandler.Handler {
@@ -101,22 +101,43 @@ func GetInfoChannelHandlerTelego(app *container.AppContainer) telegohandler.Hand
 			return nil
 		}
 
-		ownerID := fmt.Sprintf("%d", config.OwnerID)
+		miniAppURL := auth.GenerateMiniAppUrl(fmt.Sprintf("%d", update.Message.From.ID), channelIDStr)
+		logsURL := fmt.Sprintf("%s/admin/dash?tab=logs&channelId=%d", strings.TrimRight(config.WebAppURL, "/"), channel.ID)
 		msg := fmt.Sprintf(
-			"ID: <code>%d</code>\nCanal: %s\nLink: %s\nDono: <a href='tg://user?id=%d'>%s</a> (<code>%d</code>)\nPainel: %s",
+			"ID: <code>%d</code>\nCanal: %s\nLink: %s\nDono: <a href='tg://user?id=%d'>%s</a> (<code>%d</code>)",
 			channel.ID,
 			html.EscapeString(channel.Title),
-			channel.InviteURL,
+			html.EscapeString(channel.InviteURL),
 			owner.UserId,
 			html.EscapeString(owner.FirstName),
 			owner.UserId,
-			auth.GenerateMiniAppUrl(ownerID, channelIDStr),
 		)
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    update.Message.Chat.ChatID(),
-			Text:      msg,
-			ParseMode: telego.ModeHTML,
+			ChatID:             update.Message.Chat.ChatID(),
+			Text:               msg,
+			ParseMode:          telego.ModeHTML,
+			LinkPreviewOptions: &telego.LinkPreviewOptions{IsDisabled: true},
+			ReplyMarkup: &telego.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telego.InlineKeyboardButton{
+					{
+						{
+							Text: "Abrir canal na dashboard",
+							WebApp: &telego.WebAppInfo{
+								URL: miniAppURL,
+							},
+						},
+					},
+					{
+						{
+							Text: "Abrir logs do canal",
+							WebApp: &telego.WebAppInfo{
+								URL: logsURL,
+							},
+						},
+					},
+				},
+			},
 		})
 		return nil
 	}

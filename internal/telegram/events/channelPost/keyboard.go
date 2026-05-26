@@ -3,8 +3,9 @@ package channelpost
 import (
 	"strings"
 
-	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/mymmrac/telego"
 )
 
 func CreateInlineKeyboardTelego(buttons []dbmodels.Button, customCaption *dbmodels.CustomCaption, channel *dbmodels.Channel, messageType MessageType) *telego.InlineKeyboardMarkup {
@@ -35,14 +36,15 @@ func CreateInlineKeyboardTelego(buttons []dbmodels.Button, customCaption *dbmode
 	rows := map[int][]telego.InlineKeyboardButton{}
 
 	for _, b := range finalButtons {
-		if b.NameButton == "" || b.ButtonURL == "" {
+		buttonURL := utils.NormalizeTelegramURL(b.ButtonURL)
+		if b.NameButton == "" || buttonURL == "" || !utils.IsValidButtonURL(buttonURL) {
 			continue
 		}
 		row := b.PositionY
 		if row < 0 {
 			row = 0
 		}
-		btn := telego.InlineKeyboardButton{Text: b.NameButton, URL: b.ButtonURL}
+		btn := telego.InlineKeyboardButton{Text: b.NameButton, URL: buttonURL}
 		rows[row] = append(rows[row], btn)
 	}
 

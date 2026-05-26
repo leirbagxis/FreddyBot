@@ -642,6 +642,9 @@ svg:active {
 }
 .badge-accent { background: var(--accent-soft); color: var(--accent); }
 .badge-success { background: var(--success-soft); color: var(--success); }
+.badge-info { background: rgba(59, 130, 246, 0.1); color: #3b82f6; }
+.badge-danger { background: var(--danger-soft); color: var(--danger); }
+.badge-warning { background: var(--warning-soft); color: var(--warning); }
 .badge-muted { background: var(--surface); color: var(--hint); }
 
 /* ===== LABEL ===== */

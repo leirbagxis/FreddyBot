@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { Dispatch, SetStateAction, useState } from 'react';
 import { Hash, ShieldAlert, ChevronRight, User as UserIcon, Zap, Trash2, ShieldCheck, CheckCircle2, Sparkles } from 'lucide-react';
-import { fetchAuditCheckBot, bulkDeleteChannels } from '../api';
+import { bulkDeleteChannels } from '../api';
 import { AuditResult, Channel } from '../types';
 import { useToast } from './Toast';
 import { ConfirmModal } from './ConfirmModal';
@@ -8,35 +8,19 @@ import { ConfirmModal } from './ConfirmModal';
 interface AdminAuditTabProps {
     navigateToChannel: (id: number) => void;
     onOpenUser: (id: number) => void;
+    results: AuditResult[] | null;
+    setResults: Dispatch<SetStateAction<AuditResult[] | null>>;
+    loading: boolean;
+    onRunAudit: () => void;
 }
 
-export function AdminAuditTab({ navigateToChannel, onOpenUser }: AdminAuditTabProps) {
-    const [loading, setLoading] = useState(false);
+export function AdminAuditTab({ navigateToChannel, onOpenUser, results, setResults, loading, onRunAudit }: AdminAuditTabProps) {
     const [deletingId, setDeletingId] = useState<number | null>(null);
-    const [results, setResults] = useState<AuditResult[] | null>(null);
     const [confirmDelete, setConfirmDelete] = useState<{ userId: number, channels: number[], name: string } | null>(null);
     const toast = useToast();
 
-    const handleRunAudit = async () => {
-        setLoading(true);
-        try {
-            const res = await fetchAuditCheckBot();
-            if (res.success) {
-                const auditResults = Array.isArray(res.data) ? res.data : [];
-                setResults(auditResults);
-                if (auditResults.length === 0) {
-                    toast("Varredura concluída: nenhum canal com @XavolaBot.", "success");
-                } else {
-                    toast(`Auditoria concluída: ${auditResults.length} usuários afetados`, "info");
-                }
-            } else {
-                throw new Error(res.message || "Erro na auditoria");
-            }
-        } catch (err: any) {
-            toast(err.message || "Erro ao realizar auditoria", "error");
-        } finally {
-            setLoading(false);
-        }
+    const handleRunAudit = () => {
+        onRunAudit();
     };
 
     const handleBulkDelete = async () => {

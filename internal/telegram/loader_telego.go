@@ -4,25 +4,25 @@ import (
 	"context"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/middleware"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
+	callbackAbout "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/about"
+	callbackClaim "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/claimChannel"
 	callbackMyChannel "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_channel"
 	callbackProfile "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/profile_info"
 	callbackStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/start"
 	callbackVote "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/vote"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/admin"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/help"
 	commandStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/start"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/suporte"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/tutorial"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/postBuilder"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/addChannel"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/admin"
-	callbackAbout "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/about"
-	callbackClaim "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/claimChannel"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/postBuilder"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppContainer) {
@@ -51,13 +51,12 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	bh.Handle(suporte.HandlerTelego(c), telegohandler.CommandEqual("ouvidoria"))
 	bh.Handle(tutorial.HandlerTelego(c), telegohandler.CommandEqual("tutorial"))
 
-	// Admin Commands (Owner only)
+	// Admin Commands (Owner only; /info is owner/admin below)
 	adminGroup := bh.Group(matchOwnerTelego())
 	adminGroup.Handle(admin.AdminHelpHandlerTelego(c), telegohandler.CommandEqual("admin"))
 	adminGroup.Handle(admin.GetAllUsersHandlerTelego(c), telegohandler.CommandEqual("users"))
 	adminGroup.Handle(admin.GetAllChannelsHandlerTelego(c), telegohandler.CommandEqual("channels"))
 	adminGroup.Handle(admin.GetInfoUserHandlerTelego(c), telegohandler.CommandEqual("user"))
-	adminGroup.Handle(admin.GetInfoChannelHandlerTelego(c), telegohandler.CommandEqual("info"))
 	adminGroup.Handle(admin.NoticeCommandHandlerTelego(c), telegohandler.CommandEqual("notice"))
 	adminGroup.Handle(admin.NoticeChannelsHandlerTelego(c), telegohandler.CommandEqual("publi"))
 	adminGroup.Handle(admin.SendMessageToIdHandlerTelego(c), telegohandler.CommandEqual("send"))
@@ -71,6 +70,9 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	adminGroup.Handle(admin.GetBackUpHandlerTelego(c), telegohandler.CommandEqual("backup"))
 	adminGroup.Handle(admin.CheckBotAdminHandlerTelego(c), telegohandler.CommandEqual("checkbot"))
 	adminGroup.Handle(admin.GetMediaIDHandlerTelego(c), telegohandler.CommandEqual("getid"))
+
+	adminOrOwnerGroup := bh.Group(matchAdminOrOwnerTelego(c))
+	adminOrOwnerGroup.Handle(admin.GetInfoChannelHandlerTelego(c), telegohandler.CommandEqual("info"))
 
 	// Message Handlers for active sessions (Text and Sticker inputs)
 	bh.Handle(callbackMyChannel.SetStickerSeparatorHandlerTelego(c), matchAwaitingStickerSeparatorTelego(c))
@@ -93,7 +95,7 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	// Remaining Callbacks
 	bh.Handle(callbackAbout.HandlerTelego(c), telegohandler.CallbackDataEqual("about"))
 	bh.Handle(callbackClaim.AcceptClaimHandlerTelego(c), telegohandler.CallbackDataPrefix("accept-claim:"))
-	
+
 	// Sticker Separator Callbacks
 	bh.Handle(callbackMyChannel.AskStickerSeparatorHandlerTelego(c), telegohandler.CallbackDataEqual("sptc"))
 	bh.Handle(callbackMyChannel.RequireStickerSeparatorHandlerTelego(c), telegohandler.CallbackDataEqual("sptc-config"))
@@ -162,6 +164,22 @@ func matchOwnerTelego() telegohandler.Predicate {
 			return false
 		}
 		return update.Message.From.ID == config.OwnerID
+	}
+}
+
+func matchAdminOrOwnerTelego(c *container.AppContainer) telegohandler.Predicate {
+	return func(ctx context.Context, update telego.Update) bool {
+		if update.Message == nil || update.Message.From == nil {
+			return false
+		}
+
+		userID := update.Message.From.ID
+		if userID == config.OwnerID {
+			return true
+		}
+
+		user, err := c.UserService.GetUserByID(context.Background(), userID)
+		return err == nil && user != nil && user.IsAdmin
 	}
 }
 

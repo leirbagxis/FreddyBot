@@ -2,6 +2,7 @@ package channelpost
 
 import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
@@ -45,6 +46,7 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 			dynButtons, cleanBase := ExtractDynamicLinks(formattedBase)
 			if len(dynButtons) > 0 {
 				logger.Bot("🔗 Extraídos %d botões dinâmicos do conteúdo original", len(dynButtons))
+				recordChannelPostEvent(c, pCtx, "dynamic_links_extracted", services.ChannelEventStatusInfo, map[string]any{"count": len(dynButtons)}, nil)
 				formattedBase = cleanBase
 				extractedDynLinks = true
 				pCtx.FinalButtons = append(pCtx.FinalButtons, dynButtons...)
@@ -105,6 +107,10 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 		}
 
 		pCtx.FinalButtons = append(finalButtons, pCtx.FinalButtons...)
+
+		if dbCaption != "" {
+			recordChannelPostEvent(c, pCtx, "caption_applied", services.ChannelEventStatusInfo, map[string]any{"custom_caption": custom != nil, "message_type": pCtx.MessageType}, nil)
+		}
 
 		if extractedDynLinks && !pCtx.Channel.DLBotReactions {
 			pCtx.Permissions.CanAddReactions = false

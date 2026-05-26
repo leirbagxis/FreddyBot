@@ -24,11 +24,12 @@ func NewUsersAdminController(app *container.AppContainer) *UsersAdminController 
 }
 
 type NoticeRequest struct {
-	Message  string `json:"message"`
-	Target   string `json:"target"`
-	TargetID int64  `json:"targetId"`
-	ImageUrl string `json:"imageUrl"`
-	Buttons  []struct {
+	Message   string  `json:"message"`
+	Target    string  `json:"target"`
+	TargetID  int64   `json:"targetId"`
+	TargetIDs []int64 `json:"targetIds"`
+	ImageUrl  string  `json:"imageUrl"`
+	Buttons   []struct {
 		Text  string `json:"text"`
 		Type  string `json:"type"`
 		Value string `json:"value"`
@@ -124,6 +125,24 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 		})
 	}
 
+	baseText := utils.MarkdownToTelegramHTML(notice.Message)
+	supportText := "# 📨 <b>MENSAGEM DO SUPORTE</b>\n\n" + baseText
+	enqueueTargets := func(ids []int64, text string) {
+		sent := make(map[int64]bool, len(ids))
+		for _, id := range ids {
+			if id == 0 || sent[id] {
+				continue
+			}
+			c.container.BroadcastQueue <- container.BroadcastJob{
+				ChatID:   id,
+				Text:     text,
+				ImageUrl: notice.ImageUrl,
+				Buttons:  buttons,
+			}
+			sent[id] = true
+		}
+	}
+
 	switch notice.Target {
 
 	case "single":
@@ -132,15 +151,23 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 			return
 		}
 
-		header := "# 📨 <b>MENSAGEM DO SUPORTE</b>\n\n"
-		text := header + utils.MarkdownToTelegramHTML(notice.Message)
+		enqueueTargets([]int64{notice.TargetID}, supportText)
 
-		c.container.BroadcastQueue <- container.BroadcastJob{
-			ChatID:   notice.TargetID,
-			Text:     text,
-			ImageUrl: notice.ImageUrl,
-			Buttons:  buttons,
+	case "user_ids":
+		if len(notice.TargetIDs) == 0 {
+			logger.Error("API", "TargetIDs ausentes para envio a usuários específicos")
+			return
 		}
+
+		enqueueTargets(notice.TargetIDs, supportText)
+
+	case "channel_ids":
+		if len(notice.TargetIDs) == 0 {
+			logger.Error("API", "TargetIDs ausentes para envio a canais específicos")
+			return
+		}
+
+		enqueueTargets(notice.TargetIDs, baseText)
 
 	case "users":
 		users, err := c.container.UserService.GetAllUsersWithChannels(ctx)
@@ -152,7 +179,7 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 		for _, user := range users {
 			c.container.BroadcastQueue <- container.BroadcastJob{
 				ChatID:   user.UserId,
-				Text:     utils.MarkdownToTelegramHTML(notice.Message),
+				Text:     baseText,
 				ImageUrl: notice.ImageUrl,
 				Buttons:  buttons,
 			}
@@ -168,7 +195,7 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 		for _, channel := range channels {
 			c.container.BroadcastQueue <- container.BroadcastJob{
 				ChatID:   channel.ID,
-				Text:     utils.MarkdownToTelegramHTML(notice.Message),
+				Text:     baseText,
 				ImageUrl: notice.ImageUrl,
 				Buttons:  buttons,
 			}
@@ -184,7 +211,7 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 			if !sentMap[user.UserId] {
 				c.container.BroadcastQueue <- container.BroadcastJob{
 					ChatID:   user.UserId,
-					Text:     utils.MarkdownToTelegramHTML(notice.Message),
+					Text:     baseText,
 					ImageUrl: notice.ImageUrl,
 					Buttons:  buttons,
 				}
@@ -196,7 +223,7 @@ func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
 			if !sentMap[channel.ID] {
 				c.container.BroadcastQueue <- container.BroadcastJob{
 					ChatID:   channel.ID,
-					Text:     utils.MarkdownToTelegramHTML(notice.Message),
+					Text:     baseText,
 					ImageUrl: notice.ImageUrl,
 					Buttons:  buttons,
 				}

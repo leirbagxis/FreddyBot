@@ -1,4 +1,4 @@
-import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData } from './types';
+import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse } from './types';
 
 export interface AuthRequestBody {
     channelID: number;
@@ -206,10 +206,13 @@ export interface NoticeButton {
     value: string;
 }
 
+export type NoticeTarget = 'channels' | 'users' | 'all' | 'single' | 'user_ids' | 'channel_ids';
+
 export interface NoticeRequest {
     message: string;
-    target: 'channels' | 'users' | 'all' | 'single';
+    target: NoticeTarget;
     targetId?: number;
+    targetIds?: number[];
     imageUrl: string;
     buttons: NoticeButton[];
 }
@@ -276,4 +279,18 @@ export const bulkDeleteChannels = async (userId: number, channelIds: number[]) =
         method: 'POST',
         body: JSON.stringify({ userId, channelIds }),
     });
+};
+
+
+export const fetchAdminLogs = async (filters: AdminLogsFilters = {}): Promise<AdminLogsResponse> => {
+    const params = new URLSearchParams();
+    Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && String(value).trim() !== '') {
+            params.set(key, String(value));
+        }
+    });
+    const response = await apiFetch(`/api/admin/logs?${params.toString()}`, {
+        method: 'GET',
+    });
+    return response?.data || { events: [], total: 0, limit: filters.limit || 50, offset: filters.offset || 0 };
 };

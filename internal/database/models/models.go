@@ -53,6 +53,23 @@ type Channel struct {
 	UpdatedAt              time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
 }
 
+type ChannelEvent struct {
+	ID                string    `gorm:"type:text;primaryKey" json:"id"`
+	ChannelID         int64     `gorm:"index;index:idx_channel_event_channel_created" json:"channelId"`
+	ChannelTitle      string    `gorm:"index" json:"channelTitle"`
+	OwnerID           int64     `gorm:"index;index:idx_channel_event_owner_created" json:"ownerId"`
+	ActorID           int64     `gorm:"index" json:"actorId"`
+	Source            string    `gorm:"index" json:"source"`
+	EventType         string    `gorm:"index" json:"eventType"`
+	Status            string    `gorm:"index" json:"status"`
+	MessageType       string    `json:"messageType"`
+	TelegramMessageID int       `json:"telegramMessageId"`
+	SessionID         string    `gorm:"index" json:"sessionId"`
+	ErrorMessage      string    `gorm:"type:text" json:"errorMessage"`
+	Metadata          string    `gorm:"type:text" json:"metadata"`
+	CreatedAt         time.Time `gorm:"autoCreateTime;index;index:idx_channel_event_channel_created,sort:desc;index:idx_channel_event_owner_created,sort:desc" json:"created_at"`
+}
+
 type DefaultCaption struct {
 	CaptionID         string             `gorm:"type:text;primaryKey" json:"captionId"`
 	Caption           string             `json:"caption"`

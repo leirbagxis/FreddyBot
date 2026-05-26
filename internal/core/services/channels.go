@@ -8,6 +8,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/mymmrac/telego"
 )
@@ -138,6 +139,7 @@ func (s *ChannelService) GetAllChannelsPaginated(ctx context.Context, limit, off
 }
 
 func (s *ChannelService) CreateChannelWithDefaults(ctx context.Context, channelID int64, title, inviteURL, newPackCaption, defaultCaption string, ownerID int64) (*models.Channel, error) {
+	inviteURL = utils.NormalizeTelegramURL(inviteURL)
 	captionID := uuid.NewString()
 	newPackMessageButtons := true
 	newPackStickerButtons := true
@@ -195,7 +197,7 @@ func (s *ChannelService) DeleteChannel(ctx context.Context, userID int64, channe
 
 func (s *ChannelService) DisconnectChannel(ctx context.Context, userID int64, channelID int64) error {
 	// 1. Send farewell message to the channel
-	farewellMsg := "Ah, então é assim? Um clique e tudo o que vivemos vira fumaça. Não se preocupe, eu vou embora... mas saiba que meu silêncio será o seu maior arrependimento. Aproveite sua liberdade sem mim. Adeus, ingrato! 🍷"
+	farewellMsg := "Ate breve, bye 👋"
 
 	// Tenta enviar a mensagem, mas não bloqueia se falhar (o bot pode já ter sido removido manualmente)
 	if s.bot != nil {

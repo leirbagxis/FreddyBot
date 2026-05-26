@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegohandler"
@@ -104,6 +105,15 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 
 		if update.ChannelPost != nil {
 			logger.Bot("🚀 [%d] Novo post recebido no canal %d (Telego)", update.ChannelPost.MessageID, update.ChannelPost.Chat.ID)
+			c.ChannelEventService.Record(context.Background(), services.ChannelEventRecordInput{
+				ChannelID:         update.ChannelPost.Chat.ID,
+				ChannelTitle:      update.ChannelPost.Chat.Title,
+				Source:            services.ChannelEventSourceChannelPost,
+				EventType:         "post_received",
+				Status:            services.ChannelEventStatusInfo,
+				MessageType:       string(GetMessageTypeTelego(update.ChannelPost)),
+				TelegramMessageID: update.ChannelPost.MessageID,
+			})
 		}
 
 		// 1. Execution Pipeline

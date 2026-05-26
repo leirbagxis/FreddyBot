@@ -43,6 +43,7 @@ type AppContainer struct {
 	SeparatorService     *services.SeparatorService
 	VoteService          *services.VoteService
 	ServerService        *services.ServerService
+	ChannelEventService  *services.ChannelEventService
 
 	// ## CACHE ## \\
 	CacheService   *cache.Service
@@ -61,6 +62,7 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	customCaptionRepo := repositories.NewCustomCaptionRepository(db)
 	permissionsRepo := repositories.NewPermissionsRepository(db)
 	serverRepo := repositories.NewServerConfigRepository(db)
+	channelEventRepo := repositories.NewChannelEventRepository(db)
 
 	container := &AppContainer{
 		DB:        db,
@@ -78,12 +80,14 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		SeparatorService:     services.NewSeparatorService(separatorRepo),
 		VoteService:          services.NewVoteService(voteRepo),
 		ServerService:        services.NewServerService(serverRepo),
+		ChannelEventService:  services.NewChannelEventService(channelEventRepo),
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),
 	}
 
 	container.syncFixedPostBuilderSession(context.Background())
+	go container.ChannelEventService.CleanupOld(context.Background(), services.ChannelEventRetentionDays)
 	container.startBroadcastWorkers(5)
 	return container
 }

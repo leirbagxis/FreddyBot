@@ -12,7 +12,9 @@ import (
 
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegohandler"
@@ -162,6 +164,7 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			Step:        "",
 		}
 		c.CacheService.SetPostBuilderState(context.Background(), update.Message.From.ID, state)
+		recordPostBuilderEvent(c, "postbuilder_started", services.ChannelEventStatusInfo, update.Message.From.ID, 0, "", map[string]any{"media_type": mediaType, "chat_id": update.Message.Chat.ID}, nil)
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:      update.Message.Chat.ChatID(),
@@ -187,6 +190,8 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 	if state.PromptMessageID != 0 {
 		state.PromptMessageID = 0
 	}
+
+	previousStep := state.Step
 
 	switch state.Step {
 	case "awaiting_title":
@@ -261,7 +266,7 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 		}
 		rawName := lines[0]
 		name := strings.TrimSpace(rawName)
-		url := strings.TrimSpace(lines[1])
+		url := utils.NormalizeTelegramURL(lines[1])
 
 		// Extrair CustomEmojiID do nome (primeira linha). Mantemos o emoji textual
 		// como fallback para resultados inline, onde IconCustomEmojiID pode ser ignorado.
@@ -274,10 +279,10 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 			}
 		}
 
-		if !strings.HasPrefix(url, "http") {
+		if !utils.IsValidButtonURL(url) {
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 				ChatID: update.Message.Chat.ChatID(),
-				Text:   "❌ URL inválida. Deve começar com http:// ou https://. Tente novamente:",
+				Text:   "❌ URL inválida. Use https://, t.me/canal, @canal ou tg://. Tente novamente:",
 				ReplyParameters: &telego.ReplyParameters{
 					MessageID: update.Message.MessageID,
 				},
@@ -292,6 +297,20 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 	}
 
 	state.MenuMessageID = 0
+	eventType := "postbuilder_field_updated"
+	field := strings.TrimPrefix(previousStep, "awaiting_")
+	metadata := map[string]any{"field": field}
+	if update.Message != nil {
+		metadata["message_id"] = update.Message.MessageID
+	}
+	if strings.TrimSpace(text) != "" {
+		metadata["text_len"] = len(text)
+	}
+	if previousStep == "awaiting_button" {
+		eventType = "postbuilder_button_added"
+		metadata["buttons"] = len(state.Buttons)
+	}
+	recordPostBuilderEvent(c, eventType, services.ChannelEventStatusInfo, update.Message.From.ID, 0, "", metadata, nil)
 	c.CacheService.SetPostBuilderState(context.Background(), update.Message.From.ID, *state)
 
 	if state.Step == "awaiting_button" {
@@ -523,7 +542,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			index, _ := strconv.Atoi(indexStr)
 
 			if index >= 0 && index < len(state.Buttons) {
+				removed := state.Buttons[index]
 				state.Buttons = append(state.Buttons[:index], state.Buttons[index+1:]...)
+				recordPostBuilderEvent(c, "postbuilder_button_deleted", services.ChannelEventStatusInfo, userID, 0, "", map[string]any{"button_text": removed.Text, "remaining_buttons": len(state.Buttons)}, nil)
 				c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 			}
 			showButtonManagerTelego(ctx, chatID, userID, c, state)
@@ -650,12 +671,18 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			}
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		case "pb-preview":
-			sendFinalPostTelego(ctx, chatID, userID, c, state, false)
+			err := sendFinalPostTelego(ctx, chatID, userID, c, state, false)
+			status := services.ChannelEventStatusSuccess
+			if err != nil {
+				status = services.ChannelEventStatusError
+			}
+			recordPostBuilderEvent(c, "postbuilder_preview_sent", status, userID, 0, "", map[string]any{"media_type": state.MediaType, "buttons": len(state.Buttons)}, err)
 			showMenuTelego(ctx, chatID, userID, c, state)
 		case "pb-save":
 			id, err := c.CacheService.SavePostBuilderSession(context.Background(), *state)
 			if err != nil {
 				logger.Error("BOT", "PostBuilder: Error saving session: %v", err)
+				recordPostBuilderEvent(c, "postbuilder_failed", services.ChannelEventStatusError, userID, 0, "", map[string]any{"action": "save"}, err)
 				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 					ChatID: telego.ChatID{ID: chatID},
 					Text:   "❌ Erro ao salvar postagem.",
@@ -676,6 +703,7 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 				},
 			}
 
+			recordPostBuilderEvent(c, "postbuilder_saved", services.ChannelEventStatusSuccess, userID, 0, id, map[string]any{"media_type": state.MediaType, "buttons": len(state.Buttons), "has_reactions": state.Reactions != ""}, nil)
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 				ChatID:      telego.ChatID{ID: chatID},
 				Text:        fmt.Sprintf("✅ <b>Postagem salva com sucesso!</b>\n\nUtilize o modo inline para enviar:\n<code>@%s pb %s</code>", botInfo.Username, id),
@@ -734,7 +762,16 @@ func handleSendApplyTelego(ctx *telegohandler.Context, chatID, userID int64, cha
 		return
 	}
 
-	sendFinalPostTelego(ctx, channelID, userID, c, state, false)
+	err = sendFinalPostTelego(ctx, channelID, userID, c, state, false)
+	if err != nil {
+		recordPostBuilderEvent(c, "postbuilder_failed", services.ChannelEventStatusError, userID, channelID, sessionID, map[string]any{"action": "send_to_channel"}, err)
+		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID: telego.ChatID{ID: chatID},
+			Text:   "❌ Erro ao enviar postagem para o canal.",
+		})
+		return
+	}
+	recordPostBuilderEvent(c, "postbuilder_sent_to_channel", services.ChannelEventStatusSuccess, userID, channelID, sessionID, map[string]any{"media_type": state.MediaType, "buttons": len(state.Buttons)}, nil)
 
 	_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 		ChatID: telego.ChatID{ID: chatID},
@@ -742,7 +779,7 @@ func handleSendApplyTelego(ctx *telegohandler.Context, chatID, userID int64, cha
 	})
 }
 
-func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState, deleteState bool) {
+func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *container.AppContainer, state *cache.PostBuilderState, deleteState bool) error {
 	var sb strings.Builder
 	bot := ctx.Bot()
 
@@ -757,8 +794,14 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 	}
 	caption := sb.String()
 
-	// Safeguard: se houver Markdown não convertido e não contiver tags HTML básicas
-	if channelpost.IsMarkdown(caption) && !strings.Contains(caption, "<a href=") && !strings.Contains(caption, "<b>") && !strings.Contains(caption, "<tg-emoji") {
+	// Safeguard: converte links Markdown crus preservando HTML ja existente, como <tg-emoji>.
+	if utils.HasMarkdownLink(caption) {
+		if strings.Contains(caption, "<") {
+			caption = utils.NormalizeMarkdownLinks(caption, "postbuilder.final")
+		} else {
+			caption = channelpost.DetectParseMode(caption)
+		}
+	} else if channelpost.IsMarkdown(caption) && !strings.Contains(caption, "<a href=") && !strings.Contains(caption, "<b>") && !strings.Contains(caption, "<tg-emoji") {
 		caption = channelpost.DetectParseMode(caption)
 	}
 
@@ -882,6 +925,7 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 	if deleteState {
 		c.CacheService.DeletePostBuilderState(context.Background(), userID)
 	}
+	return err
 }
 
 func ChosenInlineResultHandlerTelego(c *container.AppContainer) telegohandler.ChosenInlineResultHandler {
@@ -946,8 +990,14 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 		}
 		caption := sb.String()
 
-		// Safeguard: se houver Markdown não convertido e não contiver tags HTML básicas (links/bold)
-		if channelpost.IsMarkdown(caption) && !strings.Contains(caption, "<a href=") && !strings.Contains(caption, "<b>") && !strings.Contains(caption, "<tg-emoji") {
+		// Safeguard: converte links Markdown crus preservando HTML ja existente, como <tg-emoji>.
+		if utils.HasMarkdownLink(caption) {
+			if strings.Contains(caption, "<") {
+				caption = utils.NormalizeMarkdownLinks(caption, "postbuilder.inline")
+			} else {
+				caption = channelpost.DetectParseMode(caption)
+			}
+		} else if channelpost.IsMarkdown(caption) && !strings.Contains(caption, "<a href=") && !strings.Contains(caption, "<b>") && !strings.Contains(caption, "<tg-emoji") {
 			caption = channelpost.DetectParseMode(caption)
 		}
 

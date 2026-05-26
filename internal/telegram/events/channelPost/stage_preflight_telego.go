@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
@@ -22,12 +23,14 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		botInfo, _ := pCtx.Bot.GetMe(context.Background())
 		if post.ViaBot != nil && post.ViaBot.ID == botInfo.ID {
 			logger.Bot("⏭️ Ignoring inline message.")
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "via_bot"}, nil)
 			pCtx.StopPipeline = true
 			return nil
 		}
 
 		maintenance, _ := c.ServerService.GetMaintenance(context.Background())
 		if maintenance {
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "maintenance"}, nil)
 			pCtx.StopPipeline = true
 			return nil
 		}
@@ -36,6 +39,7 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		channel, err := c.ChannelService.GetChannelWithRelations(context.Background(), post.Chat.ID)
 		if err != nil {
 			logger.Error("PIPELINE", "❌ Canal %d não encontrado no banco: %v", post.Chat.ID, err)
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "channel_not_found"}, err)
 			pCtx.StopPipeline = true
 			return nil
 		}
@@ -45,6 +49,7 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		// 3. Blacklist Check
 		if channel.Owner != nil && channel.Owner.IsBlacklisted {
 			logger.Bot("🚫 Canal %d ignorado: Proprietário está na Blacklist", channel.ID)
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "owner_blacklisted", "owner_id": channel.OwnerID}, nil)
 			pCtx.StopPipeline = true
 			return nil
 		}
@@ -56,6 +61,7 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		pCtx.MessageType = GetMessageTypeTelego(post)
 		if pCtx.MessageType == "" {
 			logger.Bot("⏭️ Tipo de mensagem não suportado ignorado")
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "unsupported_message_type"}, nil)
 			pCtx.StopPipeline = true
 			return nil
 		}
@@ -66,6 +72,7 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		pCtx.Permissions = pm.CheckPermissions(channel, pCtx.MessageType)
 		if !pCtx.Permissions.CanEdit && !pCtx.Permissions.CanAddButtons {
 			logger.Error("PIPELINE", "❌ Sem permissões de Edição ou Botões para o canal %d (Tipo: %s)", channel.ID, pCtx.MessageType)
+			recordChannelPostEvent(c, pCtx, "permission_missing", services.ChannelEventStatusSkipped, map[string]any{"can_edit": false, "can_add_buttons": false}, nil)
 			pCtx.StopPipeline = true
 			return nil
 		}
@@ -80,7 +87,9 @@ func syncMetadataTelego(pCtx *ProcessingContextTelego, c *container.AppContainer
 	channel := pCtx.Channel
 
 	titleChanged := post.Chat.Title != "" && utils.RemoveHTMLTags(post.Chat.Title) != channel.Title
-	usernameChanged := post.Chat.Username != "" && ("@" + post.Chat.Username) != channel.InviteURL && !strings.HasPrefix(channel.InviteURL, "https://t.me/+")
+	usernameURL := utils.NormalizeTelegramURL("@" + post.Chat.Username)
+	channelURL := utils.NormalizeTelegramURL(channel.InviteURL)
+	usernameChanged := post.Chat.Username != "" && usernameURL != channelURL && !strings.HasPrefix(channelURL, "https://t.me/+")
 
 	shouldUpdateNow := titleChanged || usernameChanged
 
@@ -103,6 +112,9 @@ func syncMetadataTelego(pCtx *ProcessingContextTelego, c *container.AppContainer
 		if hasChanges {
 			if err := c.ChannelService.UpdateChannelBasicInfoAndFirstButton(updateCtx, updatedChannel); err != nil {
 				logger.Error("PIPELINE", "❌ Error saving metadata for %d: %v", post.Chat.ID, err)
+				recordChannelPostEvent(c, pCtx, "metadata_updated", services.ChannelEventStatusError, map[string]any{"title_changed": titleChanged, "username_changed": usernameChanged}, err)
+			} else {
+				recordChannelPostEvent(c, pCtx, "metadata_updated", services.ChannelEventStatusInfo, map[string]any{"title_changed": titleChanged, "username_changed": usernameChanged}, nil)
 			}
 		}
 	}()

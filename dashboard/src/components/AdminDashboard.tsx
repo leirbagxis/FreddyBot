@@ -1,15 +1,17 @@
 import { useState, useMemo, useTransition, useEffect, Dispatch, SetStateAction } from 'react';
-import { AdminDashboardData, User, Channel } from '../types';
+import { AdminDashboardData, User, Channel, AuditResult } from '../types';
 import { AdminNoticeTab } from './AdminNoticeTab';
 import { AdminConfigTab } from './AdminConfigTab';
 import { AdminAuditTab } from './AdminAuditTab';
-import { NoticeButton, updateUserAdmin, updateUserBlacklist } from '../api';
+import { AdminLogsTab } from './AdminLogsTab';
+import { NoticeButton, NoticeTarget, updateUserAdmin, updateUserBlacklist } from '../api';
 import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, Settings, ShieldAlert, ShieldCheck, UserX, UserCheck, Zap, MessageSquare } from 'lucide-react';
 import { useToast } from './Toast';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
-  activeTab: 'users' | 'channels' | 'notice' | 'config' | 'audit';
+  activeTab: 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs';
+  initialLogsChannelId?: string;
   navigateToChannel: (id: number) => void;
   selectedUserId: number | null;
   onSelectUser: (id: number | null) => void;
@@ -20,8 +22,8 @@ interface AdminDashboardProps {
   setNoticeMessage: Dispatch<SetStateAction<string>>;
   noticeImageUrl: string;
   setNoticeImageUrl: Dispatch<SetStateAction<string>>;
-  noticeTarget: 'channels' | 'users' | 'all' | 'single';
-  setNoticeTarget: Dispatch<SetStateAction<'channels' | 'users' | 'all' | 'single'>>;
+  noticeTarget: NoticeTarget;
+  setNoticeTarget: Dispatch<SetStateAction<NoticeTarget>>;
   noticeTargetId: string;
   setNoticeTargetId: Dispatch<SetStateAction<string>>;
   noticeButtons: NoticeButton[];
@@ -30,6 +32,10 @@ interface AdminDashboardProps {
   removeNoticeButton: (index: number) => void;
   handleSendNotice: () => void;
   isSendingNotice: boolean;
+  auditResults: AuditResult[] | null;
+  setAuditResults: Dispatch<SetStateAction<AuditResult[] | null>>;
+  auditLoading: boolean;
+  handleRunAudit: () => void;
 }
 
 export function AdminDashboard({
@@ -47,7 +53,9 @@ export function AdminDashboard({
   noticeButtons, handleAddNoticeButton,
   updateNoticeButton, removeNoticeButton,
   handleSendNotice,
-  isSendingNotice
+  isSendingNotice,
+  auditResults, setAuditResults, auditLoading, handleRunAudit,
+  initialLogsChannelId
 }: AdminDashboardProps) {
   const [adminSearch, setAdminSearch] = useState('');
   const [adminChannelCountFilter, setAdminChannelCountFilter] = useState('');
@@ -390,10 +398,22 @@ export function AdminDashboard({
       {localActiveTab === 'channels' && renderChannelsTab()}
       {localActiveTab === 'audit' && (
         <div className="tab-content-wrapper">
-          <AdminAuditTab navigateToChannel={navigateToChannel} onOpenUser={onOpenUserDetail} />
+          <AdminAuditTab
+            navigateToChannel={navigateToChannel}
+            onOpenUser={onOpenUserDetail}
+            results={auditResults}
+            setResults={setAuditResults}
+            loading={auditLoading}
+            onRunAudit={handleRunAudit}
+          />
         </div>
       )}
       {localActiveTab === 'notice' && renderNoticeTab()}
+      {localActiveTab === 'logs' && (
+        <div className="tab-content-wrapper">
+          <AdminLogsTab navigateToChannel={navigateToChannel} initialChannelId={initialLogsChannelId} />
+        </div>
+      )}
       {localActiveTab === 'config' && (
         <div className="tab-content-wrapper">
           <AdminConfigTab />

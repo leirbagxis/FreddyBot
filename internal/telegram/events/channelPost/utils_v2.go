@@ -1,14 +1,13 @@
 package channelpost
 
 import (
-	"fmt"
 	"html"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/leirbagxis/FreddyBot/internal/utils"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/mymmrac/telego"
 )
 
@@ -112,26 +111,7 @@ func DetectParseMode(text string) string {
 	// Escapar caracteres HTML ANTES de aplicar as regexes de Markdown
 	// Isso garante que '&' vire '&amp;', mas as tags que inserirmos depois (<b>, <i>) fiquem intactas.
 	res := html.EscapeString(text)
-
-	// Link: [text](url) -> <a href="url">text</a>
-	// Regex flexível: permite capturar links sem http:// e com qualquer caractere no texto
-	linkRegex := regexp.MustCompile(`\[(.*?)\]\((.*?)\)`)
-	res = linkRegex.ReplaceAllStringFunc(res, func(m string) string {
-		matches := linkRegex.FindStringSubmatch(m)
-		if len(matches) == 3 {
-			text := matches[1]
-			url := strings.TrimSpace(matches[2])
-			if url == "" {
-				return m
-			}
-			// Adicionar prefixo se não houver
-			if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") && !strings.HasPrefix(url, "tg://") {
-				url = "https://" + url
-			}
-			return fmt.Sprintf(`<a href="%s">%s</a>`, url, text)
-		}
-		return m
-	})
+	res, protectedLinks := utils.ProtectMarkdownLinks(res, "channelpost.DetectParseMode")
 
 	// Bold: *text* -> <b>text</b>
 	boldRegex := regexp.MustCompile(`\*([^\*\n]+)\*`)
@@ -145,6 +125,8 @@ func DetectParseMode(text string) string {
 	codeRegex := regexp.MustCompile("`([^`\\n]+)`")
 	res = codeRegex.ReplaceAllString(res, "<code>$1</code>")
 
+	res = utils.RestoreProtectedMarkdownLinks(res, protectedLinks)
+
 	return res
 }
 func int64ToStr(v int64) string {
@@ -154,49 +136,47 @@ func int64ToStr(v int64) string {
 func ExtractDynamicLinks(text string) ([]dbmodels.Button, string) {
 	var buttons []dbmodels.Button
 	cleanText := text
+	linkPattern := `(?:https?://[^\s<>")]+|tg://[^\s<>")]+|@[^\s<>")]+|(?:t\.me|telegram\.me)/[^\s<>")]+)`
+
+	appendButton := func(name, rawURL, rawMatch string) {
+		name = strings.TrimSpace(utils.RemoveHTMLTags(name))
+		buttonURL := utils.NormalizeTelegramURL(rawURL)
+		if name == "" || !utils.IsValidButtonURL(buttonURL) {
+			return
+		}
+
+		buttons = append(buttons, dbmodels.Button{
+			NameButton: name,
+			ButtonURL:  buttonURL,
+			PositionY:  len(buttons),
+		})
+		cleanText = strings.Replace(cleanText, rawMatch, "", 1)
+	}
 
 	// 1. Bang style: !Name \n !URL (at the start of a line)
-	bangRegex := regexp.MustCompile(`(?m)^!\s*(.+)\s*\n\s*!\s*(https?://[^\s<>"]+)`)
+	bangRegex := regexp.MustCompile(`(?m)^!\s*(.+)\s*\n\s*!\s*(` + linkPattern + `)`)
 	matchesBang := bangRegex.FindAllStringSubmatch(cleanText, -1)
 	for _, match := range matchesBang {
 		if len(match) == 3 {
-			name := strings.TrimSpace(utils.RemoveHTMLTags(match[1]))
-			buttons = append(buttons, dbmodels.Button{
-				NameButton: name,
-				ButtonURL:  strings.TrimSpace(match[2]),
-				PositionY:  len(buttons),
-			})
-			cleanText = strings.Replace(cleanText, match[0], "", 1)
+			appendButton(match[1], match[2], match[0])
 		}
 	}
 
 	// 2. Markdown style: [Name](URL)
-	linkRegex := regexp.MustCompile(`\[(.*?)\]\((https?://[^\s)]+)\)`)
+	linkRegex := regexp.MustCompile(`\[(.*?)\]\((` + linkPattern + `)\)`)
 	matchesLink := linkRegex.FindAllStringSubmatch(cleanText, -1)
 	for _, match := range matchesLink {
 		if len(match) == 3 {
-			name := strings.TrimSpace(utils.RemoveHTMLTags(match[1]))
-			buttons = append(buttons, dbmodels.Button{
-				NameButton: name,
-				ButtonURL:  strings.TrimSpace(match[2]),
-				PositionY:  len(buttons),
-			})
-			cleanText = strings.Replace(cleanText, match[0], "", 1)
+			appendButton(match[1], match[2], match[0])
 		}
 	}
 
 	// 3. HTML style: <a href="URL">Name</a> (often from processed entities)
-	htmlRegex := regexp.MustCompile(`<a\s+href="(https?://[^\s"]+)">([^<]+)</a>`)
+	htmlRegex := regexp.MustCompile(`<a\s+href="(` + linkPattern + `)">([^<]+)</a>`)
 	matchesHTML := htmlRegex.FindAllStringSubmatch(cleanText, -1)
 	for _, match := range matchesHTML {
 		if len(match) == 3 {
-			name := strings.TrimSpace(utils.RemoveHTMLTags(match[2]))
-			buttons = append(buttons, dbmodels.Button{
-				NameButton: name,
-				ButtonURL:  strings.TrimSpace(match[1]),
-				PositionY:  len(buttons),
-			})
-			cleanText = strings.Replace(cleanText, match[0], "", 1)
+			appendButton(match[2], match[1], match[0])
 		}
 	}
 

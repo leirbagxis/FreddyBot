@@ -4,10 +4,10 @@ import (
 	"context"
 	"strings"
 
-	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 func UpdateChannelBasicInfoTelego(ctx context.Context, b *telego.Bot, chatID int64, channel *dbmodels.Channel, chatObj interface{}) (*dbmodels.Channel, bool) {
@@ -54,9 +54,9 @@ func UpdateChannelBasicInfoTelego(ctx context.Context, b *telego.Bot, chatID int
 	// Lógica de URL: Username Público (@) sempre tem prioridade sobre link privado (t.me/+)
 	var newInviteURL string
 	if username != "" {
-		newInviteURL = "@" + username
+		newInviteURL = utils.NormalizeTelegramURL("@" + username)
 	} else if inviteLink != "" {
-		newInviteURL = inviteLink
+		newInviteURL = utils.NormalizeTelegramURL(inviteLink)
 	}
 
 	oldInviteURL := channel.InviteURL
@@ -79,6 +79,8 @@ func UpdateChannelBasicInfoTelego(ctx context.Context, b *telego.Bot, chatID int
 // syncChannelButtons verifica se o canal possui botões que apontam para o link antigo do canal
 // e o atualiza para o novo nome/url, respeitando a escolha do usuário de ter ou não esse botão.
 func syncChannelButtons(ctx context.Context, channel *dbmodels.Channel, title, newURL, oldURL string) bool {
+	newURL = utils.NormalizeTelegramURL(newURL)
+	oldURL = utils.NormalizeTelegramURL(oldURL)
 	if newURL == "" {
 		return false
 	}
@@ -88,7 +90,9 @@ func syncChannelButtons(ctx context.Context, channel *dbmodels.Channel, title, n
 		btn := &channel.Buttons[i]
 
 		// Caso 1: O botão é exatamente o link antigo
-		if btn.ButtonURL == oldURL {
+		btnURL := utils.NormalizeTelegramURL(btn.ButtonURL)
+
+		if btnURL == oldURL {
 			logger.Bot("🔄 Sincronizando botão '%s': '%s' -> '%s'", btn.NameButton, btn.ButtonURL, newURL)
 			btn.NameButton = utils.RemoveHTMLTags(title)
 			btn.ButtonURL = newURL
@@ -98,11 +102,8 @@ func syncChannelButtons(ctx context.Context, channel *dbmodels.Channel, title, n
 			// mas o novo link é um @username
 			cleanOldURL := strings.TrimPrefix(oldURL, "https://t.me/+")
 			cleanNewURL := newURL
-			if strings.HasPrefix(newURL, "@") {
-				cleanNewURL = "https://t.me/" + strings.TrimPrefix(newURL, "@")
-			}
 
-			if strings.Contains(btn.ButtonURL, cleanOldURL) && !strings.Contains(btn.ButtonURL, cleanNewURL) {
+			if strings.Contains(btnURL, cleanOldURL) && !strings.Contains(btnURL, cleanNewURL) {
 				logger.Bot("🔄 Sincronizando botão '%s': '%s' -> '%s'", btn.NameButton, btn.ButtonURL, cleanNewURL)
 				btn.NameButton = utils.RemoveHTMLTags(title)
 				btn.ButtonURL = cleanNewURL
