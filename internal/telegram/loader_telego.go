@@ -14,6 +14,7 @@ import (
 	callbackStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/start"
 	callbackVote "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/vote"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/admin"
+	commandConnect "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/connect"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/help"
 	commandStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/start"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/suporte"
@@ -47,6 +48,7 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 
 	// Commands
 	bh.Handle(commandStart.HandlerTelego(c), telegohandler.CommandEqual("start"))
+	bh.Handle(commandConnect.HandlerTelego(c), telegohandler.CommandEqual("connect"))
 	bh.Handle(help.HandlerTelego(c), telegohandler.CommandEqual("help"))
 	bh.Handle(suporte.HandlerTelego(c), telegohandler.CommandEqual("ouvidoria"))
 	bh.Handle(tutorial.HandlerTelego(c), telegohandler.CommandEqual("tutorial"))
@@ -107,6 +109,9 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 
 	// Help Callback
 	bh.Handle(help.CallbackHandlerTelego(c), telegohandler.CallbackDataEqual("help"))
+
+	// Telegram Connect Callbacks
+	bh.Handle(commandConnect.DisconnectCallbackHandlerTelego(c), telegohandler.CallbackDataEqual("tgconnect:disconnect"))
 
 	// Add Channel Callbacks
 	bh.Handle(addchannel.AddYesHandlerTelego(c), telegohandler.CallbackDataPrefix("add-yes:"))

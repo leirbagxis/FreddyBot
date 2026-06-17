@@ -46,6 +46,8 @@ type Channel struct {
 	Reactions              string          `json:"reactions"`
 	ReactionPosition       int             `gorm:"default:0" json:"reactionPosition"`
 	DynamicLinks           bool            `gorm:"default:false" json:"dynamicLinks"`
+	AccessHash             int64           `gorm:"default:0" json:"accessHash"`
+	Username               string          `json:"username"`
 	DLBotButtons           bool            `gorm:"default:true" json:"dlBotButtons"`
 	DLBotCaptions          bool            `gorm:"default:true" json:"dlBotCaptions"`
 	DLBotReactions         bool            `gorm:"default:true" json:"dlBotReactions"`
@@ -150,6 +152,15 @@ type CustomCaptionButton struct {
 	OwnerCaptionID string    `gorm:"index" json:"ownerCaptionId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+type UserTelegramSession struct {
+	UserID            int64     `gorm:"primaryKey" json:"userId"`
+	EncryptedSession  string    `gorm:"type:text;not null" json:"-"`
+	EncryptedPhoneHash string   `gorm:"type:text" json:"-"`
+	IsActive          bool      `gorm:"default:false" json:"isActive"`
+	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type Vote struct {

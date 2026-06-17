@@ -29,6 +29,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	mediaController := admincontroller.NewMediaController(c)
 	auditController := admincontroller.NewAuditController(c)
 	channelEventsController := admincontroller.NewChannelEventsController(c)
+	connectController := controllers.NewConnectController(c)
 
 	// --- Rota de Login Unificada ---
 	api.POST("/login", authController.Login)
@@ -37,6 +38,14 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	api.Use(auth.AuthMiddlewareJWT(c))
 	{
 		api.GET("/ping", handlers.PingHandler(c))
+
+		// Conexão de conta Telegram (MTProto)
+		api.POST("/connect/start", connectController.Start)
+		api.POST("/connect/verify", connectController.Verify)
+		api.POST("/connect/2fa", connectController.Submit2FA)
+		api.GET("/connect/status", connectController.Status)
+		api.POST("/connect/disconnect", connectController.Disconnect)
+
 		api.GET("/me/channels", userController.GetUserChannelsController)
 		api.GET("/user/info/:userParams", userController.GetUserInfo)
 		api.POST("/channel/transfer", userController.TransferChannelController)

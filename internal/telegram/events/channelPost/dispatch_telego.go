@@ -114,10 +114,15 @@ func ProcessMediaGroupDispatchTelego(pCtx *ProcessingContextTelego) error {
 		}
 	}
 
+	// Add invisible character to force text difference for MTProto edit fallback
+	botCaption := pCtx.FormattedText
+	if strings.Contains(botCaption, "<tg-emoji") {
+		botCaption += "\u200B"
+	}
 	params := &telego.EditMessageCaptionParams{
 		ChatID:    telego.ChatID{ID: pCtx.Channel.ID},
 		MessageID: targetMessage.MessageID,
-		Caption:   pCtx.FormattedText,
+		Caption:   botCaption,
 		ParseMode: telego.ModeHTML,
 	}
 	if pCtx.FinalKeyboard != nil {

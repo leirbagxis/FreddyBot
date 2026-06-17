@@ -72,6 +72,7 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, tb *telego.Bot) error {
 	router.GET("/dashboard/:channelID/admin", dashboardHandler)
 	router.GET("/admin/dash", dashboardHandler)
 	router.GET("/me/channels", dashboardHandler)
+	router.GET("/connect", dashboardHandler)
 
 	// Fallback para qualquer rota de dashboard não mapeada
 	router.NoRoute(func(c *gin.Context) {

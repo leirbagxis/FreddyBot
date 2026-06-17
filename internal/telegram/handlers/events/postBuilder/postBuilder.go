@@ -794,6 +794,8 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 	}
 	caption := sb.String()
 
+	usedMTProto := false
+
 	// Safeguard: converte links Markdown crus preservando HTML ja existente, como <tg-emoji>.
 	if utils.HasMarkdownLink(caption) {
 		if strings.Contains(caption, "<") {
@@ -805,8 +807,25 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 		caption = channelpost.DetectParseMode(caption)
 	}
 
+	// MTProto: text-only posts without reactions sent to a channel (not preview)
+	if state.MediaFileID == "" && state.Reactions == "" && len(state.Buttons) == 0 && chatID != userID {
+		msgID, err := c.TelegramPosterService.SendText(context.Background(), userID, chatID, caption)
+		if err == nil {
+			logger.Info("MTPOST", "PostBuilder sent via MTProto as user %d to channel %d (msgID=%d)", userID, chatID, msgID)
+			usedMTProto = true
+			if deleteState {
+				c.CacheService.DeletePostBuilderState(context.Background(), userID)
+			}
+			return nil
+		}
+		logger.Info("MTPOST", "PostBuilder MTProto fallback to bot for channel %d: %v", chatID, err)
+	}
+
 	var kb telego.ReplyMarkup
 	if len(state.Buttons) > 0 || state.Reactions != "" {
+		if !usedMTProto {
+			logger.Info("BOT", "PostBuilder sending via bot (media/reactions/buttons present) to channel %d", chatID)
+		}
 		ikb := &telego.InlineKeyboardMarkup{}
 		for _, btn := range state.Buttons {
 			ikb.InlineKeyboard = append(ikb.InlineKeyboard, []telego.InlineKeyboardButton{
@@ -825,7 +844,7 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 					}
 					if strings.HasPrefix(val, "eid:") {
 						btn.IconCustomEmojiID = strings.TrimPrefix(val, "eid:")
-						btn.Text = " " // Texto mínimo para botões com ícone
+						btn.Text = " "
 					} else {
 						btn.Text = val
 					}
@@ -839,64 +858,74 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 		kb = ikb
 	}
 
-	paramsPhoto := &telego.SendPhotoParams{
-		ChatID:    telego.ChatID{ID: chatID},
-		Photo:     telego.InputFile{FileID: state.MediaFileID},
-		Caption:   caption,
-		ParseMode: telego.ModeHTML,
-	}
-	if kb != nil {
-		paramsPhoto.ReplyMarkup = kb
+	if !usedMTProto && caption != "" && chatID != userID {
+		logger.Info("BOT", "PostBuilder sending via bot to channel %d (media=%q, reactions=%q, buttons=%d)", chatID, state.MediaFileID, state.Reactions, len(state.Buttons))
 	}
 
+	// Add invisible char to force text diff for MTProto edit fallback
+	botCaption := caption
+	if strings.Contains(caption, "<tg-emoji") && chatID != userID {
+		botCaption = caption + "\u200B"
+	}
+
+	var sentMsg *telego.Message
 	var err error
 	switch state.MediaType {
 	case "photo":
-		_, err = bot.SendPhoto(context.Background(), paramsPhoto)
+		params := &telego.SendPhotoParams{
+			ChatID:    telego.ChatID{ID: chatID},
+			Photo:     telego.InputFile{FileID: state.MediaFileID},
+			Caption:   botCaption,
+			ParseMode: telego.ModeHTML,
+		}
+		if kb != nil {
+			params.ReplyMarkup = kb
+		}
+		sentMsg, err = bot.SendPhoto(context.Background(), params)
 	case "video":
 		params := &telego.SendVideoParams{
 			ChatID:    telego.ChatID{ID: chatID},
 			Video:     telego.InputFile{FileID: state.MediaFileID},
-			Caption:   caption,
+			Caption:   botCaption,
 			ParseMode: telego.ModeHTML,
 		}
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err = bot.SendVideo(context.Background(), params)
+		sentMsg, err = bot.SendVideo(context.Background(), params)
 	case "animation":
 		params := &telego.SendAnimationParams{
 			ChatID:    telego.ChatID{ID: chatID},
 			Animation: telego.InputFile{FileID: state.MediaFileID},
-			Caption:   caption,
+			Caption:   botCaption,
 			ParseMode: telego.ModeHTML,
 		}
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err = bot.SendAnimation(context.Background(), params)
+		sentMsg, err = bot.SendAnimation(context.Background(), params)
 	case "audio":
 		params := &telego.SendAudioParams{
 			ChatID:    telego.ChatID{ID: chatID},
 			Audio:     telego.InputFile{FileID: state.MediaFileID},
-			Caption:   caption,
+			Caption:   botCaption,
 			ParseMode: telego.ModeHTML,
 		}
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err = bot.SendAudio(context.Background(), params)
+		sentMsg, err = bot.SendAudio(context.Background(), params)
 	case "document":
 		params := &telego.SendDocumentParams{
 			ChatID:    telego.ChatID{ID: chatID},
 			Document:  telego.InputFile{FileID: state.MediaFileID},
-			Caption:   caption,
+			Caption:   botCaption,
 			ParseMode: telego.ModeHTML,
 		}
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err = bot.SendDocument(context.Background(), params)
+		sentMsg, err = bot.SendDocument(context.Background(), params)
 	case "sticker":
 		params := &telego.SendStickerParams{
 			ChatID:  telego.ChatID{ID: chatID},
@@ -905,27 +934,47 @@ func sendFinalPostTelego(ctx *telegohandler.Context, chatID, userID int64, c *co
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err = bot.SendSticker(context.Background(), params)
+		sentMsg, err = bot.SendSticker(context.Background(), params)
 	default:
 		params := &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: chatID},
-			Text:      caption,
+			Text:      botCaption,
 			ParseMode: telego.ModeHTML,
 		}
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err = bot.SendMessage(context.Background(), params)
+		sentMsg, err = bot.SendMessage(context.Background(), params)
 	}
 
 	if err != nil {
 		logger.Error("BOT", "PostBuilder: Error sending final post: %v", err)
+		if deleteState {
+			c.CacheService.DeletePostBuilderState(context.Background(), userID)
+		}
+		return err
+	}
+
+	// Hybrid: MTProto edit updates only entities (no text change) for custom emoji support
+	// Runs in background goroutine so success message is sent immediately.
+	if !usedMTProto && chatID != userID && sentMsg != nil && caption != "" && strings.Contains(caption, "<tg-emoji") {
+		mtprotoID := int32(sentMsg.MessageID)
+		go func(msgID int32) {
+			editCtx, editCancel := context.WithTimeout(context.Background(), 60*time.Second)
+			defer editCancel()
+			err := c.TelegramPosterService.EditText(editCtx, userID, chatID, msgID, caption)
+			if err == nil {
+				logger.Info("MTPOST", "PostBuilder MTProto edited entities for msg %d in channel %d as user %d", msgID, chatID, userID)
+			} else {
+				logger.Info("MTPOST", "PostBuilder MTProto entity edit skipped for msg %d: %v", msgID, err)
+			}
+		}(mtprotoID)
 	}
 
 	if deleteState {
 		c.CacheService.DeletePostBuilderState(context.Background(), userID)
 	}
-	return err
+	return nil
 }
 
 func ChosenInlineResultHandlerTelego(c *container.AppContainer) telegohandler.ChosenInlineResultHandler {

@@ -9,17 +9,83 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 func StageSendTelego(c *container.AppContainer) StageTelego {
 	return func(pCtx *ProcessingContextTelego) error {
-		logger.Bot("📤 Iniciando envio final Telego (Tipo: %s, Album: %v)", pCtx.MessageType, pCtx.IsMediaGroup)
+		logger.Bot("📤 Iniciando envio final (Tipo: %s, Album: %v)", pCtx.MessageType, pCtx.IsMediaGroup)
+
+		ownerID := pCtx.Channel.OwnerID
+
+		// Find the target message ID (handles both single posts and media groups)
+		targetMsgID := int32(0)
+		if pCtx.IsMediaGroup {
+			for _, m := range pCtx.GroupMessages {
+				if m.HasCaption || targetMsgID == 0 {
+					targetMsgID = int32(m.MessageID)
+				}
+				if m.HasCaption {
+					break
+				}
+			}
+		} else if pCtx.Update.ChannelPost != nil {
+			targetMsgID = int32(pCtx.Update.ChannelPost.MessageID)
+		}
+
+		// MTProto tenta editar TUDO (texto + entidades + botões).
+		// Se conseguir texto mas não botões (sempre em canais), o BOT aplica só os botões.
+		mtprotoOK := false
+		if ownerID != 0 && pCtx.FormattedText != "" && targetMsgID > 0 &&
+			strings.Contains(pCtx.FormattedText, "<tg-emoji") {
+			logger.Bot("🔄 MTProto: editando msg %d (texto + entidades + tentativa botões)...", targetMsgID)
+			mtprotoCtx, mtprotoCancel := context.WithTimeout(context.Background(), 30*time.Second)
+			err := c.TelegramPosterService.EditMessage(
+				mtprotoCtx,
+				ownerID,
+				pCtx.Channel.ID,
+				targetMsgID,
+				pCtx.FormattedText,
+				nil, // keyboard via MTProto não funciona em canais; bot faz fallback
+			)
+			mtprotoCancel()
+			if err == nil {
+				logger.Info("MTPOST", "Texto editado via MTProto como user %d no canal %d (msgID=%d)", ownerID, pCtx.Channel.ID, targetMsgID)
+				mtprotoOK = true
+			} else {
+				logger.Info("MTPOST", "MTProto: fallback total para bot: %v", err)
+			}
+		}
+
+		if mtprotoOK {
+			// MTProto tentou botões (silenciosamente ignorado em canais).
+			// Fallback: BOT aplica apenas os botões na mensagem já editada pelo MTProto.
+			if pCtx.FinalKeyboard != nil && pCtx.Permissions.CanEdit {
+				logger.Bot("⌨️ Bot: aplicando apenas botões na msg %d (fallback MTProto)...", targetMsgID)
+				_, kbErr := pCtx.Bot.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
+					ChatID:      telego.ChatID{ID: pCtx.Channel.ID},
+					MessageID:   int(targetMsgID),
+					ReplyMarkup: pCtx.FinalKeyboard,
+				})
+				if kbErr != nil {
+					logger.Warn("MTPOST", "Bot keyboard update failed: %v", kbErr)
+				}
+			} else if pCtx.FinalKeyboard == nil && pCtx.Permissions.CanEdit {
+				_, _ = pCtx.Bot.EditMessageReplyMarkup(context.Background(), &telego.EditMessageReplyMarkupParams{
+					ChatID:    telego.ChatID{ID: pCtx.Channel.ID},
+					MessageID: int(targetMsgID),
+				})
+			}
+			HandleSeparatorAfterDispatchTelego(pCtx)
+			recordChannelPostEvent(c, pCtx, "post_processed", services.ChannelEventStatusSuccess, map[string]any{"album": pCtx.IsMediaGroup, "method": "mtproto", "buttons": len(pCtx.FinalButtons), "has_caption": pCtx.FormattedText != ""}, nil)
+			logger.Bot("✅ Postagem MTProto concluída no canal %d", pCtx.Channel.ID)
+			return nil
+		}
 
 		err := processWithRetryTelego(pCtx.Ctx, func() error {
 			if pCtx.IsMediaGroup {
 				return ProcessMediaGroupDispatchTelego(pCtx)
 			}
-
 			switch pCtx.MessageType {
 			case MessageTypeText:
 				return ProcessTextDispatchTelego(pCtx)
@@ -32,13 +98,13 @@ func StageSendTelego(c *container.AppContainer) StageTelego {
 		})
 
 		if err != nil {
-			logger.Error("BOT", "❌ Falha final no envio Telego: %v", err)
-			recordChannelPostEvent(c, pCtx, "post_failed", services.ChannelEventStatusError, map[string]any{"album": pCtx.IsMediaGroup}, err)
+			logger.Error("BOT", "❌ Falha final no envio via bot: %v", err)
+			recordChannelPostEvent(c, pCtx, "post_failed", services.ChannelEventStatusError, map[string]any{"album": pCtx.IsMediaGroup, "method": "bot"}, err)
 			return err
 		}
 
-		recordChannelPostEvent(c, pCtx, "post_processed", services.ChannelEventStatusSuccess, map[string]any{"album": pCtx.IsMediaGroup, "buttons": len(pCtx.FinalButtons), "has_caption": pCtx.FormattedText != ""}, nil)
-		logger.Bot("✅ Postagem Telego concluída com sucesso no canal %d", pCtx.Channel.ID)
+		recordChannelPostEvent(c, pCtx, "post_processed", services.ChannelEventStatusSuccess, map[string]any{"album": pCtx.IsMediaGroup, "method": "bot", "buttons": len(pCtx.FinalButtons), "has_caption": pCtx.FormattedText != ""}, nil)
+		logger.Bot("✅ Postagem via bot concluída no canal %d", pCtx.Channel.ID)
 		return nil
 	}
 }

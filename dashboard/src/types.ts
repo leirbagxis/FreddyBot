@@ -146,6 +146,22 @@ export interface ChannelsResponse {
   success: boolean;
 }
 
+/* ===== Telegram Connect ===== */
+export interface ConnectStatus {
+  connected: boolean;
+  phoneHash?: string;
+  userId: number;
+}
+
+export interface ConnectStartResponse {
+  message: string;
+}
+
+export interface ConnectVerifyResponse {
+  connected?: boolean;
+  needs2FA?: boolean;
+}
+
 /* ===== Telegram WebApp ===== */
 export interface TelegramUser {
   id: number;

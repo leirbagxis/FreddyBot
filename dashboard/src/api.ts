@@ -1,4 +1,4 @@
-import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse } from './types';
+import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, ConnectStatus } from './types';
 
 export interface AuthRequestBody {
     channelID: number;
@@ -281,6 +281,40 @@ export const bulkDeleteChannels = async (userId: number, channelIds: number[]) =
     });
 };
 
+
+export const connectStart = async (phone: string) => {
+  return apiFetch('/api/connect/start', {
+    method: 'POST',
+    body: JSON.stringify({ phone }),
+  });
+};
+
+export const connectVerify = async (code: string) => {
+  return apiFetch('/api/connect/verify', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+};
+
+export const connect2FA = async (password: string) => {
+  return apiFetch('/api/connect/2fa', {
+    method: 'POST',
+    body: JSON.stringify({ password }),
+  });
+};
+
+export const connectStatus = async (): Promise<ConnectStatus> => {
+  const response = await apiFetch('/api/connect/status', {
+    method: 'GET',
+  });
+  return response?.data || { connected: false, userId: 0 };
+};
+
+export const connectDisconnect = async () => {
+  return apiFetch('/api/connect/disconnect', {
+    method: 'POST',
+  });
+};
 
 export const fetchAdminLogs = async (filters: AdminLogsFilters = {}): Promise<AdminLogsResponse> => {
     const params = new URLSearchParams();

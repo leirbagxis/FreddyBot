@@ -264,3 +264,15 @@ func (r *ChannelRepository) UpdateDynamicLinks(ctx context.Context, channelID in
 		Updates(settings)
 	return result.RowsAffected, result.Error
 }
+
+func (r *ChannelRepository) SetAccessHash(ctx context.Context, channelID, accessHash int64) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("access_hash", accessHash).Error
+}
+
+func (r *ChannelRepository) SetUsername(ctx context.Context, channelID int64, username string) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("username", username).Error
+}

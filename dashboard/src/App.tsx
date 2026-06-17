@@ -6,8 +6,9 @@ import {
   createButton, deleteButton, updateButton, updateLayoutButtons,
   updateDefaultCaption, updateNewPackCaption, updateReactions, 
   updateReactionPosition, updateDynamicLinks, transferChannel, fetchUserInfo,
-  sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot
+  sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot,
 } from './api';
+import TelegramConnect from './components/TelegramConnect';
 import { PermissionsCard } from './components/PermissionsCard';
 import { ButtonGrid } from './components/ButtonGrid';
 import { CaptionCard } from './components/CaptionCard';
@@ -54,6 +55,10 @@ function getChannelIdFromUrl(): string | null {
 
 function isChannelsRoute(): boolean {
   return window.location.pathname.startsWith('/me/channels');
+}
+
+function isConnectRoute(): boolean {
+  return window.location.pathname === '/connect';
 }
 
 function isRootRoute(): boolean {
@@ -113,8 +118,9 @@ const DashboardContent = memo(function DashboardContent() {
   const channelId = getChannelIdFromUrl();
   const isAdmin = isAdminDashRoute();
   const isRoot = isRootRoute();
+  const isConnect = isConnectRoute();
   const isChannels = isChannelsRoute() || isRoot;
-  const isSpecificChannel = !isAdmin && !isChannels && !!channelId;
+  const isSpecificChannel = !isAdmin && !isChannels && !isConnect && !!channelId;
 
   const handleBack = useCallback(() => {
     const source = sessionStorage.getItem('navSource');
@@ -752,6 +758,10 @@ const DashboardContent = memo(function DashboardContent() {
   useEffect(() => {
     // Tab switch effect handled via CSS entrance animations
   }, [activeTab, adminActiveTab, loading]);
+
+  if (isConnect) {
+    return <TelegramConnect />;
+  }
 
   if (authState === 'error') {
     let displayMessage = authError || 'Não foi possível autenticar. Tente novamente pelo Telegram.';

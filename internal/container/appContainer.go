@@ -45,6 +45,10 @@ type AppContainer struct {
 	ServerService        *services.ServerService
 	ChannelEventService  *services.ChannelEventService
 
+	// ## USER CLIENT (MTProto) ## \\
+	TelegramClientService *services.TelegramClientService
+	TelegramPosterService  *services.TelegramPosterService
+
 	// ## CACHE ## \\
 	CacheService   *cache.Service
 	SessionManager *cache.SessionManager
@@ -63,6 +67,8 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	permissionsRepo := repositories.NewPermissionsRepository(db)
 	serverRepo := repositories.NewServerConfigRepository(db)
 	channelEventRepo := repositories.NewChannelEventRepository(db)
+	tgSessionRepo := repositories.NewTelegramSessionRepository(db)
+	tgClientService := services.NewTelegramClientService(tgSessionRepo)
 
 	container := &AppContainer{
 		DB:        db,
@@ -81,6 +87,9 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		VoteService:          services.NewVoteService(voteRepo),
 		ServerService:        services.NewServerService(serverRepo),
 		ChannelEventService:  services.NewChannelEventService(channelEventRepo),
+
+		TelegramClientService: tgClientService,
+		TelegramPosterService: services.NewTelegramPosterService(tgClientService, channelRepo),
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),

@@ -89,6 +89,7 @@ func InitDB() *gorm.DB {
 		&models.CustomCaption{},
 		&models.CustomCaptionButton{},
 		&models.Vote{},
+		&models.UserTelegramSession{},
 	)
 	if err != nil {
 		panic(err)
