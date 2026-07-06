@@ -73,6 +73,8 @@ type ChannelEvent struct {
 type DefaultCaption struct {
 	CaptionID         string             `gorm:"type:text;primaryKey" json:"captionId"`
 	Caption           string             `json:"caption"`
+	Entities          string             `gorm:"type:text" json:"entities"`               // JSON das MessageEntities (MTProto)
+	UseEntities       bool               `gorm:"default:false" json:"useEntities"`        // Usar entities ao invés de DetectParseMode
 	MessagePermission *MessagePermission `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"messagePermission,omitempty"`
 	ButtonsPermission *ButtonsPermission `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"buttonsPermission,omitempty"`
 	OwnerChannelID    int64              `gorm:"unique;index" json:"ownerChannelId"`
@@ -123,8 +125,12 @@ type Button struct {
 
 type Separator struct {
 	ID             string    `gorm:"type:text;primaryKey" json:"id"`
-	SeparatorID    string    `json:"separatorId"`
-	SeparatorURL   string    `json:"separatorUrl"`
+	Type           string    `gorm:"type:text;default:sticker" json:"type"`        // "sticker" ou "custom_emoji"
+	SeparatorID    string    `json:"separatorId"`                                  // FileID do sticker (tipo "sticker")
+	SeparatorURL   string    `json:"separatorUrl"`                                 // URL do sticker (tipo "sticker")
+	EmojiText      string    `json:"emojiText"`                                    // caractere do emoji (tipo "custom_emoji")
+	EmojiID        string    `json:"emojiId"`                                      // ID do primeiro emoji customizado (tipo "custom_emoji")
+	EmojiEntitiesJSON string `json:"emojiEntitiesJson"`                             // JSON completo das entities custom_emoji (para multiplos emojis diferentes)
 	OwnerChannelID int64     `gorm:"unique;index" json:"ownerChannelId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`

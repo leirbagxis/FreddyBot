@@ -51,6 +51,19 @@ func (s *CaptionService) UpdateDefaultCaption(ctx context.Context, channelID int
 	return rowsAffected, nil
 }
 
+func (s *CaptionService) SaveEntitiesCaption(ctx context.Context, channelID int64, text string, entitiesJSON string) error {
+	if len(text) > 4096 {
+		return errors.BadRequest("Caption muito longa (máximo 4096 caracteres)")
+	}
+	_, err := s.channelRepo.UpdateDefaultCaptionEntities(ctx, channelID, text, entitiesJSON)
+	if err != nil {
+		return errors.Internal(err)
+	}
+	s.cache.InvalidateChannel(ctx, channelID)
+	logger.Bot("✅ Legenda com entities salva (Canal: %d, entities: %d bytes)", channelID, len(entitiesJSON))
+	return nil
+}
+
 func (s *CaptionService) UpdateNewPackCaption(ctx context.Context, channelID int64, captionData types.NewPackCaptionUpdateRequest) (int64, error) {
 	caption := captionData.Text()
 	if strings.TrimSpace(caption) == "" {

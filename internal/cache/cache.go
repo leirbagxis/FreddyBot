@@ -223,6 +223,37 @@ func (s *Service) DeleteAwaitingStickerSeparator(ctx context.Context, userID int
 	return client.Del(ctx, key).Err()
 }
 
+// ### AWAITING CAPTION ## \\
+
+func (s *Service) SetAwaitingCaption(ctx context.Context, userID, channelID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("awaiting_caption:%d", userID)
+	return client.Set(ctx, key, channelID, 5*time.Minute).Err()
+}
+
+func (s *Service) GetAwaitingCaption(ctx context.Context, userID int64) (int64, error) {
+	client := GetRedisClient()
+	key := fmt.Sprintf("awaiting_caption:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return 0, fmt.Errorf("session not found or expired")
+		}
+		return 0, fmt.Errorf("failed to get from cache: %w", err)
+	}
+	channelID, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return channelID, nil
+}
+
+func (s *Service) DeleteAwaitingCaption(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("awaiting_caption:%d", userID)
+	return client.Del(ctx, key).Err()
+}
+
 // ### DELETE CHANNEL ## \\
 
 func (s *Service) SetDeleteChannel(ctx context.Context, userID, channelID int64) error {

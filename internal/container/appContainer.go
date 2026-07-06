@@ -9,10 +9,33 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/internal/database"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/executor"
+	mtprotoAuth "github.com/leirbagxis/FreddyBot/internal/telegram/mtproto/auth"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 	"gorm.io/gorm"
 )
+
+// accountSaverAdapter adapta *services.ConnectedAccountService para a interface
+// mtprotoAuth.AccountSaver, ignorando o retorno do modelo no SaveSession.
+type accountSaverAdapter struct {
+	svc *services.ConnectedAccountService
+}
+
+func (a *accountSaverAdapter) SaveSession(ctx context.Context, userID int64, telegramUserID int64, username string, firstName string, sessionData []byte) error {
+	_, err := a.svc.SaveSession(ctx, userID, telegramUserID, username, firstName, sessionData)
+	return err
+}
+
+// providerAdapter adapta *services.ConnectedAccountService para executor.Provider.
+type providerAdapter struct {
+	svc *services.ConnectedAccountService
+}
+
+func (a *providerAdapter) HasConnectedAccount(ctx context.Context, userID int64) bool {
+	return a.svc.HasActiveAccount(ctx, userID)
+}
 
 type BroadcastButton struct {
 	Text  string
@@ -45,6 +68,12 @@ type AppContainer struct {
 	ServerService        *services.ServerService
 	ChannelEventService  *services.ChannelEventService
 
+	// ## MTProto / CONNECTED ACCOUNTS ## \\
+	ConnectedAccountService *services.ConnectedAccountService
+	MTProtoAuthService      *mtprotoAuth.Service
+	BotAPIExecutor          *executor.BotAPIExecutor
+	ExecutorFactory         *executor.ExecutorFactory
+
 	// ## CACHE ## \\
 	CacheService   *cache.Service
 	SessionManager *cache.SessionManager
@@ -64,6 +93,49 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	serverRepo := repositories.NewServerConfigRepository(db)
 	channelEventRepo := repositories.NewChannelEventRepository(db)
 
+	// MTProto Repositories
+	connectedAccountRepo := repositories.NewConnectedAccountRepository(db)
+
+	// Services
+	userService := services.NewUserService(userRepo)
+	channelService := services.NewChannelService(channelRepo, userRepo, separatorRepo, cacheService, telegoClient)
+	buttonService := services.NewButtonService(buttonRepo, channelRepo, customCaptionRepo, cacheService)
+	captionService := services.NewCaptionService(channelRepo, buttonRepo, cacheService)
+	permissionsService := services.NewPermissionsService(permissionsRepo, channelRepo, cacheService)
+	customCaptionService := services.NewCustomCaptionService(customCaptionRepo, channelRepo, cacheService)
+	separatorService := services.NewSeparatorService(separatorRepo)
+	voteService := services.NewVoteService(voteRepo)
+	serverService := services.NewServerService(serverRepo)
+	channelEventService := services.NewChannelEventService(channelEventRepo)
+
+	// MTProto Services
+	connectedAccountService := services.NewConnectedAccountService(connectedAccountRepo)
+
+	// Redis client for auth state
+	redisClient := cache.GetRedisClient()
+
+	// MTProto Auth Service - uses AppID/AppHash from config (placeholder: 0/"" until configured)
+	mtprotoAppID := config.GetMTProtoAppID()
+	mtprotoAppHash := config.GetMTProtoAppHash()
+	saverAdapter := &accountSaverAdapter{svc: connectedAccountService}
+	mtprotoAuthService := mtprotoAuth.NewService(redisClient, mtprotoAppID, mtprotoAppHash, saverAdapter)
+
+	// Executors
+	botAPIExecutor := executor.NewBotAPIExecutor(telegoClient)
+
+	// MTProto Executor (opcional — so cria se AppID estiver configurado)
+	var mtprotoExecutor *executor.MTProtoExecutor
+	if mtprotoAppID > 0 && mtprotoAppHash != "" {
+		mtprotoExecutor = executor.NewMTProtoExecutor(mtprotoAppID, mtprotoAppHash, connectedAccountService, connectedAccountService)
+		logger.Bot("🏗️ MTProtoExecutor criado (AppID: %d)", mtprotoAppID)
+	} else {
+		logger.Bot("⚠️ MTProtoExecutor nao criado: AppID ou AppHash ausentes")
+	}
+
+	// Factory
+	provAdapter := &providerAdapter{svc: connectedAccountService}
+	executorFactory := executor.NewExecutorFactory(botAPIExecutor, mtprotoExecutor, provAdapter)
+
 	container := &AppContainer{
 		DB:        db,
 		TelegoBot: telegoClient,
@@ -71,16 +143,22 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		BroadcastQueue: make(chan BroadcastJob, 10000),
 
 		// Services
-		UserService:          services.NewUserService(userRepo),
-		ChannelService:       services.NewChannelService(channelRepo, userRepo, separatorRepo, cacheService, telegoClient),
-		ButtonService:        services.NewButtonService(buttonRepo, channelRepo, customCaptionRepo, cacheService),
-		CaptionService:       services.NewCaptionService(channelRepo, buttonRepo, cacheService),
-		PermissionsService:   services.NewPermissionsService(permissionsRepo, channelRepo, cacheService),
-		CustomCaptionService: services.NewCustomCaptionService(customCaptionRepo, channelRepo, cacheService),
-		SeparatorService:     services.NewSeparatorService(separatorRepo),
-		VoteService:          services.NewVoteService(voteRepo),
-		ServerService:        services.NewServerService(serverRepo),
-		ChannelEventService:  services.NewChannelEventService(channelEventRepo),
+		UserService:          userService,
+		ChannelService:       channelService,
+		ButtonService:        buttonService,
+		CaptionService:       captionService,
+		PermissionsService:   permissionsService,
+		CustomCaptionService: customCaptionService,
+		SeparatorService:     separatorService,
+		VoteService:          voteService,
+		ServerService:        serverService,
+		ChannelEventService:  channelEventService,
+
+		// MTProto
+		ConnectedAccountService: connectedAccountService,
+		MTProtoAuthService:      mtprotoAuthService,
+		BotAPIExecutor:          botAPIExecutor,
+		ExecutorFactory:         executorFactory,
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),

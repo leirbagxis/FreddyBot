@@ -221,6 +221,17 @@ func (r *ChannelRepository) UpdateDefaultCaption(ctx context.Context, channelID 
 	return result.RowsAffected, result.Error
 }
 
+func (r *ChannelRepository) UpdateDefaultCaptionEntities(ctx context.Context, channelID int64, caption string, entities string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&models.DefaultCaption{}).
+		Where("owner_channel_id = ?", channelID).
+		Updates(map[string]interface{}{
+			"caption":      caption,
+			"entities":     entities,
+			"use_entities": true,
+		})
+	return result.RowsAffected, result.Error
+}
+
 func (r *ChannelRepository) UpdateNewPackSettings(ctx context.Context, channelID int64, caption string, messageButtons, stickerButtons *bool, messagePosition *string, replyToSticker *bool) (int64, error) {
 	updates := map[string]interface{}{
 		"new_pack_caption": caption,

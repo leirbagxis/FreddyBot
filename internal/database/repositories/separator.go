@@ -43,7 +43,15 @@ func (r *SeparatorRepository) SaveSeparator(ctx context.Context, separator *mode
 	err := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "owner_channel_id"}},
-			DoUpdates: clause.AssignmentColumns([]string{"separator_id", "separator_url", "updated_at"}),
+			DoUpdates: clause.AssignmentColumns([]string{
+				"type",
+				"separator_id",
+				"separator_url",
+				"emoji_text",
+				"emoji_id",
+				"emoji_entities_json",
+				"updated_at",
+			}),
 		}).
 		Create(separator).Error
 
