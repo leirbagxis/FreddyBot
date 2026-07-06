@@ -181,3 +181,65 @@ PostgreSQL já é a fonte operacional do projeto e atende bem o volume esperado 
 
 ## Impacto
 Admins passam a consultar histórico por canal diretamente na dashboard. O logging é best-effort e não bloqueia o bot. A primeira retenção padrão remove eventos com mais de 90 dias durante a inicialização.
+
+# Decisão: Implementação de Contas Conectadas via MTProto
+
+## Data
+2026-07-04
+
+## Contexto
+Implementar suporte a contas Telegram dos próprios usuários via protocolo MTProto (gotd/td), permitindo recursos Premium. A funcionalidade deve coexistir com a Bot API existente.
+
+## Decisão tomada
+1. Criar interface `TelegramExecutor` abstraindo BotAPI e MTProto
+2. `BotAPIExecutor` encapsula chamadas telego existentes
+3. `MTProtoExecutor` usa gotd/td (ephemeral clients por operação)
+4. `UserExecutor` wrapper vincula userID ao executor
+5. Sessões criptografadas com AES-256-GCM no PostgreSQL
+6. `EditOptions.Entities` carrega JSON de entidades para rich text
+7. Factory escolhe implementação por usuário
+8. Dados sensíveis (código, senha) apenas em memória
+
+## Motivo
+- Modularidade total: nunca misturar MTProto nas regras de negócio
+- Segurança: sessões criptografadas, dados sensíveis não persistem
+- Suporte a rich text (Message Entities) via gotd/td
+- Zero breaking changes: Bot API continua como fallback
+
+## Impacto
+- 6 novos endpoints REST para gerenciamento de conta
+- 2 novas tabelas no banco (connected_accounts, connected_account_channels)
+- 5 novos componentes React
+- Pipeline refatorado para usar TelegramExecutor via ExecutorFactory
+- Criptografia AES-256-GCM adicionada como dependência
+
+# Decisão: Sistema de Legendas com Message Entities (MTProto)
+
+## Data
+2026-07-05
+
+## Contexto
+Usuários com contas conectadas precisam configurar legendas com formatação rich text (negrito, itálico, custom_emoji, blockquote, spoiler, etc.) que não são possíveis via HTML da Bot API. O sistema de legacy HTML continua para usuários sem conta conectada.
+
+## Decisão tomada
+1. Estender `DefaultCaption` com `Entities (JSON)` e `UseEntities (bool)`
+2. Entities armazenados como `MessageEntityDTO` serializado (design library-agnostic)
+3. `MTProtoExecutor` usa ephemeral gotd client por operação (mesmo pattern do auth)
+4. `UserExecutor` resolve userID para MTProto internamente na factory
+5. Post entities + caption entities combinados com offset shift UTF-16
+6. `ProcessingContextTelego` ganha `FinalEntities`, `PostEntitiesJSON`, `ExecutorFactory`
+7. Fallback automático: sem conta conectada → HTML (BotAPI)
+8. `ConnectedAccountChannel` ganha `AccessHash` para MTProto peer resolution
+
+## Motivo
+- Legacy HTML continua intacto para usuários sem conta conectada
+- Entities DTOs mantêm serialização independente da lib de dispatch
+- Design ephemeral evita gerenciamento de pool de conexões MTProto
+- Offset shift UTF-16 segue especificação oficial do Telegram
+
+## Impacto
+- `AccessHash` adicionado a `connected_account_channels` (campo novo, default 0)
+- `MTProtoExecutor` criado com suporte a todos os tipos de entity do Telegram
+- Dispatchers migrados para `ExecutorFactory.ForUser(ownerID)`
+- StageTransformTelego detecta `UseEntities + HasActiveAccount`
+- Build existente 100% preservado, zero breaking changes
