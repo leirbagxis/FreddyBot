@@ -3,6 +3,7 @@ package channelpost
 import (
 	"encoding/json"
 
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 )
 
@@ -72,7 +73,9 @@ func combineEntityJSONs(postEntities []telego.MessageEntity, captionEntitiesJSON
 	// Converter caption entities de JSON para DTOs
 	var captionDTOS []messageEntityDTO
 	if captionEntitiesJSON != "" {
-		_ = json.Unmarshal([]byte(captionEntitiesJSON), &captionDTOS)
+		if err := json.Unmarshal([]byte(captionEntitiesJSON), &captionDTOS); err != nil {
+			logger.Warn("CHANNELPOST", "erro ao dar unmarshal nas caption entities: %v", err)
+		}
 	}
 
 	// Combinar, ajustando offsets das caption entities

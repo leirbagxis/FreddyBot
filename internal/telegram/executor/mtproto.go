@@ -144,7 +144,7 @@ func (e *MTProtoExecutor) resolvePeer(ctx context.Context, api *tg.Client, accou
 				logger.Error("MTPROTO", "Erro ao salvar access_hash: %v", saveErr)
 			}
 		} else {
-			logger.Bot("Usando AccessHash=0 para canal %d (dono/admin pode funcionar)", mtprotoID)
+			logger.Warn("MTPROTO", "AccessHash=0 para canal %d (pode falhar se o bot nao for admin)", mtprotoID)
 		}
 	}
 
@@ -185,6 +185,8 @@ func convertKeyboard(keyboard *InlineKeyboardMarkup) tg.ReplyMarkupClass {
 }
 
 // --- Metodos User-bound (chamados pelo UserExecutor) ---
+// Nota: o parametro parseMode e ignorado nessas funcoes porque o MTProto
+// usa entities diretamente (opts.Entities) ao inves de parse mode HTML/Markdown.
 
 func (e *MTProtoExecutor) EditMessageForUser(
 	ctx context.Context,

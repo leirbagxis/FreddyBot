@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"io"
 	"mime"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/dto"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
@@ -125,15 +127,22 @@ func (c *ChannelController) GetSeparator(ctx *gin.Context) {
 		return
 	}
 
-	ext := strings.ToLower(filepath.Ext(stickerData.SeparatorURL))
+	stickerFile := stickerData.SeparatorURL
+	if stickerFile == "" {
+		ctx.Error(errors.New(http.StatusInternalServerError, "Sticker sem arquivo"))
+		return
+	}
+
+	ext := strings.ToLower(filepath.Ext(stickerFile))
 
 	if ext == ".tgs" {
 		ctx.Error(errors.New(http.StatusNotImplemented, "Formato TGS ainda não suportado"))
 		return
 	}
 
+	telegramURL := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.TelegramBotToken, stickerFile)
 	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Get(stickerData.SeparatorURL)
+	resp, err := client.Get(telegramURL)
 	if err != nil {
 		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao buscar conteúdo do sticker"))
 		return

@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"fmt"
 	"sync"
 )
 
@@ -79,7 +80,7 @@ func (f *ExecutorFactory) InvalidateCache(userID int64) {
 func (f *ExecutorFactory) ForChannel(ctx context.Context, channelID int64, getOwnerID func(context.Context, int64) (int64, error)) (TelegramExecutor, error) {
 	ownerID, err := getOwnerID(ctx, channelID)
 	if err != nil {
-		return f.botAPI, err
+		return nil, fmt.Errorf("get owner for channel %d: %w", channelID, err)
 	}
 	return f.ForUser(ctx, ownerID), nil
 }

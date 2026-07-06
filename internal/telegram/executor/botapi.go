@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 )
 
@@ -200,11 +201,11 @@ func (e *BotAPIExecutor) SendMessage(
 	}
 
 	// Se tiver entities explicitas, usar ao inves de parse_mode
-	if opts != nil && opts.Entities != "" {
+		if opts != nil && opts.Entities != "" {
 		params.ParseMode = ""
 		entities, err := entitiesJSONToTelego(opts.Entities)
 		if err != nil {
-			fmt.Printf("⚠️ BotAPI SendMessage: erro ao parsear entities: %v\n", err)
+			logger.Warn("BOTAPI", "SendMessage: erro ao parsear entities: %v", err)
 		} else if len(entities) > 0 {
 			params.Entities = entities
 		}

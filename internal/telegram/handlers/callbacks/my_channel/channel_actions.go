@@ -14,7 +14,6 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	separatorModels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/executor"
-	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
 )
@@ -170,7 +169,7 @@ func SetSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler 
 			}
 
 			if file != nil {
-				separator.SeparatorURL = fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.TelegramBotToken, file.FilePath)
+				separator.SeparatorURL = file.FilePath
 			}
 		}
 
@@ -193,8 +192,12 @@ func SetSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler 
 				separator.Type = "custom_emoji"
 				separator.EmojiText = update.Message.Text
 				separator.EmojiID = emojiEntities[0].CustomEmojiID // primeiro ID para compatibilidade
-				emojiEntitiesJSON, _ := json.Marshal(emojiEntities)
-				separator.EmojiEntitiesJSON = string(emojiEntitiesJSON)
+				emojiEntitiesJSON, err := json.Marshal(emojiEntities)
+				if err != nil {
+					logger.Error("HANDLER", "erro ao serializar entities: %v", err)
+				} else {
+					separator.EmojiEntitiesJSON = string(emojiEntitiesJSON)
+				}
 
 				logger.Bot("📝 Separador custom_emoji: text=%q entities=%d json=%s",
 					separator.EmojiText, len(emojiEntities), separator.EmojiEntitiesJSON)
@@ -215,7 +218,9 @@ func SetSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler 
 					if kb != nil {
 						params.ReplyMarkup = kb
 					}
-					_, _ = bot.SendMessage(context.Background(), params)
+					if _, err := bot.SendMessage(context.Background(), params); err != nil {
+						logger.Warn("BOT", "erro ao enviar mensagem de requisito de conta: %v", err)
+					}
 					return nil
 				}
 			}
