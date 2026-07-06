@@ -8,21 +8,29 @@ import {
   updateReactionPosition, updateDynamicLinks, transferChannel, fetchUserInfo,
   sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot
 } from './api';
-import { PermissionsCard } from './components/PermissionsCard';
 import { ButtonGrid } from './components/ButtonGrid';
 import { CaptionCard } from './components/CaptionCard';
 import { NewPackCaptionCard } from './components/NewPackCaptionCard';
 import { ReactionsCard } from './components/ReactionsCard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { DashboardInicioTab } from './components/DashboardInicioTab';
+import { ContaTelegramTab } from './components/ContaTelegramTab';
 import { TabBar, Tab } from './components/TabBar';
 import { AdminSidebar } from './components/AdminSidebar';
 import { ToastProvider, useToast } from './components/Toast';
 import { useTheme } from './hooks/useTheme';
+import { Card, CardContent } from './components/ui/card';
+import { Button as ShadButton } from './components/ui/button';
+import { Switch } from './components/ui/switch';
+import { Badge } from './components/ui/badge';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from './components/ui/dialog';
 import {
   Users, Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
-  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings, FileClock
+  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings, FileClock, UserCheck, X,
+  CloudMoon, Sunrise, Headphones, Video, Image, FileText, Smile, Film, SlidersHorizontal
 } from 'lucide-react';
 
 const tabs: Tab[] = [
@@ -30,9 +38,11 @@ const tabs: Tab[] = [
   { id: 'legendas', label: 'Legendas', icon: <Type size={22} /> },
   { id: 'botoes', label: 'Botões', icon: <Grid3X3 size={22} /> },
   { id: 'permissoes', label: 'Permissões', icon: <Shield size={22} /> },
+  { id: 'conta', label: 'Conta Telegram', icon: <UserCheck size={22} /> },
 ];
 
 const adminTabs: Tab[] = [
+  { id: 'overview', label: 'Visão Geral', icon: <LayoutDashboard size={22} /> },
   { id: 'users', label: 'Usuários', icon: <Users size={22} /> },
   { id: 'channels', label: 'Canais', icon: <Hash size={22} /> },
   { id: 'audit', label: 'Auditoria', icon: <Zap size={22} /> },
@@ -64,11 +74,13 @@ function isAdminDashRoute(): boolean {
   return window.location.pathname.startsWith('/admin/dash');
 }
 
-type AdminTabId = 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs';
+type AdminTabId = 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs';
 
 function getInitialAdminTabFromUrl(): AdminTabId {
   const tab = new URLSearchParams(window.location.search).get('tab');
-  return tab === 'logs' ? 'logs' : 'users';
+  if (tab === 'logs') return 'logs';
+  if (tab === 'users' || tab === 'channels' || tab === 'notice' || tab === 'config' || tab === 'audit') return tab as AdminTabId;
+  return 'overview';
 }
 
 function getInitialLogsChannelIdFromUrl(): string {
@@ -102,6 +114,36 @@ const DashboardContent = memo(function DashboardContent() {
   const [auditLoading, setAuditLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [initialLogsChannelId] = useState(() => getInitialLogsChannelIdFromUrl());
+  const [showContaModal, setShowContaModal] = useState(false);
+
+  // Travar scroll do body quando o modal estiver aberto (funciona no iOS tambem)
+  useEffect(() => {
+    if (showContaModal) {
+      const scrollY = window.scrollY;
+      document.body.style.position = 'fixed';
+      document.body.style.top = `-${scrollY}px`;
+      document.body.style.left = '0';
+      document.body.style.right = '0';
+      document.body.style.overflow = 'hidden';
+    } else {
+      const top = document.body.style.top;
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      if (top) {
+        window.scrollTo(0, parseInt(top, 10) * -1);
+      }
+    }
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+    };
+  }, [showContaModal]);
 
   useEffect(() => {
     const savedUid = sessionStorage.getItem('lastAdminUserId');
@@ -147,11 +189,11 @@ const DashboardContent = memo(function DashboardContent() {
   const handleBlacklist = useCallback(() => {
     const tg = window.Telegram?.WebApp;
     if (tg) {
-      tg.showConfirm("🚫 Você está na blacklist e seu acesso ao painel foi bloqueado. Em caso de dúvidas, acione a /ouvidoria no bot.", () => {
+      tg.showConfirm("Você está na blacklist e seu acesso ao painel foi bloqueado. Em caso de dúvidas, acione a /ouvidoria no bot.", () => {
         tg.close();
       });
     } else {
-      alert("🚫 Você está na blacklist e seu acesso ao painel foi bloqueado.");
+      alert("Você está na blacklist e seu acesso ao painel foi bloqueado.");
     }
   }, []);
 
@@ -592,12 +634,11 @@ const DashboardContent = memo(function DashboardContent() {
     return 'Boa noite';
   }, []);
 
-  const getGreetingEmoji = useCallback(() => {
+  const getGreetingIcon = useCallback(() => {
     const h = new Date().getHours();
-    if (h < 6) return '🌙';
-    if (h < 12) return '☀️';
-    if (h < 18) return '🌤️';
-    return '🌙';
+    if (h < 12) return <Sunrise size={24} />;
+    if (h < 18) return <Sun size={24} />;
+    return <CloudMoon size={24} />;
   }, []);
 
   const [showDisconnect, setShowDisconnect] = useState(false);
@@ -771,9 +812,9 @@ const DashboardContent = memo(function DashboardContent() {
           </div>
           <h2 style={{ fontSize: 20, fontWeight: 800 }}>Ops! Acesso negado</h2>
           <p style={{ fontSize: 15, color: 'var(--hint)', maxWidth: 320, lineHeight: 1.6 }}>{displayMessage}</p>
-          <button className="btn btn-primary" onClick={() => window.location.href = '/me/channels'} style={{ marginTop: 12, minWidth: 200 }}>
+          <ShadButton variant="default" onClick={() => window.location.href = '/me/channels'} className="mt-3 min-w-[200px]">
             <ArrowLeft size={18} /> Voltar para Meus Canais
-          </button>
+          </ShadButton>
         </div>
       </div>
     );
@@ -820,7 +861,7 @@ const DashboardContent = memo(function DashboardContent() {
       )}
       
       <div className={isAdmin ? 'app-main' : 'w-full flex flex-col min-h-screen'}>
-        <div className="top-bar">
+        <div className="top-bar animate-stagger-in" style={{ animationDelay: '0s' }}>
           {isAdmin && (
             <button 
               className="sidebar-trigger-btn mr-2" 
@@ -850,7 +891,7 @@ const DashboardContent = memo(function DashboardContent() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-[15px] font-bold truncate">{displayName}</h1>
-            <p className="text-xs truncate" style={{ color: 'var(--hint)' }}>{isChannels ? 'Meus Canais' : (isAdmin ? 'Painel Admin' : channel?.title)}</p>
+            <p className="text-xs truncate text-muted-foreground">{isChannels ? 'Meus Canais' : (isAdmin ? 'Painel Admin' : channel?.title)}</p>
           </div>
           <button className="theme-switch" onClick={toggleTheme} title={`Tema atual: ${theme === 'telegram' ? 'Telegram' : theme === 'dark' ? 'Escuro' : 'Claro'}`}>
             {theme === 'telegram' ? <Send size={17} /> : theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -894,61 +935,97 @@ const DashboardContent = memo(function DashboardContent() {
           {(!isAdmin && (!channel || isChannelsRoute())) && (
             <div className="space-y-4">
               {isChannels && (
-                <div className="card" style={{ padding: '20px' }}>
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{getGreetingEmoji()}</span>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-[16px] font-bold">{getGreeting()}, <span style={{ color: 'var(--accent)' }}>{displayName}</span></h2>
-                      <p className="text-[12px]" style={{ color: 'var(--hint)' }}>Selecione um canal para gerenciar suas configurações.</p>
-                    </div>
-                  </div>
-                </div>
+                <>
+                  <Card className="animate-stagger-in" style={{ animationDelay: '0.05s' }}>
+                    <CardContent className="pt-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center size-10 rounded-xl" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+                          {getGreetingIcon()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h2 className="text-[16px] font-bold">{getGreeting()}, <span style={{ color: 'var(--accent)' }}>{displayName}</span></h2>
+                          <p className="text-xs text-muted-foreground">Selecione um canal para gerenciar suas configurações.</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Conta Telegram compacto */}
+                  <Card
+                    className="cursor-pointer hover:bg-muted/50 transition-colors animate-stagger-in"
+                    style={{ animationDelay: '0.1s' }}
+                    onClick={() => setShowContaModal(true)}
+                  >
+                    <CardContent className="flex items-center gap-3 py-4">
+                      <div className="flex items-center justify-center size-11 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)' }}>
+                        <UserCheck size={22} style={{ color: 'var(--accent)' }} />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="text-sm font-semibold">Conta Telegram</span>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Conecte sua conta pessoal para recursos exclusivos
+                        </p>
+                      </div>
+                      <ChevronRight size={18} className="shrink-0 text-muted-foreground/30" />
+                    </CardContent>
+                  </Card>
+                </>
               )}
 
               <div className="space-y-3">
                 {isChannels && <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--hint)' }}>Canais Encontrados</h3>}
 
                 {user?.channels && user?.channels.length > 0 && isChannels ? (
-                  user?.channels.map((c: Channel) => (
-                    <button key={c.id} className="card stat-card-clickable" style={{ display: 'flex', alignItems: 'center', width: '100%', textAlign: 'left', padding: '16px' }} onClick={() => navigateToChannel(c.id)}>
-                      <div className="section-icon purple mr-3"><Hash size={20} /></div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-[15px] font-semibold truncate">{c.title}</h3>
-                        <p className="text-xs truncate mt-0.5" style={{ color: 'var(--hint)' }}>ID: {c.id}</p>
-                      </div>
-                      <ChevronRight size={18} className="stat-arrow" />
-                    </button>
+                  user?.channels.map((c: Channel, idx: number) => (
+                    <Card
+                      key={c.id}
+                      className="cursor-pointer hover:bg-muted/50 transition-colors animate-stagger-in"
+                      style={{ animationDelay: `${0.15 + idx * 0.04}s` }}
+                      onClick={() => navigateToChannel(c.id)}
+                    >
+                      <CardContent className="flex items-center gap-3 py-4">
+                        <div className="section-icon purple shrink-0"><Hash size={20} /></div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-semibold truncate">{c.title}</h3>
+                          <p className="text-xs text-muted-foreground mt-0.5">ID: {c.id}</p>
+                        </div>
+                        <ChevronRight size={18} className="shrink-0 text-muted-foreground/30" />
+                      </CardContent>
+                    </Card>
                   ))
                 ) : (!channel ? (
-                  <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '40px 24px', color: 'var(--hint)' }}>
-                    <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'var(--accent-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                      <Shield size={32} style={{ color: 'var(--accent)' }} />
-                    </div>
-                    <h3 className="text-[18px] font-bold" style={{ color: 'var(--text)', marginBottom: 8 }}>Mantenha seu canal organizado</h3>
-                    <p className="text-[14px]" style={{ opacity: 0.8, marginBottom: 8, lineHeight: 1.5 }}>
-                      O LegendasBOT ajuda a gerenciar botões, legendas automáticas e permissões de forma simples e rápida.
-                    </p>
-                    <p className="text-[13px]" style={{ opacity: 0.7, marginBottom: 24 }}>
-                      Para começar, adicione este bot como <strong style={{ color: 'var(--text)' }}>administrador</strong> no seu canal do Telegram.
-                    </p>
-                    <div style={{ width: '100%', height: 1, background: 'var(--border)', marginBottom: 24 }}></div>
-                    <h4 className="text-[14px] font-semibold" style={{ color: 'var(--text)', marginBottom: 12 }}>Fique por dentro das novidades!</h4>
-                    <p className="text-[13px]" style={{ opacity: 0.8, marginBottom: 16 }}>
-                      Entre no nosso canal oficial para acompanhar atualizações, dicas e novos recursos.
-                    </p>
-                    <a
-                      href="https://t.me/LegendasBOTTopic"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="btn btn-primary"
-                      style={{ width: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 8 }}
-                    >
-                      <ExternalLink size={18} />
-                      Entrar no Canal de Atualizações
-                    </a>
-                  </div>
+                  <Card>
+                    <CardContent className="flex flex-col items-center text-center py-8 text-muted-foreground">
+                      <div className="flex items-center justify-center size-16 rounded-full shrink-0 mb-4" style={{ background: 'var(--accent-soft)' }}>
+                        <Shield size={32} style={{ color: 'var(--accent)' }} />
+                      </div>
+                      <h3 className="text-lg font-bold text-foreground mb-2">Mantenha seu canal organizado</h3>
+                      <p className="text-sm opacity-80 mb-2 leading-relaxed max-w-sm">
+                        O LegendasBOT ajuda a gerenciar botões, legendas automáticas e permissões de forma simples e rápida.
+                      </p>
+                      <p className="text-sm opacity-70 mb-6 max-w-sm">
+                        Para começar, adicione este bot como <strong className="text-foreground">administrador</strong> no seu canal do Telegram.
+                      </p>
+                      <div className="w-full h-px bg-border mb-6" />
+                      <h4 className="text-sm font-semibold text-foreground mb-3">Fique por dentro das novidades!</h4>
+                      <p className="text-sm opacity-80 mb-4">
+                        Entre no nosso canal oficial para acompanhar atualizações, dicas e novos recursos.
+                      </p>
+                      <ShadButton
+                        variant="default"
+                        className="w-full"
+                        onClick={() => window.open('https://t.me/LegendasBOTTopic', '_blank', 'noopener,noreferrer')}
+                      >
+                        <span className="inline-flex items-center justify-center gap-2 text-[15px] font-semibold">
+                          <ExternalLink size={20} className="shrink-0" />
+                          Entrar no Canal de Atualizações
+                        </span>
+                      </ShadButton>
+                    </CardContent>
+                  </Card>
                 ) : null)}
               </div>
+
             </div>
           )}
 
@@ -958,7 +1035,7 @@ const DashboardContent = memo(function DashboardContent() {
                 channel={channel}
                 displayName={displayName}
                 getGreeting={getGreeting}
-                getGreetingEmoji={getGreetingEmoji}
+                getGreetingIcon={getGreetingIcon}
                 handleDisconnect={handleDisconnect}
                 showDisconnect={showDisconnect}
                 setShowDisconnect={setShowDisconnect}
@@ -999,139 +1076,165 @@ const DashboardContent = memo(function DashboardContent() {
             />
           )}
 
+          {!isChannels && !isAdmin && activeTab === 'conta' && (
+            <div className="tab-content-wrapper">
+              <ContaTelegramTab />
+            </div>
+          )}
+
           {!isChannels && !isAdmin && activeTab === 'permissoes' && channel && (
-            <div className="space-y-4 tab-content-wrapper">
-              <div className="card">
-                <div className="section-header">
-                  <div className="section-icon purple">
-                    <Zap size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-[15px] font-semibold truncate">Configurações de Reações</h3>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
-                      {channel.defaultCaption?.messagePermission?.reactions ? 'Ativadas' : 'Desativadas'}
-                    </p>
-                  </div>
-                  <span className={`badge ${channel.defaultCaption?.messagePermission?.reactions ? 'badge-accent' : 'badge-ghost'}`}>
-                    {channel.defaultCaption?.messagePermission?.reactions ? 'ON' : 'OFF'}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <div
-                    className={`perm-row ${channel.defaultCaption?.messagePermission?.reactions ? 'on' : ''}`}
-                    onClick={() => handleMsgPerm('reactions', !channel.defaultCaption?.messagePermission?.reactions)}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="flex-shrink-0"
-                        style={{
-                          color: channel.defaultCaption?.messagePermission?.reactions ? 'var(--accent)' : 'var(--hint)',
-                          opacity: channel.defaultCaption?.messagePermission?.reactions ? 1 : 0.4
-                        }}
-                      >
-                        <Zap size={16} />
-                      </span>
-                      <span className="text-[13px] font-medium">Ativar Reações em Posts</span>
+            <div className="space-y-3 tab-content-wrapper">
+              {/* Configurações de Reações */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="section-icon purple shrink-0"><Zap size={18} /></div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold truncate">Configurações de Reações</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {channel.defaultCaption?.messagePermission?.reactions ? 'Ativadas' : 'Desativadas'}
+                      </p>
                     </div>
-                    <div className={`toggle ${channel.defaultCaption?.messagePermission?.reactions ? 'on' : ''}`} />
+                    <Badge variant={channel.defaultCaption?.messagePermission?.reactions ? "default" : "secondary"}>
+                      {channel.defaultCaption?.messagePermission?.reactions ? 'ON' : 'OFF'}
+                    </Badge>
                   </div>
-                </div>
-              </div>
+                  <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-muted/50 cursor-pointer transition-colors hover:bg-muted/80" onClick={() => handleMsgPerm('reactions', !channel.defaultCaption?.messagePermission?.reactions)}>
+                    <div className="flex items-center gap-3">
+                      <Zap size={16} className={channel.defaultCaption?.messagePermission?.reactions ? 'text-accent' : 'text-muted-foreground'} />
+                      <span className="text-sm font-medium">Ativar Reações em Posts</span>
+                    </div>
+                    <Switch checked={!!channel.defaultCaption?.messagePermission?.reactions} onCheckedChange={() => handleMsgPerm('reactions', !channel.defaultCaption?.messagePermission?.reactions)} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Links Dinâmicos */}
-              <div className="card">
-                <div className="section-header">
-                  <div className="section-icon purple">
-                    <Link2 size={18} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-[15px] font-semibold truncate">Links Dinâmicos</h3>
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>
-                      Transforma links em botões automaticamente
-                    </p>
-                  </div>
-                  <span className={`badge ${channel.dynamicLinks ? 'badge-accent' : 'badge-ghost'}`}>
-                    {channel.dynamicLinks ? 'ON' : 'OFF'}
-                  </span>
-                </div>
-                <div className="space-y-2">
-                  <div
-                    className={`perm-row ${channel.dynamicLinks ? 'on' : ''}`}
-                    onClick={() => handleDynamicLinks('dynamicLinks', !channel.dynamicLinks)}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="flex-shrink-0"
-                        style={{
-                          color: channel.dynamicLinks ? 'var(--accent)' : 'var(--hint)',
-                          opacity: channel.dynamicLinks ? 1 : 0.4
-                        }}
-                      >
-                        <ExternalLink size={16} />
-                      </span>
-                      <span className="text-[13px] font-medium">Ativar Links Dinâmicos</span>
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="section-icon purple shrink-0"><Link2 size={18} /></div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold truncate">Links Dinâmicos</h3>
+                      <p className="text-xs text-muted-foreground">Transforma links em botões automaticamente</p>
                     </div>
-                    <div className={`toggle ${channel.dynamicLinks ? 'on' : ''}`} />
+                    <Badge variant={channel.dynamicLinks ? "default" : "secondary"}>
+                      {channel.dynamicLinks ? 'ON' : 'OFF'}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-muted/50 cursor-pointer transition-colors hover:bg-muted/80" onClick={() => handleDynamicLinks('dynamicLinks', !channel.dynamicLinks)}>
+                    <div className="flex items-center gap-3">
+                      <ExternalLink size={16} className={channel.dynamicLinks ? 'text-accent' : 'text-muted-foreground'} />
+                      <span className="text-sm font-medium">Ativar Links Dinâmicos</span>
+                    </div>
+                    <Switch checked={!!channel.dynamicLinks} onCheckedChange={() => handleDynamicLinks('dynamicLinks', !channel.dynamicLinks)} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
                   </div>
 
-                  {/* Sub-toggles (só aparecem se o principal estiver ON) */}
                   {channel.dynamicLinks && (
-                    <div className="pl-6 space-y-2 mt-2 border-l-2 border-[var(--border)] ml-4 animate-in fade-in slide-in-from-left-2 duration-300">
-                      <div className="text-[10px] font-bold opacity-40 uppercase mb-2 tracking-wider">Regras de Exceção</div>
-                      
-                      <div
-                        className={`perm-row ${channel.dlBotButtons ? 'on' : ''}`}
-                        onClick={() => handleDynamicLinks('dlBotButtons', !channel.dlBotButtons)}
-                      >
+                    <div className="pl-6 space-y-2 mt-3 border-l-2 border-border ml-4">
+                      <div className="text-[10px] font-bold text-muted-foreground/40 uppercase mb-2 tracking-wider">Regras de Exceção</div>
+                      <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-muted/50 cursor-pointer transition-colors hover:bg-muted/80" onClick={() => handleDynamicLinks('dlBotButtons', !channel.dlBotButtons)}>
                         <div className="flex items-center gap-3">
-                          <MousePointerClick size={14} className={channel.dlBotButtons ? 'text-[var(--accent)]' : 'text-[var(--hint)]'} />
-                          <span className="text-[12px]">Manter Botões do Bot</span>
+                          <MousePointerClick size={14} className={channel.dlBotButtons ? 'text-accent' : 'text-muted-foreground'} />
+                          <span className="text-xs font-medium">Manter Botões do Bot</span>
                         </div>
-                        <div className={`toggle sm ${channel.dlBotButtons ? 'on' : ''}`} />
+                        <Switch checked={!!channel.dlBotButtons} onCheckedChange={() => handleDynamicLinks('dlBotButtons', !channel.dlBotButtons)} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
                       </div>
-
-                      <div
-                        className={`perm-row ${channel.dlBotCaptions ? 'on' : ''}`}
-                        onClick={() => handleDynamicLinks('dlBotCaptions', !channel.dlBotCaptions)}
-                      >
+                      <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-muted/50 cursor-pointer transition-colors hover:bg-muted/80" onClick={() => handleDynamicLinks('dlBotCaptions', !channel.dlBotCaptions)}>
                         <div className="flex items-center gap-3">
-                          <Type size={14} className={channel.dlBotCaptions ? 'text-[var(--accent)]' : 'text-[var(--hint)]'} />
-                          <span className="text-[12px]">Manter Legendas do Bot</span>
+                          <Type size={14} className={channel.dlBotCaptions ? 'text-accent' : 'text-muted-foreground'} />
+                          <span className="text-xs font-medium">Manter Legendas do Bot</span>
                         </div>
-                        <div className={`toggle sm ${channel.dlBotCaptions ? 'on' : ''}`} />
+                        <Switch checked={!!channel.dlBotCaptions} onCheckedChange={() => handleDynamicLinks('dlBotCaptions', !channel.dlBotCaptions)} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
                       </div>
-
-                      <div
-                        className={`perm-row ${channel.dlBotReactions ? 'on' : ''}`}
-                        onClick={() => handleDynamicLinks('dlBotReactions', !channel.dlBotReactions)}
-                      >
+                      <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-muted/50 cursor-pointer transition-colors hover:bg-muted/80" onClick={() => handleDynamicLinks('dlBotReactions', !channel.dlBotReactions)}>
                         <div className="flex items-center gap-3">
-                          <Zap size={14} className={channel.dlBotReactions ? 'text-[var(--accent)]' : 'text-[var(--hint)]'} />
-                          <span className="text-[12px]">Manter Reações do Bot</span>
+                          <Zap size={14} className={channel.dlBotReactions ? 'text-accent' : 'text-muted-foreground'} />
+                          <span className="text-xs font-medium">Manter Reações do Bot</span>
                         </div>
-                        <div className={`toggle sm ${channel.dlBotReactions ? 'on' : ''}`} />
+                        <Switch checked={!!channel.dlBotReactions} onCheckedChange={() => handleDynamicLinks('dlBotReactions', !channel.dlBotReactions)} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
                       </div>
-                      
-                      <p className="text-[10px] opacity-40 italic mt-2">
+                      <p className="text-[10px] text-muted-foreground/40 italic mt-2">
                         * Estas regras só se aplicam se um link dinâmico for detectado na postagem.
                       </p>
                     </div>
                   )}
-                </div>
-              </div>
+                </CardContent>
+              </Card>
 
-              <PermissionsCard
-                title="Permissões de Mensagem"
-                icon={<MessageCircle size={18} />}
-                permission={channel.defaultCaption?.messagePermission}
-                onToggle={handleMsgPerm}
-              />
-              <PermissionsCard
-                title="Permissões de Botões"
-                icon={<MousePointerClick size={18} />}
-                permission={channel.defaultCaption?.buttonsPermission}
-                onToggle={handleBtnPerm}
-              />
+              {/* Permissões por Tipo — combinado: legenda + botões */}
+              <Card>
+                <CardContent className="pt-4">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="section-icon purple shrink-0"><SlidersHorizontal size={18} /></div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-sm font-semibold">Permissões por Tipo</h3>
+                      <p className="text-xs text-muted-foreground">Ative legendas e botões para cada tipo de conteúdo</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    {([
+                      { key: 'message', label: 'Mensagem', desc: 'Texto simples', icon: <MessageCircle size={16} /> },
+                      { key: 'audio', label: 'Áudio', desc: 'Arquivos de áudio', icon: <Headphones size={16} /> },
+                      { key: 'video', label: 'Vídeo', desc: 'Arquivos de vídeo', icon: <Video size={16} /> },
+                      { key: 'photo', label: 'Foto', desc: 'Imagens e fotos', icon: <Image size={16} /> },
+                      { key: 'document', label: 'Arquivo', desc: 'Documentos em geral', icon: <FileText size={16} /> },
+                      { key: 'sticker', label: 'Sticker', desc: 'Figurinhas', icon: <Smile size={16} /> },
+                      { key: 'gif', label: 'GIF', desc: 'Animações', icon: <Film size={16} /> },
+                      { key: 'linkPreview', label: 'Link Preview', desc: 'Visualização de links', icon: <Link2 size={16} /> },
+                    ] as const).map((type, idx) => {
+                      const msgOn = !!channel.defaultCaption?.messagePermission?.[type.key as keyof typeof channel.defaultCaption.messagePermission];
+                      const btnOn = !!channel.defaultCaption?.buttonsPermission?.[type.key as keyof typeof channel.defaultCaption.buttonsPermission];
+                      return (
+                        <div
+                          key={type.key}
+                          className="p-3 rounded-xl bg-muted/50 border border-border animate-stagger-in"
+                          style={{ animationDelay: `${idx * 0.03}s` }}
+                        >
+                          <div className="flex items-center gap-3 mb-3">
+                            <span className="shrink-0 text-accent/70">{type.icon}</span>
+                            <div className="min-w-0">
+                              <span className="text-[13px] font-semibold">{type.label}</span>
+                              <p className="text-[10px] text-muted-foreground/70 truncate">{type.desc}</p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 ml-9">
+                            {/* Legenda toggle */}
+                            <div
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer transition-colors flex-1 ${msgOn ? 'bg-accent/10' : 'bg-muted hover:bg-muted/80'}`}
+                              onClick={() => handleMsgPerm(type.key, !msgOn)}
+                            >
+                              <span className={`text-[11px] font-semibold ${msgOn ? 'text-accent' : 'text-muted-foreground'}`}>Legenda</span>
+                              <Switch
+                                size="sm"
+                                checked={msgOn}
+                                onCheckedChange={(checked) => handleMsgPerm(type.key, checked)}
+                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                              />
+                            </div>
+
+                            {/* Botões toggle */}
+                            <div
+                              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg cursor-pointer transition-colors flex-1 ${btnOn ? 'bg-accent/10' : 'bg-muted hover:bg-muted/80'}`}
+                              onClick={() => handleBtnPerm(type.key, !btnOn)}
+                            >
+                              <span className={`text-[11px] font-semibold ${btnOn ? 'text-accent' : 'text-muted-foreground'}`}>Botões</span>
+                              <Switch
+                                size="sm"
+                                checked={btnOn}
+                                onCheckedChange={(checked) => handleBtnPerm(type.key, checked)}
+                                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
           )}
         </div>
@@ -1140,6 +1243,19 @@ const DashboardContent = memo(function DashboardContent() {
       {!isChannels && !isAdmin && (
         <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
       )}
+
+      {/* Modal Conta Telegram */}
+      <Dialog open={showContaModal} onOpenChange={(open) => setShowContaModal(open)}>
+        <DialogContent
+          className="sm:max-w-lg p-0 bg-background"
+          style={{ maxHeight: '90vh', overflowY: 'auto' }}
+          showCloseButton={true}
+        >
+          <div className="p-5">
+            <ContaTelegramTab startConnecting />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 });

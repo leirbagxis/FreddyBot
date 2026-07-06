@@ -1,5 +1,9 @@
 import { AlertTriangle } from 'lucide-react';
-import { createPortal } from 'react-dom';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle,
+  DialogDescription, DialogFooter, DialogClose,
+} from './ui/dialog';
+import { Button } from './ui/button';
 
 interface ConfirmModalProps {
     open: boolean;
@@ -15,33 +19,34 @@ interface ConfirmModalProps {
 export function ConfirmModal({
     open, onClose, onConfirm, title, message, confirmText, danger, alertOnly
 }: ConfirmModalProps) {
-    if (!open) return null;
-
-    const modalContent = (
-        <div className="overlay" onClick={onClose}>
-            <div className="dialog confirm-dialog" onClick={e => e.stopPropagation()}>
-                <div className="dialog-handle" />
-                <div className="confirm-icon-wrap" style={{ background: danger ? 'var(--danger-soft)' : 'var(--accent-soft)' }}>
-                    <AlertTriangle size={28} style={{ color: danger ? 'var(--danger)' : 'var(--accent)' }} />
-                </div>
-                <h3 className="confirm-title">{title}</h3>
-                <p className="confirm-message">{message}</p>
-                <div className="confirm-actions">
+    return (
+        <Dialog open={open} onOpenChange={(open) => { if (!open) onClose(); }}>
+            <DialogContent className="sm:max-w-sm text-center" showCloseButton={false}>
+                <DialogHeader className="items-center gap-3">
+                    <div
+                        className="flex size-[60px] items-center justify-center rounded-full"
+                        style={{ background: danger ? 'var(--danger-soft)' : 'var(--accent-soft)' }}
+                    >
+                        <AlertTriangle size={28} style={{ color: danger ? 'var(--danger)' : 'var(--accent)' }} />
+                    </div>
+                    <DialogTitle className="text-[18px]">{title}</DialogTitle>
+                    <DialogDescription className="text-[14px] leading-relaxed px-2">
+                        {message}
+                    </DialogDescription>
+                </DialogHeader>
+                <DialogFooter className="sm:justify-center gap-2">
                     {!alertOnly && (
-                        <button className="btn btn-secondary flex-1" onClick={onClose}>
-                            Cancelar
-                        </button>
+                        <DialogClose render={<Button variant="secondary" className="flex-1">Cancelar</Button>} />
                     )}
-                    <button
-                        className={`btn flex-1 ${danger ? 'btn-danger-solid' : 'btn-primary'}`}
+                    <Button
+                        variant={danger ? "destructive" : "default"}
+                        className="flex-1"
                         onClick={() => { onConfirm(); onClose(); }}
                     >
                         {confirmText || 'Confirmar'}
-                    </button>
-                </div>
-            </div>
-        </div>
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
-
-    return createPortal(modalContent, document.body);
 }

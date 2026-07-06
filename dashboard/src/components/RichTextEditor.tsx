@@ -4,6 +4,7 @@ import {
   EyeOff, Link2, List, Quote, Undo2, Redo2, Copy, Eraser,
   AlignLeft, Type, ChevronDown
 } from 'lucide-react';
+import { Button } from './ui/button';
 
 interface Props {
   value: string;
@@ -311,7 +312,7 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
           </div>
           <div className="rte-link-fields">
             <div className="rte-link-field">
-              <label className="text-[11px] font-medium" style={{ color: 'var(--hint)' }}>
+              <label className="text-[11px] font-medium text-muted-foreground">
                 <AlignLeft size={11} className="inline mr-1" />
                 Texto
               </label>
@@ -324,7 +325,7 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
               />
             </div>
             <div className="rte-link-field">
-              <label className="text-[11px] font-medium" style={{ color: 'var(--hint)' }}>
+              <label className="text-[11px] font-medium text-muted-foreground">
                 <Link2 size={11} className="inline mr-1" />
                 URL
               </label>
@@ -337,15 +338,17 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
             </div>
           </div>
           <div className="flex gap-2 mt-3">
-            <button
-              className="btn btn-secondary btn-sm flex-1"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1"
               onClick={() => { setLinkMode(false); setLinkUrl(''); setLinkText(''); }}
             >
               Cancelar
-            </button>
-            <button className="btn btn-primary btn-sm flex-1" onClick={insertLink}>
+            </Button>
+            <Button variant="default" size="sm" className="flex-1" onClick={insertLink}>
               Inserir
-            </button>
+            </Button>
           </div>
         </div>
       )}

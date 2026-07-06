@@ -1,17 +1,20 @@
 import { useState, memo } from 'react';
 import {
-    Users, LogOut, ShieldCheck
+    Users, LogOut, ShieldCheck, Send
 } from 'lucide-react';
 import { Channel } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 import { fetchUserInfo, transferChannel } from '../api';
 import { useToast } from './Toast';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 interface DashboardInicioTabProps {
     channel: Channel;
     displayName: string;
     getGreeting: () => string;
-    getGreetingEmoji: () => string;
+    getGreetingIcon: () => React.ReactNode;
     handleDisconnect: () => void;
     showDisconnect: boolean;
     setShowDisconnect: (open: boolean) => void;
@@ -22,7 +25,7 @@ interface DashboardInicioTabProps {
 }
 
 export const DashboardInicioTab = memo(({
-    channel, displayName, getGreeting, getGreetingEmoji,
+    channel, displayName, getGreeting, getGreetingIcon,
     handleDisconnect, showDisconnect, setShowDisconnect, isDisconnecting, confirmDisconnect,
     showDisconnectSuccess, setShowDisconnectSuccess,
 }: DashboardInicioTabProps) => {
@@ -98,69 +101,77 @@ export const DashboardInicioTab = memo(({
         <div className="space-y-3 tab-content-wrapper">
             
             {/* Unified Identity Card */}
-            <div className="card animate-stagger-in">
-                {/* Header: Greeting & Emoji */}
-                <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-2">
-                        <span className="text-xl">{getGreetingEmoji()}</span>
-                        <div>
-                            <h2 className="text-[15px] font-bold leading-none">{getGreeting()}</h2>
-                            <p className="text-[10px] text-[var(--hint)] mt-1 uppercase tracking-wider font-semibold">Painel de Controle</p>
+            <Card className="animate-stagger-in">
+                <CardContent className="pt-4">
+                    {/* Header: Greeting & Emoji */}
+                    <div className="flex items-center justify-between mb-5">
+                        <div className="flex items-center gap-2">
+                            <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+                                {getGreetingIcon()}
+                            </div>
+                            <div>
+                                <h2 className="text-[15px] font-bold leading-none">{getGreeting()}</h2>
+                                <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Painel de Controle</p>
+                            </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 bg-accent/10 px-2.5 py-1 rounded-lg">
+                            <ShieldCheck size={12} className="text-accent" />
+                            <span className="text-[11px] font-mono font-bold text-accent">{channel.ownerId}</span>
                         </div>
                     </div>
-                    <div className="flex items-center gap-1.5 bg-[var(--accent-soft)] px-2.5 py-1 rounded-lg">
-                        <ShieldCheck size={12} className="text-[var(--accent)]" />
-                        <span className="text-[11px] font-mono font-bold text-[var(--accent)]">{channel.ownerId}</span>
-                    </div>
-                </div>
 
-                {/* User Info */}
-                <div className="flex items-center gap-3 p-3 bg-[var(--surface)] border border-[var(--border)] rounded-2xl mb-4">
-                    <div className="w-11 h-11 rounded-full flex items-center justify-center bg-[var(--accent)] text-white font-bold text-lg flex-shrink-0 shadow-sm">
-                        {displayName.charAt(0).toUpperCase()}
+                    {/* User Info */}
+                    <div className="flex items-center gap-3 p-3 bg-muted/50 border border-border rounded-2xl mb-4">
+                        <div className="w-11 h-11 rounded-full flex items-center justify-center bg-primary text-primary-foreground font-bold text-lg flex-shrink-0 shadow-sm">
+                            {displayName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="text-[16px] font-bold text-foreground truncate">{displayName}</h3>
+                            <p className="text-[11px] text-muted-foreground truncate">Administrador do Canal</p>
+                        </div>
                     </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 className="text-[16px] font-bold text-[var(--text)] truncate">{displayName}</h3>
-                        <p className="text-[11px] text-[var(--hint)] truncate">Administrador do Canal</p>
-                    </div>
-                </div>
-                
-                {/* Integrated Disconnect Action */}
-                <button 
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-[var(--danger-soft)] text-[var(--danger)] text-[13px] font-bold hover:opacity-80 transition-all active:scale-[0.98]" 
-                    onClick={handleDisconnect}
-                >
-                    <LogOut size={16} />
-                    <span>Desconectar Bot</span>
-                </button>
-            </div>
+                    
+                    {/* Integrated Disconnect Action */}
+                    <Button 
+                        variant="destructive"
+                        className="w-full"
+                        onClick={handleDisconnect}
+                    >
+                        <LogOut size={16} />
+                        Desconectar Bot
+                    </Button>
+                </CardContent>
+            </Card>
 
             {/* Transferir Posse */}
-            <div className="card">
-                <div className="section-header">
-                    <div className="section-icon purple" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+            <div className="rounded-xl border border-border p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                    <div className="section-icon" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
                         <Users size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
                         <h3 className="text-[15px] font-semibold truncate">Transferir Posse</h3>
-                        <p className="text-xs truncate" style={{ color: 'var(--hint)' }}>Passe a administração para outro usuário</p>
+                        <p className="text-xs truncate text-muted-foreground">Passe a administração para outro usuário</p>
                     </div>
                 </div>
-                <div className="flex flex-col gap-3 mt-3">
-                    <input
-                        type="text"
-                        placeholder="ID ou Username do novo dono"
-                        className="w-full bg-[var(--background)] text-[var(--text)] border border-[var(--border)] rounded-xl py-2 px-3 focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
-                        value={transferInput}
-                        onChange={(e) => setTransferInput(e.target.value)}
-                    />
-                    <button
-                        className="btn btn-primary"
+                <div className="flex gap-2 items-center">
+                    <div className="relative flex-1">
+                        <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                        <Input
+                            className="h-10 pl-9 rounded-xl"
+                            placeholder="ID ou Username do novo dono"
+                            value={transferInput}
+                            onChange={(e) => setTransferInput(e.target.value)}
+                        />
+                    </div>
+                    <Button
+                        variant="default"
+                        className="h-10 shrink-0"
                         onClick={handleTransferClick}
                         disabled={!transferInput.trim() || isTransferring}
                     >
-                        {isTransferring ? 'Aguarde...' : 'Enviar'}
-                    </button>
+                        {isTransferring ? 'Aguarde...' : <><Send size={16} /> Transferir</>}
+                    </Button>
                 </div>
             </div>
 

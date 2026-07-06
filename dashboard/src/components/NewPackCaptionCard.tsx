@@ -1,6 +1,9 @@
 import { useState, useEffect, memo } from 'react';
 import { Package, Pencil, X, Check, Info } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
+import { Switch } from './ui/switch';
 
 interface Props {
   caption: string;
@@ -44,109 +47,126 @@ export const NewPackCaptionCard = memo(({ caption, messageButtons, stickerButton
   };
 
   return (
-    <div className="card">
-      <div className="section-header">
-        <div className="section-icon amber"><Package size={18} /></div>
-        <div className="flex-1 min-w-0">
-          <h3 className="text-[15px] font-semibold">New Pack Caption</h3>
-          <p className="text-xs mt-0.5" style={{ color: 'var(--hint)' }}>Template para novo pack</p>
+    <Card>
+      <CardContent className="pt-4">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="section-icon" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+            <Package size={18} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="text-[15px] font-semibold">New Pack Caption</h3>
+            <p className="text-xs mt-0.5 text-muted-foreground">Template para novo pack</p>
+          </div>
+          {!editing && (
+            <Button variant="ghost" size="icon" className="text-accent" onClick={() => setEditing(true)}>
+              <Pencil size={15} />
+            </Button>
+          )}
         </div>
-        {!editing && (
-          <button className="icon-btn accent" onClick={() => setEditing(true)}>
-            <Pencil size={15} />
-          </button>
-        )}
-      </div>
 
-      {editing ? (
-        <div className="space-y-3">
-          <RichTextEditor
-            value={text}
-            onChange={setText}
-            rows={8}
-            placeholder="Template..."
-          />
-          <div className="space-y-2">
-            <div
-              className={`perm-row ${messageBtn ? 'on' : ''}`}
-              onClick={() => setMessageBtn(v => !v)}
-            >
-              <div>
-                <span className="text-[13px] font-medium">Botão na mensagem do bot</span>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--hint)' }}>Mostra o botão do pack na mensagem editada.</p>
-              </div>
-              <div className={`toggle ${messageBtn ? 'on' : ''}`} />
-            </div>
-
-            <div
-              className={`perm-row ${stickerBtn ? 'on' : ''}`}
-              onClick={() => setStickerBtn(v => !v)}
-            >
-              <div>
-                <span className="text-[13px] font-medium">Botão no sticker do pack</span>
-                <p className="text-[11px] mt-0.5" style={{ color: 'var(--hint)' }}>Mostra o botão abaixo do sticker enviado.</p>
-              </div>
-              <div className={`toggle ${stickerBtn ? 'on' : ''}`} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                className={`btn btn-sm ${position === 'above' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setPosition('above')}
-              >
-                Mensagem acima
-              </button>
-              <button
-                type="button"
-                className={`btn btn-sm ${position === 'below' ? 'btn-primary' : 'btn-secondary'}`}
-                onClick={() => setPosition('below')}
-              >
-                Mensagem abaixo
-              </button>
-            </div>
-
-            {position === 'below' && (
+        {editing ? (
+          <div className="space-y-3">
+            <RichTextEditor
+              value={text}
+              onChange={setText}
+              rows={8}
+              placeholder="Template..."
+            />
+            <div className="space-y-2">
               <div
-                className={`perm-row ${replySticker ? 'on' : ''}`}
-                onClick={() => setReplySticker(v => !v)}
+                className={`flex items-center justify-between px-[18px] py-3 rounded-[20px] gap-3 min-h-[52px] cursor-pointer transition-all ${messageBtn ? 'bg-accent/10' : 'bg-muted/50'}`}
+                onClick={() => setMessageBtn(v => !v)}
               >
                 <div>
-                  <span className="text-[13px] font-medium">Marcar Sticker</span>
-                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--hint)' }}>Envia a mensagem respondendo ao sticker do pack.</p>
+                  <span className="text-[13px] font-medium">Botão na mensagem do bot</span>
+                  <p className="text-[11px] mt-0.5 text-muted-foreground">Mostra o botão do pack na mensagem editada.</p>
                 </div>
-                <div className={`toggle ${replySticker ? 'on' : ''}`} />
+                <Switch
+                  checked={messageBtn}
+                  onCheckedChange={(c) => setMessageBtn(c)}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                />
               </div>
-            )}
-          </div>
 
-          <div className="flex items-start gap-2 py-1" style={{ color: 'var(--hint)' }}>
-            <button
-              type="button"
-              className={`icon-btn ${showHelp ? 'accent' : ''}`}
-              onClick={() => setShowHelp(v => !v)}
-              title="Variáveis disponíveis"
-            >
-              <Info size={13} />
-            </button>
-            {showHelp && (
-              <span className="text-xs pt-1">Use <strong>$name</strong>, <strong>$title</strong>, <strong>$link</strong> e <strong>$count</strong>. Ex: [abrir pack]($link)</span>
-            )}
+              <div
+                className={`flex items-center justify-between px-[18px] py-3 rounded-[20px] gap-3 min-h-[52px] cursor-pointer transition-all ${stickerBtn ? 'bg-accent/10' : 'bg-muted/50'}`}
+                onClick={() => setStickerBtn(v => !v)}
+              >
+                <div>
+                  <span className="text-[13px] font-medium">Botão no sticker do pack</span>
+                  <p className="text-[11px] mt-0.5 text-muted-foreground">Mostra o botão abaixo do sticker enviado.</p>
+                </div>
+                <Switch
+                  checked={stickerBtn}
+                  onCheckedChange={(c) => setStickerBtn(c)}
+                  onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  size="sm"
+                  variant={position === 'above' ? 'default' : 'secondary'}
+                  onClick={() => setPosition('above')}
+                >
+                  Mensagem acima
+                </Button>
+                <Button
+                  size="sm"
+                  variant={position === 'below' ? 'default' : 'secondary'}
+                  onClick={() => setPosition('below')}
+                >
+                  Mensagem abaixo
+                </Button>
+              </div>
+
+              {position === 'below' && (
+                <div
+                  className={`flex items-center justify-between px-[18px] py-3 rounded-[20px] gap-3 min-h-[52px] cursor-pointer transition-all ${replySticker ? 'bg-accent/10' : 'bg-muted/50'}`}
+                  onClick={() => setReplySticker(v => !v)}
+                >
+                  <div>
+                    <span className="text-[13px] font-medium">Marcar Sticker</span>
+                    <p className="text-[11px] mt-0.5 text-muted-foreground">Envia a mensagem respondendo ao sticker do pack.</p>
+                  </div>
+                  <Switch
+                    checked={replySticker}
+                    onCheckedChange={(c) => setReplySticker(c)}
+                    onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                  />
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-start gap-2 py-1 text-muted-foreground">
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                className={showHelp ? 'text-accent' : ''}
+                onClick={() => setShowHelp(v => !v)}
+                title="Variáveis disponíveis"
+              >
+                <Info size={13} />
+              </Button>
+              {showHelp && (
+                <span className="text-xs pt-1">Use <strong>$name</strong>, <strong>$title</strong>, <strong>$link</strong> e <strong>$count</strong>. Ex: [abrir pack]($link)</span>
+              )}
+            </div>
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={cancel}>
+                <X size={14} /> Cancelar
+              </Button>
+              <Button variant="default" size="sm" onClick={save}>
+                <Check size={14} /> Salvar
+              </Button>
+            </div>
           </div>
-          <div className="flex items-center justify-end gap-2">
-            <button className="btn btn-secondary btn-sm" onClick={cancel}>
-              <X size={14} /> Cancelar
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={save}>
-              <Check size={14} /> Salvar
-            </button>
+        ) : (
+          <div className="caption-preview" onClick={() => setEditing(true)}>
+            {caption}
           </div>
-        </div>
-      ) : (
-        <div className="caption-preview" onClick={() => setEditing(true)}>
-          {caption}
-        </div>
-      )}
-    </div>
+        )}
+      </CardContent>
+    </Card>
   );
 });

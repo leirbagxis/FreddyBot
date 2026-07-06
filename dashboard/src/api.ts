@@ -1,4 +1,4 @@
-import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse } from './types';
+import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, AccountStatus, AuthStatus } from './types';
 
 export interface AuthRequestBody {
     channelID: number;
@@ -293,4 +293,44 @@ export const fetchAdminLogs = async (filters: AdminLogsFilters = {}): Promise<Ad
         method: 'GET',
     });
     return response?.data || { events: [], total: 0, limit: filters.limit || 50, offset: filters.offset || 0 };
+};
+
+// ===== Connected Account API =====
+
+export const fetchAccountStatus = async (): Promise<AccountStatus> => {
+    const response = await apiFetch('/api/account', { method: 'GET' });
+    return response?.data || { status: 'disconnected' };
+};
+
+export const fetchAuthStatus = async (): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/status', { method: 'GET' });
+    return response?.data || { step: 'phone' };
+};
+
+export const connectAccount = async (phoneNumber: string): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/connect', {
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao conectar' };
+};
+
+export const verifyCode = async (code: string): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/verify', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar código' };
+};
+
+export const sendPassword = async (password: string): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/password', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar senha' };
+};
+
+export const disconnectAccount = async (): Promise<void> => {
+    await apiFetch('/api/account', { method: 'DELETE' });
 };

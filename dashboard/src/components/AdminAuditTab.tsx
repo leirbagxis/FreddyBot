@@ -4,6 +4,8 @@ import { bulkDeleteChannels } from '../api';
 import { AuditResult, Channel } from '../types';
 import { useToast } from './Toast';
 import { ConfirmModal } from './ConfirmModal';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
 
 interface AdminAuditTabProps {
     navigateToChannel: (id: number) => void;
@@ -33,7 +35,6 @@ export function AdminAuditTab({ navigateToChannel, onOpenUser, results, setResul
             const res = await bulkDeleteChannels(userId, channels);
             if (res.success) {
                 toast(`Remoção concluída: ${res.data.deletedCount} canais limpos`, "success");
-                // Atualizar lista local removendo o usuário
                 setResults(prev => prev ? prev.filter(r => r.userId !== userId) : null);
             } else {
                 throw new Error(res.message || "Erro ao excluir canais");
@@ -47,91 +48,100 @@ export function AdminAuditTab({ navigateToChannel, onOpenUser, results, setResul
 
     return (
         <div className="space-y-4">
-            <div className="card" style={{ padding: '24px' }}>
-                <div className="flex flex-col items-center text-center">
+            {/* Audit CTA Card */}
+            <Card>
+                <CardContent className="flex flex-col items-center text-center py-8">
                     <div className="section-icon red mb-4" style={{ width: 64, height: 64 }}>
                         <ShieldAlert size={32} />
                     </div>
                     <h2 className="text-xl font-bold mb-2">Auditoria Ativa</h2>
-                    <p className="text-sm opacity-70 mb-6 max-w-sm">
+                    <p className="text-sm text-muted-foreground mb-6 max-w-sm">
                         Esta ferramenta realiza uma varredura em tempo real em todos os canais do banco para identificar onde o bot legado <b>@XavolaBot</b> ainda possui permissões de administrador.
                     </p>
                     
-                    <button 
-                        className={`btn ${loading ? 'btn-ghost pointer-events-none' : 'btn-danger'} w-full max-w-xs`}
+                    <Button
+                        variant={loading ? "ghost" : "destructive"}
+                        className="w-full max-w-xs"
                         onClick={handleRunAudit}
                         disabled={loading}
                     >
                         {loading ? (
                             <>
-                                <div className="auth-spinner mr-2" style={{ width: 16, height: 16 }} />
+                                <div className="auth-spinner" style={{ width: 16, height: 16 }} />
                                 Varrendo canais...
                             </>
                         ) : (
                             <>
-                                <Zap size={18} className="mr-2" />
+                                <Zap size={18} />
                                 Iniciar Varredura Agora
                             </>
                         )}
-                    </button>
-                </div>
-            </div>
+                    </Button>
+                </CardContent>
+            </Card>
 
+            {/* Results */}
             {results && results.length > 0 && (
-                <div className="space-y-12 mt-8">
-                    <h3 className="text-[15px] font-bold px-1" style={{ color: 'var(--hint)' }}>
+                <div className="space-y-6 mt-8">
+                    <h3 className="text-sm font-bold text-muted-foreground px-1">
                         Usuários com XavolaBot detectado ({results.length})
                     </h3>
                     
                     {results.map((result) => (
-                        <div key={result.userId} className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500">
-                            <div className="flex items-center justify-between px-1 bg-[var(--surface)] p-3 rounded-2xl border border-[var(--border)] shadow-sm">
+                        <div key={result.userId} className="space-y-3">
+                            {/* User header — Cloudflare clean */}
+                            <div className="flex items-center justify-between rounded-xl border border-border bg-card p-3">
                                 <button
                                     className="flex min-w-0 flex-1 items-center gap-3 text-left transition-opacity hover:opacity-80"
                                     onClick={() => onOpenUser(result.userId)}
-                                    title="Abrir usuário"
                                 >
-                                    <div className="section-icon purple sm"><UserIcon size={14} /></div>
-                                    <div className="flex min-w-0 flex-col">
-                                        <span className="truncate text-sm font-bold">{result.firstName}</span>
-                                        <span className="truncate text-[10px] opacity-40">ID: {result.userId} • {result.channels.length} canais</span>
+                                    <div className="section-icon purple sm shrink-0">
+                                        <UserIcon size={14} />
                                     </div>
-                                    <ChevronRight size={16} className="stat-arrow" />
+                                    <div className="min-w-0 flex-1">
+                                        <span className="truncate text-sm font-bold block">{result.firstName}</span>
+                                        <span className="truncate text-[10px] text-muted-foreground block">ID: {result.userId} • {result.channels.length} canais</span>
+                                    </div>
+                                    <ChevronRight size={16} className="shrink-0 text-muted-foreground/40" />
                                 </button>
-                                <button 
-                                    className={`btn btn-danger sm ${deletingId === result.userId ? 'loading' : ''}`}
+                                <Button
+                                    variant="destructive"
+                                    size="sm"
                                     disabled={deletingId !== null}
-                                    onClick={() => setConfirmDelete({ 
-                                        userId: result.userId, 
+                                    onClick={() => setConfirmDelete({
+                                        userId: result.userId,
                                         channels: result.channels.map(c => c.id),
                                         name: result.firstName
                                     })}
-                                    title="Remover todos estes canais"
+                                    className="shrink-0 ml-3"
                                 >
                                     {deletingId === result.userId ? (
                                         <div className="auth-spinner" style={{ width: 14, height: 14 }} />
                                     ) : (
                                         <>
-                                            <Trash2 size={14} className="mr-1.5" />
+                                            <Trash2 size={14} />
                                             Limpar Tudo
                                         </>
                                     )}
-                                </button>
+                                </Button>
                             </div>
                             
-                            <div className="grid gap-2 pl-4 border-l-2 border-[var(--border)] ml-4">
+                            {/* Channel list */}
+                            <div className="grid gap-1.5 pl-5 border-l-2 border-border ml-4">
                                 {result.channels.map((c: Channel) => (
-                                    <button 
-                                        key={c.id} 
-                                        className="admin-list-item flex items-center w-full text-left p-4 opacity-80 hover:opacity-100" 
+                                    <button
+                                        key={c.id}
+                                        className="flex items-center w-full text-left gap-3 rounded-xl border border-border bg-card/50 p-3 hover:bg-muted/50 transition-colors"
                                         onClick={() => navigateToChannel(c.id)}
                                     >
-                                        <div className="section-icon purple mr-3" style={{ transform: 'scale(0.8)' }}><Hash size={18} /></div>
+                                        <div className="section-icon purple shrink-0" style={{ transform: 'scale(0.8)' }}>
+                                            <Hash size={18} />
+                                        </div>
                                         <div className="min-w-0 flex-1">
                                             <h3 className="text-[13px] font-semibold truncate">{c.title}</h3>
-                                            <p className="text-[10px] truncate mt-0.5 opacity-50">ID: {c.id}</p>
+                                            <p className="text-[10px] text-muted-foreground truncate">ID: {c.id}</p>
                                         </div>
-                                        <ChevronRight size={16} className="stat-arrow" />
+                                        <ChevronRight size={14} className="shrink-0 text-muted-foreground/30" />
                                     </button>
                                 ))}
                             </div>
@@ -140,41 +150,42 @@ export function AdminAuditTab({ navigateToChannel, onOpenUser, results, setResul
                 </div>
             )}
 
+            {/* Empty result */}
             {results && results.length === 0 && !loading && (
-                <div className="card animate-in fade-in slide-in-from-bottom-2 duration-500" style={{ padding: '28px 20px' }}>
-                    <div className="flex flex-col items-center text-center">
+                <Card className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+                    <CardContent className="flex flex-col items-center text-center py-8">
                         <div className="section-icon green mb-4" style={{ width: 68, height: 68, borderRadius: 20 }}>
                             <ShieldCheck size={34} />
                         </div>
 
-                        <div className="inline-flex items-center gap-1.5 mb-3 px-3 py-1 rounded-full border border-[var(--border)] bg-[var(--surface)] text-[11px] font-bold" style={{ color: 'var(--success)' }}>
+                        <div className="inline-flex items-center gap-1.5 mb-3 px-3 py-1 rounded-full border border-border bg-card text-[11px] font-bold text-green-500">
                             <CheckCircle2 size={13} />
-                            Auditoria concluida
+                            Auditoria concluída
                         </div>
 
                         <h3 className="text-lg font-bold mb-2">Nenhum XavolaBot encontrado</h3>
-                        <p className="text-sm leading-relaxed max-w-sm mb-5" style={{ color: 'var(--text-secondary)' }}>
+                        <p className="text-sm leading-relaxed max-w-sm mb-5 text-muted-foreground">
                             A varredura terminou e nenhum canal do banco possui o bot legado com permissões de administrador.
                         </p>
 
                         <div className="grid gap-2 w-full max-w-sm">
-                            <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left">
-                                <div className="section-icon green sm"><CheckCircle2 size={14} /></div>
+                            <div className="flex items-center gap-3 rounded-xl border border-border bg-card/50 px-4 py-3 text-left">
+                                <div className="section-icon green sm shrink-0"><CheckCircle2 size={14} /></div>
                                 <div className="min-w-0">
-                                    <p className="text-[12px] font-bold">Canais verificados</p>
-                                    <p className="text-[10px] opacity-50">Nenhuma permissão legada detectada.</p>
+                                    <p className="text-xs font-bold">Canais verificados</p>
+                                    <p className="text-[10px] text-muted-foreground">Nenhuma permissão legada detectada.</p>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-left">
-                                <div className="section-icon purple sm"><Sparkles size={14} /></div>
+                            <div className="flex items-center gap-3 rounded-xl border border-border bg-card/50 px-4 py-3 text-left">
+                                <div className="section-icon purple sm shrink-0"><Sparkles size={14} /></div>
                                 <div className="min-w-0">
-                                    <p className="text-[12px] font-bold">Nenhuma ação necessária</p>
-                                    <p className="text-[10px] opacity-50">A lista de limpeza permanece vazia.</p>
+                                    <p className="text-xs font-bold">Nenhuma ação necessária</p>
+                                    <p className="text-[10px] text-muted-foreground">A lista de limpeza permanece vazia.</p>
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
+                    </CardContent>
+                </Card>
             )}
 
             <ConfirmModal
@@ -189,4 +200,3 @@ export function AdminAuditTab({ navigateToChannel, onOpenUser, results, setResul
         </div>
     );
 }
-

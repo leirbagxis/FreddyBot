@@ -1,4 +1,4 @@
-import { useState, useCallback, createContext, useContext } from 'react';
+import { useState, useCallback, createContext, useContext, useRef } from 'react';
 import { CheckCircle2, Info, AlertCircle, X } from 'lucide-react';
 
 interface ToastItem {
@@ -19,12 +19,20 @@ const icons = {
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const lastToastRef = useRef<{ message: string; time: number } | null>(null);
 
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   const addToast: ToastFn = useCallback((message, type = 'success') => {
+    const now = Date.now();
+    // Dedup: se mesma mensagem foi chamada nos últimos 100ms, ignora
+    if (lastToastRef.current && lastToastRef.current.message === message && now - lastToastRef.current.time < 100) {
+      return;
+    }
+    lastToastRef.current = { message, time: now };
+
     const id = Math.random().toString(36).slice(2);
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => removeToast(id), 4000);

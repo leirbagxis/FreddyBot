@@ -146,6 +146,22 @@ export interface ChannelsResponse {
   success: boolean;
 }
 
+/* ===== Connected Account (MTProto) ===== */
+export interface AccountStatus {
+  status: 'connected' | 'disconnected';
+  telegramId?: number;
+  username?: string;
+  avatarUrl?: string;
+  connectedAt?: string;
+  lastUsedAt?: string;
+}
+
+export interface AuthStatus {
+  step: 'phone' | 'code' | 'password' | 'done' | 'error';
+  error?: string;
+  hasPassword?: boolean;
+}
+
 /* ===== Telegram WebApp ===== */
 export interface TelegramUser {
   id: number;

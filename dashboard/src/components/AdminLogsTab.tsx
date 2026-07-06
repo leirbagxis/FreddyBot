@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Calendar, ChevronDown, ChevronRight, Hash, RefreshCcw, Search } from 'lucide-react';
+import { Calendar, ChevronDown, ChevronRight, Hash, RefreshCcw, Search, ChevronLeft, ChevronRight as ChevronRightIcon } from 'lucide-react';
 import { fetchAdminLogs } from '../api';
 import { AdminLogsFilters, ChannelEvent } from '../types';
 import { useToast } from './Toast';
+import { Button } from './ui/button';
+import { Badge } from './ui/badge';
+import { Input } from './ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 
 interface AdminLogsTabProps {
   navigateToChannel: (id: number) => void;
@@ -14,11 +18,11 @@ const sourceLabels: Record<string, string> = {
   post_builder: 'PostBuilder',
 };
 
-const statusLabels: Record<string, string> = {
-  success: 'Sucesso',
-  error: 'Erro',
-  skipped: 'Ignorado',
-  info: 'Info',
+const statusConfig: Record<string, { label: string; color: string; bg: string }> = {
+  success: { label: 'Sucesso', color: 'var(--success)', bg: 'var(--success-soft)' },
+  error: { label: 'Erro', color: 'var(--danger)', bg: 'var(--danger-soft)' },
+  info: { label: 'Info', color: 'var(--accent)', bg: 'var(--accent-soft)' },
+  skipped: { label: 'Ignorado', color: 'var(--warning)', bg: 'var(--warning-soft)' },
 };
 
 function eventLabel(value: string): string {
@@ -41,21 +45,6 @@ function parseMetadata(event: ChannelEvent): string {
     return JSON.stringify(JSON.parse(event.metadata), null, 2);
   } catch {
     return event.metadata;
-  }
-}
-
-function statusBadgeClass(status: string): string {
-  switch (status) {
-    case 'success':
-      return 'badge-success';
-    case 'info':
-      return 'badge-info';
-    case 'error':
-      return 'badge-danger';
-    case 'skipped':
-      return 'badge-warning';
-    default:
-      return 'badge-muted';
   }
 }
 
@@ -107,87 +96,160 @@ export function AdminLogsTab({ navigateToChannel, initialChannelId = '' }: Admin
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <div className="search-bar-container relative">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2" size={18} style={{ color: 'var(--hint)' }} />
-          <input className="admin-search-input input" placeholder="Buscar título, erro ou metadata" value={filters.q || ''} onChange={e => updateFilter('q', e.target.value)} />
+      {/* Filter bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input
+            className="h-10 pl-9 rounded-xl"
+            placeholder="Buscar..."
+            value={filters.q || ''}
+            onChange={e => updateFilter('q', e.target.value)}
+          />
         </div>
-        <div className="search-bar-container relative">
-          <Hash className="absolute left-4 top-1/2 -translate-y-1/2" size={18} style={{ color: 'var(--hint)' }} />
-          <input className="admin-search-input input" placeholder="ID do canal" value={filters.channelId || ''} onChange={e => updateFilter('channelId', e.target.value)} />
+        <div className="relative">
+          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input
+            className="h-10 pl-9 rounded-xl"
+            placeholder="ID do canal"
+            value={filters.channelId || ''}
+            onChange={e => updateFilter('channelId', e.target.value)}
+          />
         </div>
-        <select className="input" value={filters.source || ''} onChange={e => updateFilter('source', e.target.value)}>
-          <option value="">Todas as origens</option>
-          <option value="channel_post">Postagens</option>
-          <option value="post_builder">PostBuilder</option>
-        </select>
-        <select className="input" value={filters.status || ''} onChange={e => updateFilter('status', e.target.value)}>
-          <option value="">Todos os status</option>
-          <option value="success">Sucesso</option>
-          <option value="error">Erro</option>
-          <option value="skipped">Ignorado</option>
-          <option value="info">Info</option>
-        </select>
-        <div className="search-bar-container relative">
-          <Calendar className="absolute left-4 top-1/2 -translate-y-1/2" size={18} style={{ color: 'var(--hint)' }} />
-          <input className="admin-search-input input" type="date" value={filters.dateFrom || ''} onChange={e => updateFilter('dateFrom', e.target.value)} />
+        <Select value={filters.source || ''} onValueChange={v => updateFilter('source', v)}>
+          <SelectTrigger className="w-full h-10 rounded-xl">
+            <SelectValue placeholder="Todas origens" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todas origens</SelectItem>
+            <SelectItem value="channel_post">Postagens</SelectItem>
+            <SelectItem value="post_builder">PostBuilder</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filters.status || ''} onValueChange={v => updateFilter('status', v)}>
+          <SelectTrigger className="w-full h-10 rounded-xl">
+            <SelectValue placeholder="Todos status" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Todos status</SelectItem>
+            <SelectItem value="success">Sucesso</SelectItem>
+            <SelectItem value="error">Erro</SelectItem>
+            <SelectItem value="skipped">Ignorado</SelectItem>
+            <SelectItem value="info">Info</SelectItem>
+          </SelectContent>
+        </Select>
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input
+            className="h-10 pl-9 rounded-xl"
+            type="date"
+            value={filters.dateFrom || ''}
+            onChange={e => updateFilter('dateFrom', e.target.value)}
+          />
         </div>
-        <div className="search-bar-container relative">
-          <Calendar className="absolute left-4 top-1/2 -translate-y-1/2" size={18} style={{ color: 'var(--hint)' }} />
-          <input className="admin-search-input input" type="date" value={filters.dateTo || ''} onChange={e => updateFilter('dateTo', e.target.value)} />
+        <div className="relative">
+          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
+          <Input
+            className="h-10 pl-9 rounded-xl"
+            type="date"
+            value={filters.dateTo || ''}
+            onChange={e => updateFilter('dateTo', e.target.value)}
+          />
         </div>
+        <Button variant="default" className="h-10" onClick={applyFilters} disabled={loading}>
+          <Search size={16} /> Buscar
+        </Button>
+        <Button variant="secondary" className="h-10" onClick={() => loadLogs(filters)} disabled={loading}>
+          <RefreshCcw size={16} /> Atualizar
+        </Button>
       </div>
 
-      <div className="flex gap-2">
-        <button className="btn btn-primary flex-1" onClick={applyFilters} disabled={loading}>
-          <Search size={18} /> Buscar
-        </button>
-        <button className="btn btn-secondary" onClick={() => loadLogs(filters)} disabled={loading}>
-          <RefreshCcw size={18} />
-        </button>
-      </div>
-
-      <div className="flex items-center justify-between text-xs" style={{ color: 'var(--hint)' }}>
-        <span>{total} eventos</span>
+      {/* Status bar */}
+      <div className="flex items-center justify-between text-xs text-muted-foreground">
+        <span className="font-medium">{total} eventos encontrados</span>
         <span>Página {page} de {pageCount}</span>
       </div>
 
-      <div className="space-y-3">
+      {/* Events list */}
+      <div className="space-y-1.5">
         {events.length === 0 && !loading ? (
-          <div className="card text-center py-8" style={{ color: 'var(--hint)' }}>Nenhum log encontrado</div>
+          <div className="flex flex-col items-center py-10 text-muted-foreground rounded-xl border border-border">
+            <Search size={28} className="opacity-30 mb-2" />
+            <p className="text-[13px] font-medium">Nenhum log encontrado</p>
+            <p className="text-[11px] text-muted-foreground/60 mt-1">Tente ajustar os filtros ou carregar mais dados</p>
+          </div>
         ) : events.map(event => {
           const expanded = expandedId === event.id;
+          const sc = statusConfig[event.status] || { label: event.status, color: 'var(--hint)', bg: 'transparent' };
           return (
-            <div key={event.id} className="admin-list-item p-4">
-              <button className="flex items-start w-full text-left gap-3" onClick={() => setExpandedId(expanded ? null : event.id)}>
-                <div className="section-icon purple mt-0.5">{expanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}</div>
+            <div key={event.id} className="rounded-xl border border-border overflow-hidden transition-all">
+              {/* Main row */}
+              <button
+                className="flex items-start w-full text-left gap-3 p-3 hover:bg-muted/20 transition-colors"
+                onClick={() => setExpandedId(expanded ? null : event.id)}
+              >
+                <div className="shrink-0 mt-0.5 text-muted-foreground">
+                  {expanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </div>
+                <div className="shrink-0 mt-1" style={{ width: 8, height: 8, borderRadius: '50%', background: sc.color }} />
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap gap-2 mb-1">
-                    <span className={`badge ${statusBadgeClass(event.status)}`}>{statusLabels[event.status] || event.status}</span>
-                    <span className="badge badge-muted">{sourceLabels[event.source] || event.source}</span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[13px] font-semibold">{eventLabel(event.eventType)}</span>
+                    <Badge
+                      variant="secondary"
+                      className="text-[9px] h-[18px]"
+                      style={{ background: sc.bg, color: sc.color, border: 'none' }}
+                    >
+                      {sc.label}
+                    </Badge>
+                    <Badge variant="secondary" className="text-[9px] h-[18px]">
+                      {sourceLabels[event.source] || event.source}
+                    </Badge>
+                    <span className="text-[10px] text-muted-foreground ml-auto">{formatDate(event.created_at)}</span>
                   </div>
-                  <h3 className="text-[15px] font-semibold truncate">{eventLabel(event.eventType)}</h3>
-                  <p className="text-xs truncate mt-0.5" style={{ color: 'var(--hint)' }}>
-                    {event.channelTitle || 'Sem canal'} {event.channelId ? `(${event.channelId})` : ''} • {formatDate(event.created_at)}
+                  <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                    {event.channelTitle || 'Sem canal'}{event.channelId ? ` (${event.channelId})` : ''}
                   </p>
-                  {event.errorMessage && <p className="text-xs mt-1 text-[var(--danger)] truncate">{event.errorMessage}</p>}
+                  {event.errorMessage && (
+                    <p className="text-[11px] mt-1 text-destructive truncate">{event.errorMessage}</p>
+                  )}
                 </div>
               </button>
 
+              {/* Expanded details */}
               {expanded && (
-                <div className="mt-3 space-y-3">
-                  <div className="grid grid-cols-2 gap-2 text-xs" style={{ color: 'var(--hint)' }}>
-                    <span>Owner: {event.ownerId || '-'}</span>
-                    <span>Actor: {event.actorId || '-'}</span>
-                    <span>Mensagem: {event.telegramMessageId || '-'}</span>
-                    <span>Sessão: {event.sessionId || '-'}</span>
+                <div className="border-t border-border px-3 py-3 space-y-3 bg-muted/10">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs text-muted-foreground">
+                    <div className="rounded-lg bg-muted/20 px-3 py-2">
+                      <span className="block text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Owner</span>
+                      <span className="font-medium">{event.ownerId || '-'}</span>
+                    </div>
+                    <div className="rounded-lg bg-muted/20 px-3 py-2">
+                      <span className="block text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Actor</span>
+                      <span className="font-medium">{event.actorId || '-'}</span>
+                    </div>
+                    <div className="rounded-lg bg-muted/20 px-3 py-2">
+                      <span className="block text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Mensagem ID</span>
+                      <span className="font-medium">{event.telegramMessageId || '-'}</span>
+                    </div>
+                    <div className="rounded-lg bg-muted/20 px-3 py-2">
+                      <span className="block text-[10px] font-semibold text-muted-foreground/60 uppercase tracking-wide">Sessão</span>
+                      <span className="font-medium truncate block">{event.sessionId || '-'}</span>
+                    </div>
                   </div>
-                  {event.channelId !== 0 && (
-                    <button className="btn btn-secondary w-full" onClick={() => navigateToChannel(event.channelId)}>
-                      <Hash size={18} /> Abrir canal
-                    </button>
-                  )}
-                  <pre className="text-xs overflow-auto rounded-md p-3" style={{ background: 'var(--bg-secondary)', color: 'var(--text)', maxHeight: 220 }}>{parseMetadata(event)}</pre>
+                  <div className="flex gap-2">
+                    {event.channelId !== 0 && (
+                      <Button variant="secondary" size="sm" onClick={() => navigateToChannel(event.channelId)}>
+                        <Hash size={14} /> Abrir canal
+                      </Button>
+                    )}
+                  </div>
+                  <pre
+                    className="text-[11px] overflow-auto rounded-xl p-3 leading-relaxed max-h-[200px] border border-border"
+                    style={{ background: 'var(--muted)' }}
+                  >
+                    {parseMetadata(event)}
+                  </pre>
                 </div>
               )}
             </div>
@@ -195,10 +257,59 @@ export function AdminLogsTab({ navigateToChannel, initialChannelId = '' }: Admin
         })}
       </div>
 
-      <div className="grid grid-cols-2 gap-2">
-        <button className="btn btn-secondary" disabled={loading || (filters.offset || 0) === 0} onClick={() => goToPage('prev')}>Anterior</button>
-        <button className="btn btn-secondary" disabled={loading || page >= pageCount} onClick={() => goToPage('next')}>Próxima</button>
-      </div>
+      {/* Pagination */}
+      {pageCount > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={loading || (filters.offset || 0) === 0}
+            onClick={() => goToPage('prev')}
+          >
+            <ChevronLeft size={16} /> Anterior
+          </Button>
+          <div className="flex items-center gap-1 text-xs text-muted-foreground px-3">
+            {Array.from({ length: Math.min(pageCount, 5) }, (_, i) => {
+              let pageNum: number;
+              if (pageCount <= 5) {
+                pageNum = i + 1;
+              } else if (page <= 3) {
+                pageNum = i + 1;
+              } else if (page >= pageCount - 2) {
+                pageNum = pageCount - 4 + i;
+              } else {
+                pageNum = page - 2 + i;
+              }
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => {
+                    const offset = (pageNum - 1) * (filters.limit || 50);
+                    const next = { ...filters, offset };
+                    setFilters(next);
+                    loadLogs(next);
+                  }}
+                  className={`w-7 h-7 rounded-lg text-[11px] font-semibold transition-colors ${
+                    pageNum === page
+                      ? 'bg-accent text-accent-foreground'
+                      : 'hover:bg-muted/30 text-muted-foreground'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={loading || page >= pageCount}
+            onClick={() => goToPage('next')}
+          >
+            Próxima <ChevronRightIcon size={16} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

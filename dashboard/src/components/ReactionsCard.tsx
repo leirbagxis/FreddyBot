@@ -1,5 +1,8 @@
 import { useState, useEffect, memo } from 'react';
 import { SmilePlus, X } from 'lucide-react';
+import { Card, CardContent } from './ui/card';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
 
 interface ReactionsCardProps {
     reactions: string;
@@ -23,7 +26,6 @@ export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) 
     }, [reactions]);
 
     const isEmoji = (str: string) => {
-        // Regex para detectar se a string contém APENAS emojis (incluindo variações de colos, etc)
         const emojiRegex = /^(\u00a9|\u00ae|[\u2000-\u3300]|\ud83c[\ud000-\udfff]|\ud83d[\ud000-\udfff]|\ud83e[\ud000-\udfff])+$/;
         return emojiRegex.test(str);
     };
@@ -37,12 +39,8 @@ export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) 
             return;
         }
 
-        // Se for um emoji válido, aceita. Caso contrário, ignora (ou pega só o emoji se colarem texto+emoji)
-        // Para simplificar, vamos validar se o que foi digitado/colado contém emoji
         if (isEmoji(trimmed)) {
             const newSlots = [...slots];
-            // Se colarem vários emojis, pegamos apenas o primeiro símbolo (que pode ser composto)
-            // Usando Array.from para lidar corretamente com surrogate pairs de emojis
             const emojis = Array.from(trimmed);
             newSlots[index] = emojis[0];
             setSlots(newSlots);
@@ -58,7 +56,6 @@ export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) 
     const handleSave = async () => {
         setLoading(true);
         try {
-            // Filter out empty slots and join by comma
             const reactionsString = slots.filter(s => s.trim() !== '').join(',');
             await onUpdate(reactionsString);
         } finally {
@@ -67,48 +64,53 @@ export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) 
     };
 
     return (
-        <div className="card">
-            <div className="section-header">
-                <div className="section-icon blue">
-                    <SmilePlus size={18} />
+        <Card>
+            <CardContent className="pt-4">
+                <div className="flex items-center gap-3 mb-4">
+                    <div className="section-icon" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+                        <SmilePlus size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[15px] font-semibold truncate">Reações / Votos (Grid)</h3>
+                        <p className="text-xs truncate text-muted-foreground">Adicione até 5 emojis para votação rápida.</p>
+                    </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                    <h3 className="text-[15px] font-semibold truncate">Reações / Votos (Grid)</h3>
-                    <p className="text-xs truncate" style={{ color: 'var(--hint)' }}>Adicione até 5 emojis para votação rápida.</p>
-                </div>
-            </div>
 
-            <div className="mt-4">
-                <div className="grid grid-cols-5 gap-2 mb-4">
-                    {slots.map((slot, index) => (
-                        <div key={index} className="relative group">
-                            <input
-                                type="text"
-                                value={slot}
-                                onChange={(e) => handleSlotChange(index, e.target.value)}
-                                placeholder="+"
-                                className="w-full aspect-square text-center text-xl bg-[var(--background)] text-[var(--text)] border border-[var(--border)] rounded-xl focus:outline-none focus:ring-2 focus:ring-[var(--accent)] transition-all"
-                            />
-                            {slot && (
-                                <button 
-                                    onClick={() => handleClearSlot(index)}
-                                    className="absolute -top-1 -right-1 bg-[var(--danger)] text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                    <X size={10} />
-                                </button>
-                            )}
-                        </div>
-                    ))}
+                <div>
+                    <div className="grid grid-cols-5 gap-2 mb-4">
+                        {slots.map((slot, index) => (
+                            <div key={index} className="relative group">
+                                <Input
+                                    type="text"
+                                    value={slot}
+                                    onChange={(e) => handleSlotChange(index, e.target.value)}
+                                    placeholder="+"
+                                    className="aspect-square text-center text-xl p-0"
+                                />
+                                {slot && (
+                                    <Button 
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        className="absolute -top-1.5 -right-1.5 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/90"
+                                        onClick={() => handleClearSlot(index)}
+                                    >
+                                        <X size={10} />
+                                    </Button>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                    
+                    <Button 
+                        variant="default" 
+                        className="w-full"
+                        onClick={handleSave}
+                        disabled={loading}
+                    >
+                        {loading ? 'Salvando...' : 'Salvar Reações'}
+                    </Button>
                 </div>
-                
-                <button 
-                    className="btn btn-primary w-full" 
-                    onClick={handleSave}
-                    disabled={loading}
-                >
-                    {loading ? 'Salvando...' : 'Salvar Reações'}
-                </button>
-            </div>
-        </div>
+            </CardContent>
+        </Card>
     );
 });
