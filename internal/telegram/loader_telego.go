@@ -75,8 +75,9 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	adminOrOwnerGroup.Handle(admin.GetInfoChannelHandlerTelego(c), telegohandler.CommandEqual("info"))
 
 	// Message Handlers for active sessions (Text and Sticker inputs)
-	bh.Handle(callbackMyChannel.SetStickerSeparatorHandlerTelego(c), matchAwaitingStickerSeparatorTelego(c))
+	bh.Handle(callbackMyChannel.SetSeparatorHandlerTelego(c), matchAwaitingSeparatorTelego(c))
 	bh.Handle(callbackMyChannel.SetTransferAccessHandlerTelego(c), matchAwaitingTransferAccessTelego(c))
+	bh.Handle(callbackMyChannel.SetCaptionHandlerTelego(c), matchAwaitingCaptionTelego(c))
 
 	// Post Builder - Message Handler (Media and Text Input)
 	bh.Handle(postbuilder.HandlerTelego(c), matchPostBuilderTelego(c))
@@ -95,6 +96,9 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	// Remaining Callbacks
 	bh.Handle(callbackAbout.HandlerTelego(c), telegohandler.CallbackDataEqual("about"))
 	bh.Handle(callbackClaim.AcceptClaimHandlerTelego(c), telegohandler.CallbackDataPrefix("accept-claim:"))
+
+	// Caption Callbacks
+	bh.Handle(callbackMyChannel.AskCaptionHandlerTelego(c), telegohandler.CallbackDataPrefix("setcaption:"))
 
 	// Sticker Separator Callbacks
 	bh.Handle(callbackMyChannel.AskStickerSeparatorHandlerTelego(c), telegohandler.CallbackDataEqual("sptc"))
@@ -128,13 +132,27 @@ func LoadHandlersTelego(bot *telego.Bot, c *container.AppContainer) *telegohandl
 	return bh
 }
 
-func matchAwaitingStickerSeparatorTelego(c *container.AppContainer) telegohandler.Predicate {
+func matchAwaitingSeparatorTelego(c *container.AppContainer) telegohandler.Predicate {
 	return func(ctx context.Context, update telego.Update) bool {
 		if update.Message == nil || update.Message.From == nil {
 			return false
 		}
 		id, _ := c.CacheService.GetAwaitingStickerSeparator(context.Background(), update.Message.From.ID)
-		return id != 0 && update.Message.Sticker != nil
+		if id == 0 {
+			return false
+		}
+		// Aceita sticker OU texto com entidade custom_emoji
+		if update.Message.Sticker != nil {
+			return true
+		}
+		if update.Message.Text != "" && len(update.Message.Entities) > 0 {
+			for _, entity := range update.Message.Entities {
+				if entity.Type == "custom_emoji" {
+					return true
+				}
+			}
+		}
+		return false
 	}
 }
 
@@ -145,6 +163,16 @@ func matchAwaitingTransferAccessTelego(c *container.AppContainer) telegohandler.
 		}
 		id, err := c.CacheService.GetTransferChannel(context.Background(), update.Message.From.ID)
 		return err == nil && id != 0 && update.Message.Text != ""
+	}
+}
+
+func matchAwaitingCaptionTelego(c *container.AppContainer) telegohandler.Predicate {
+	return func(ctx context.Context, update telego.Update) bool {
+		if update.Message == nil || update.Message.From == nil {
+			return false
+		}
+		id, _ := c.CacheService.GetAwaitingCaption(ctx, update.Message.From.ID)
+		return id != 0
 	}
 }
 
@@ -199,6 +227,9 @@ func matchPostBuilderTelego(c *container.AppContainer) telegohandler.Predicate {
 			return false
 		}
 		if id, _ := c.CacheService.GetTransferChannel(context.Background(), userId); id != 0 {
+			return false
+		}
+		if id, _ := c.CacheService.GetAwaitingCaption(context.Background(), userId); id != 0 {
 			return false
 		}
 
