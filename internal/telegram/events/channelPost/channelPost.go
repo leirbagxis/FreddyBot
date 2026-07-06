@@ -19,10 +19,11 @@ type Job interface {
 }
 
 type MessageQueue struct {
-	queue       chan Job
-	mu          sync.Mutex
-	isRunning   bool
-	lastProcess sync.Map // map[int64]time.Time
+	queue        chan Job
+	mu           sync.Mutex
+	isRunning    bool
+	lastProcess  sync.Map // map[int64]time.Time
+	channelLocks sync.Map // map[int64]*sync.Mutex — serializa jobs do mesmo canal
 }
 
 type PipelineJobTelego struct {
@@ -42,7 +43,8 @@ func (j PipelineJobTelego) GetChannelID() int64 {
 }
 
 var (
-	groupSeparators = sync.Map{} // string -> bool
+	groupSeparators      = sync.Map{} // string -> bool
+	BotLastSeparatorSent = sync.Map{} // int64 (channelID) -> time.Time
 )
 
 var messageQueue *MessageQueue
@@ -67,23 +69,38 @@ func (mq *MessageQueue) worker() {
 	for mq.isRunning {
 		select {
 		case job := <-mq.queue:
-			// Controle per-chat: evita processar mensagens do mesmo chat muito rápido
 			channelID := job.GetChannelID()
-			if channelID != 0 {
-				last, ok := mq.lastProcess.Load(channelID)
-				if ok {
-					elapsed := time.Since(last.(time.Time))
-					if elapsed < 500*time.Millisecond {
-						time.Sleep(500*time.Millisecond - elapsed)
-					}
-				}
-				mq.lastProcess.Store(channelID, time.Now())
-			}
 
-			if err := job.Run(); err != nil {
-				logger.Error("BOT", "❌ Erro ao processar job da fila: %v", err)
+			// Serializa jobs do mesmo canal: adquire lock por channelID
+			if channelID != 0 {
+				lockI, _ := mq.channelLocks.LoadOrStore(channelID, &sync.Mutex{})
+				lock := lockI.(*sync.Mutex)
+				lock.Lock()
+				func() {
+					defer lock.Unlock()
+					mq.processJob(job, channelID)
+				}()
+			} else {
+				mq.processJob(job, 0)
 			}
 		}
+	}
+}
+
+func (mq *MessageQueue) processJob(job Job, channelID int64) {
+	if channelID != 0 {
+		last, ok := mq.lastProcess.Load(channelID)
+		if ok {
+			elapsed := time.Since(last.(time.Time))
+			if elapsed < 500*time.Millisecond {
+				time.Sleep(500*time.Millisecond - elapsed)
+			}
+		}
+		mq.lastProcess.Store(channelID, time.Now())
+	}
+
+	if err := job.Run(); err != nil {
+		logger.Error("BOT", "❌ Erro ao processar job da fila: %v", err)
 	}
 }
 
@@ -134,6 +151,7 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		)
 
 		pCtx := NewProcessingContextTelego(context.Background(), ctx.Bot(), update, discoveryPipeline)
+		pCtx.ExecutorFactory = c.ExecutorFactory
 		_ = discoveryPipeline.Execute(pCtx)
 		return nil
 	}

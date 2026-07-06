@@ -1,6 +1,10 @@
 package channelpost
 
 import (
+	"context"
+	"strings"
+	"unicode/utf16"
+
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
@@ -36,6 +40,9 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 			}
 		}
 		pCtx.OriginalCaption = baseText
+
+		// Store post entities as JSON for entity-based caption combination (MTProto path)
+		pCtx.PostEntitiesJSON = entitiesToJSON(entities)
 
 		// 2. Format base text
 		formattedBase := ProcessTextWithFormattingTelego(baseText, entities)
@@ -81,16 +88,60 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 		}
 
 		// 4. Fallback to Default
+		useEntities := false
 		if custom == nil && pCtx.Channel.DefaultCaption != nil {
-			dbCaption = DetectParseMode(pCtx.Channel.DefaultCaption.Caption)
+			if pCtx.Channel.DefaultCaption.UseEntities && pCtx.Channel.DefaultCaption.Entities != "" {
+				// Verificar se o usuario tem conta conectada para usar entities
+				ownerID := pCtx.Channel.OwnerID
+				if ownerID != 0 && c.ConnectedAccountService.HasActiveAccount(context.Background(), ownerID) {
+					useEntities = true
+					dbCaption = pCtx.Channel.DefaultCaption.Caption // raw text (nao HTML)
+				} else {
+					// Fallback para HTML se nao tiver conta conectada
+					dbCaption = DetectParseMode(pCtx.Channel.DefaultCaption.Caption)
+				}
+			} else {
+				dbCaption = DetectParseMode(pCtx.Channel.DefaultCaption.Caption)
+			}
 		}
 
 		if extractedDynLinks && !pCtx.Channel.DLBotCaptions {
 			dbCaption = ""
+			useEntities = false
+		}
+
+		// Se o post original nao tem texto/legenda, remover \n iniciais da dbCaption
+		// (o usuario colocou \n\n para separar da legenda original, mas sem ela fica feio)
+		if pCtx.OriginalCaption == "" && dbCaption != "" {
+			dbCaption = strings.TrimLeft(dbCaption, "\n")
 		}
 
 		// 5. Final Assembly
-		if pCtx.MessageType == MessageTypeText {
+		if useEntities && dbCaption != "" {
+			if pCtx.MessageType == MessageTypeAudio {
+				// Audio: substitui caption completamente (so a configurada, sem texto original)
+				// Usa as entities da configuracao diretamente (sem combinar com as do post original)
+				pCtx.FormattedText = dbCaption
+				pCtx.FinalEntities = pCtx.Channel.DefaultCaption.Entities
+			} else {
+				// Path MTProto com entities: compor texto cru + entities combinadas
+				rawPostText := pCtx.OriginalCaption
+				var shift int
+				var combinedText string
+				if rawPostText != "" {
+					// So adiciona separador \n\n quando ha texto original do usuario
+					// Senao fica "\n\nlegenda" — feio
+					separator := "\n\n"
+					combinedText = rawPostText + separator + dbCaption
+					shift = len(utf16.Encode([]rune(rawPostText))) + len(utf16.Encode([]rune(separator)))
+				} else {
+					combinedText = dbCaption
+					shift = 0
+				}
+				pCtx.FinalEntities = combineEntityJSONs(entities, pCtx.Channel.DefaultCaption.Entities, shift)
+				pCtx.FormattedText = combinedText
+			}
+		} else if pCtx.MessageType == MessageTypeText {
 			pCtx.FormattedText = composeMessage(formattedBase, dbCaption, "\n\n", "append")
 		} else if pCtx.MessageType == MessageTypeAudio {
 			if dbCaption != "" {

@@ -6,6 +6,7 @@ import (
 
 	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/executor"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
@@ -28,15 +29,23 @@ type ProcessingContextTelego struct {
 	FinalButtons    []dbmodels.Button
 	FinalKeyboard   *telego.InlineKeyboardMarkup
 
+	// Entity-based Caption (MTProto)
+	// Quando preenchido, o dispatcher deve usar entities ao inves de parseMode HTML.
+	FinalEntities    string // JSON combinado dos MessageEntityDTO (post + caption)
+	PostEntitiesJSON string // JSON dos MessageEntityDTO do post original (para combinacao)
+
 	// Media Group State (for albums)
 	IsMediaGroup  bool
 	MediaGroupID  string
 	GroupMessages []MediaMessageTelego
 
 	// Execution Control
-	Pipeline     *PipelineTelego
-	StopPipeline bool // If true, remaining stages are skipped
-	Error        error
+	Pipeline       *PipelineTelego
+	StopPipeline   bool // If true, remaining stages are skipped
+	Error          error
+
+	// Executor
+	ExecutorFactory *executor.ExecutorFactory
 }
 
 type MediaMessageTelego struct {

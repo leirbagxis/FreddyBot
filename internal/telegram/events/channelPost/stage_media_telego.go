@@ -73,16 +73,17 @@ func StageMediaGroupingTelego(c *container.AppContainer, executionPipeline *Pipe
 			logger.Bot("📸 Media group ready Telego: %s (%d messages)", mediaGroupID, len(msgs))
 
 			groupCtx := &ProcessingContextTelego{
-				Ctx:           context.Background(),
-				Bot:           pCtx.Bot,
-				Update:        pCtx.Update,
-				MessageType:   pCtx.MessageType,
-				Channel:       pCtx.Channel,
-				Permissions:   pCtx.Permissions,
-				IsMediaGroup:  true,
-				MediaGroupID:  mediaGroupID,
-				GroupMessages: msgs,
-				Pipeline:      executionPipeline,
+				Ctx:              context.Background(),
+				Bot:              pCtx.Bot,
+				Update:           pCtx.Update,
+				MessageType:      pCtx.MessageType,
+				Channel:          pCtx.Channel,
+				Permissions:      pCtx.Permissions,
+				IsMediaGroup:     true,
+				MediaGroupID:     mediaGroupID,
+				GroupMessages:    msgs,
+				Pipeline:         executionPipeline,
+				ExecutorFactory:  pCtx.ExecutorFactory,
 			}
 			
 			messageQueue.AddTelegoToQueue(groupCtx, executionPipeline)
