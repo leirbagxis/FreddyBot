@@ -29,6 +29,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	mediaController := admincontroller.NewMediaController(c)
 	auditController := admincontroller.NewAuditController(c)
 	channelEventsController := admincontroller.NewChannelEventsController(c)
+	accountController := controllers.NewAccountController(c)
 
 	// --- Rota de Login Unificada ---
 	api.POST("/login", authController.Login)
@@ -92,5 +93,17 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 		adminRoute.POST("/users/:userId/admin", getALlUsers.UpdateUserAdminController)
 		adminRoute.POST("/users/:userId/blacklist", getALlUsers.UpdateUserBlacklistController)
+	}
+
+	// --- Rotas de Conta Conectada MTProto ---
+	accountRoutes := api.Group("/account")
+	accountRoutes.Use(auth.AuthMiddlewareJWT(c))
+	{
+		accountRoutes.GET("", accountController.GetAccountStatus)
+		accountRoutes.GET("/status", accountController.GetAuthStatus)
+		accountRoutes.POST("/connect", accountController.ConnectAccount)
+		accountRoutes.POST("/verify", accountController.VerifyCode)
+		accountRoutes.POST("/password", accountController.SendPassword)
+		accountRoutes.DELETE("", accountController.DisconnectAccount)
 	}
 }
