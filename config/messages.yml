@@ -107,6 +107,9 @@
     - - text: "Sticker Separador"
         callback_data: "sptc"
         custom_emoji: "5472164874886846699"
+    - - text: "📝 Configurar Legenda"
+        callback_data: "setcaption:{channelId}"
+        custom_emoji: "5472164874886846699"
     - - text: "Transferir Acesso"
         callback_data: "paccess-info"
         custom_emoji: "5330115548900501467"
@@ -254,14 +257,7 @@
         callback_data: "config:{channelId}"
 
 - name: require-separator-message
-  text: |
-    ✨ <b>Sticker Separador</b>
-    
-    <blockquote>📌 Você está configurando um separador para o canal: <b>{channelName}</b></blockquote>
-    
-    📎 <b>Envie agora o sticker</b> que deseja utilizar como separador entre as postagens.
-    
-    ⚠️ <i>Dica: Recomendamos o uso de stickers estáticos para garantir uma melhor visualização em todos os dispositivos.</i>
+  text: "✨ <b>Separador</b>\n\n<blockquote>📌 Você está configurando um separador para o canal: <b>{channelName}</b></blockquote>\n\n📎 <b>Envie um sticker</b> ou <b>um emoji premium</b> (custom emoji) para usar como separador entre as postagens.\n\n⚠️ <i>Para usar emoji premium, você precisa ter uma conta Telegram conectada.</i>\n⚠️ <i>Recomendamos stickers estáticos para melhor visualização.</i>"
   buttons:
     - - text: "🔙 Voltar"
         callback_data: "sptc"
@@ -274,6 +270,18 @@
 
 - name: success-save-separator
   text: "✅ <b>Separador salvo com sucesso!</b>\n\nO sticker foi definido como separador para o canal <b>{channelName}</b>. Agora suas postagens vão ficar muito mais organizadas e estilosas!"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: success-save-custom-emoji-separator
+  text: "✅ <b>Separador salvo com sucesso!</b>\n\nO emoji premium foi definido como separador para o canal <b>{channelName}</b>. Agora suas postagens vão ficar muito mais organizadas e estilosas!"
+  buttons:
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
+
+- name: require-connected-account-separator
+  text: "✨ <b>Separador com Emoji Premium</b>\n\n<blockquote>❌ Você precisa ter uma conta Telegram conectada para usar emojis premium como separador.</blockquote>\n\n📎 Conecte sua conta em <b>Minha Conta → Conectar Conta</b> e tente novamente.\n\n💡 Você tamb\u00e9m pode enviar um <b>sticker comum</b> como separador sem precisar de conta conectada."
   buttons:
     - - text: "🔙 Voltar"
         callback_data: "config:{channelId}"
@@ -413,6 +421,38 @@
         callback_data: "start"
         custom_emoji: "5465226866321268133"
 
+
+# ─── MTProto / Conta Conectada ───
+
+- name: ask-caption-message
+  text: |
+    <b>📝 Configurar Legenda Personalizada</b>
+    
+    Envie uma mensagem com a legenda que deseja usar como <b>padrão</b> no canal <b>{channelName}</b>.
+    
+    <tg-emoji emoji-id="5465665476971471368">💡</tg-emoji> <b>Você pode usar:</b>
+    • Negrito, itálico, underline, spoiler
+    • Links, menções, hashtags
+    • Emojis personalizados Premium 🎨
+    • Blocos de código e citação
+    • <i>Qualquer formatação suportada pelo Telegram</i>
+    
+    ⚠️ Sua legenda substituirá a legenda padrão atual.
+    Envie <b>apenas o texto</b> da legenda.
+  buttons:
+    - - text: "🔙 Cancelar"
+        callback_data: "config:{channelId}"
+
+- name: success-save-caption
+  text: |
+    <b>✅ Legenda configurada com sucesso!</b>
+    
+    A partir de agora, todas as postagens no canal <b>{channelName}</b> usarão esta legenda personalizada com formatação avançada via sua conta Telegram conectada.
+    
+    <tg-emoji emoji-id="5465665476971471368">💡</tg-emoji> Você pode reconfigurar a legenda a qualquer momento enviando uma nova mensagem.
+  buttons:
+    - - text: "🔙 Voltar ao canal"
+        callback_data: "config:{channelId}"
 
 - name: default-caption
   text: |
