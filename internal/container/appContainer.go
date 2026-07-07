@@ -67,6 +67,7 @@ type AppContainer struct {
 	VoteService          *services.VoteService
 	ServerService        *services.ServerService
 	ChannelEventService  *services.ChannelEventService
+	EmojiService         *services.EmojiService
 
 	// ## MTProto / CONNECTED ACCOUNTS ## \\
 	ConnectedAccountService *services.ConnectedAccountService
@@ -92,6 +93,7 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	permissionsRepo := repositories.NewPermissionsRepository(db)
 	serverRepo := repositories.NewServerConfigRepository(db)
 	channelEventRepo := repositories.NewChannelEventRepository(db)
+	emojiRepo := repositories.NewEmojiRepository(db)
 
 	// MTProto Repositories
 	connectedAccountRepo := repositories.NewConnectedAccountRepository(db)
@@ -107,6 +109,9 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	voteService := services.NewVoteService(voteRepo)
 	serverService := services.NewServerService(serverRepo)
 	channelEventService := services.NewChannelEventService(channelEventRepo)
+
+	// Emoji Service
+	emojiService := services.NewEmojiService(emojiRepo, telegoClient)
 
 	// MTProto Services
 	connectedAccountService := services.NewConnectedAccountService(connectedAccountRepo)
@@ -153,6 +158,9 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		VoteService:          voteService,
 		ServerService:        serverService,
 		ChannelEventService:  channelEventService,
+
+		// Emoji
+		EmojiService: emojiService,
 
 		// MTProto
 		ConnectedAccountService: connectedAccountService,

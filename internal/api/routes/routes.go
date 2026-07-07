@@ -30,6 +30,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	auditController := admincontroller.NewAuditController(c)
 	channelEventsController := admincontroller.NewChannelEventsController(c)
 	accountController := controllers.NewAccountController(c)
+	emojiController := controllers.NewEmojiController(c)
 
 	// --- Rota de Login Unificada ---
 	api.POST("/login", authController.Login)
@@ -41,6 +42,8 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.GET("/me/channels", userController.GetUserChannelsController)
 		api.GET("/user/info/:userParams", userController.GetUserInfo)
 		api.POST("/channel/transfer", userController.TransferChannelController)
+		api.GET("/emoji/history", emojiController.ListEmojiHistory)
+		api.GET("/emoji/:id", emojiController.ServeEmoji)
 
 		// Rotas específicas de Canal (Com verificação de autorização)
 		channelRoutes := api.Group("/channel/:channelId")

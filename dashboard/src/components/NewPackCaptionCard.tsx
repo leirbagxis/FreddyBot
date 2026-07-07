@@ -1,6 +1,7 @@
 import { useState, useEffect, memo } from 'react';
 import { Package, Pencil, X, Check, Info } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
+import { CaptionPreview } from './CaptionPreview';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
@@ -162,8 +163,12 @@ export const NewPackCaptionCard = memo(({ caption, messageButtons, stickerButton
             </div>
           </div>
         ) : (
-          <div className="caption-preview" onClick={() => setEditing(true)}>
-            {caption}
+          <div className="caption-preview-block" onClick={() => setEditing(true)}>
+            {caption ? (
+              <CaptionPreview text={caption} />
+            ) : (
+              <span style={{ opacity: 0.3, fontStyle: 'italic' }}>Sem template definido</span>
+            )}
           </div>
         )}
       </CardContent>

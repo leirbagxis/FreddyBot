@@ -158,6 +158,23 @@ type CustomCaptionButton struct {
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
+// ── Custom Emoji (cache global do arquivo) ──
+type CustomEmoji struct {
+	EmojiID   string    `gorm:"primaryKey;type:text" json:"emojiId"`
+	FileData  []byte    `gorm:"type:bytea" json:"-"`               // BLOB do MP4 (bytea no PostgreSQL)
+	FileType  string    `gorm:"type:text;default:mp4" json:"fileType"` // "mp4" ou "webp"
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// ── User → Emoji Access (controle de quem pode visualizar) ──
+type UserEmojiAccess struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    int64     `gorm:"index:idx_user_emoji,unique" json:"userId"`
+	EmojiID   string    `gorm:"index:idx_user_emoji,unique;type:text" json:"emojiId"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
 type Vote struct {
 	ID              uint   `gorm:"primaryKey" json:"id"`
 	ChatID          int64  `gorm:"index:idx_vote_user,unique;index:idx_vote_count" json:"chat_id"`

@@ -2,6 +2,7 @@ import { useState, useEffect, memo } from 'react';
 import { Caption } from '../types';
 import { FileText, Pencil, X, Check } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
+import { CaptionPreview } from './CaptionPreview';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 
@@ -53,8 +54,12 @@ export const CaptionCard = memo(({ caption, onUpdate }: Props) => {
             </div>
           </div>
         ) : (
-          <div className="caption-preview" onClick={() => setEditing(true)}>
-            {caption.caption || <span style={{ opacity: 0.3, fontStyle: 'italic' }}>Sem caption definida</span>}
+          <div className="caption-preview-block" onClick={() => setEditing(true)}>
+            {caption.caption ? (
+              <CaptionPreview text={caption.caption} />
+            ) : (
+              <span style={{ opacity: 0.3, fontStyle: 'italic' }}>Sem caption definida</span>
+            )}
           </div>
         )}
       </CardContent>

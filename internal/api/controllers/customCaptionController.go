@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -41,6 +42,14 @@ func (ctrl *CustomCaptionController) CreateCustomCaptionController(ctx *gin.Cont
 		return
 	}
 
+	// ── Baixar emojis personalizados em background ──
+	userID, _ := ctx.Get("userID")
+	if uid, ok := userID.(int64); ok && ctrl.container.EmojiService.TextContainsEmoji(body.Caption) {
+		go func(uID int64, caption string) {
+			_ = ctrl.container.EmojiService.EnsureEmojisForText(context.Background(), uID, caption)
+		}(uid, body.Caption)
+	}
+
 	ctx.JSON(http.StatusCreated, types.NewSuccessResponse(dto.ToCustomCaptionDTO(result), "Custom caption criada com sucesso"))
 }
 
@@ -63,6 +72,14 @@ func (ctrl *CustomCaptionController) UpdateCustomCaptionController(ctx *gin.Cont
 	if err != nil {
 		ctx.Error(err)
 		return
+	}
+
+	// ── Baixar emojis personalizados em background ──
+	userID, _ := ctx.Get("userID")
+	if uid, ok := userID.(int64); ok && ctrl.container.EmojiService.TextContainsEmoji(body.Caption) {
+		go func(uID int64, caption string) {
+			_ = ctrl.container.EmojiService.EnsureEmojisForText(context.Background(), uID, caption)
+		}(uid, body.Caption)
 	}
 
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Custom caption atualizada com sucesso"))

@@ -1,10 +1,11 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Terminal,
   EyeOff, Link2, List, Quote, Undo2, Redo2, Copy, Eraser,
   AlignLeft, Type, ChevronDown
 } from 'lucide-react';
 import { Button } from './ui/button';
+import { EmojiRenderer } from './EmojiRenderer';
 
 interface Props {
   value: string;
@@ -36,6 +37,15 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
   const [linkMode, setLinkMode] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
+  const [recentEmojiIds, setRecentEmojiIds] = useState<string[]>([]);
+
+  // Carrega histórico de emojis do usuário
+  useEffect(() => {
+    fetch('/api/emoji/history', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => setRecentEmojiIds(data.ids || []))
+      .catch(() => {});
+  }, []);
 
   const pushHistory = useCallback((text: string, selStart: number, selEnd: number) => {
     setHistory(prev => {
@@ -116,6 +126,19 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
       setLinkMode(true);
     }
   }, [value, onChange, pushHistory, linkMode, linkUrl, linkText]);
+
+  const insertEmoji = useCallback((emojiId: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus();
+
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const tag = `<tg-emoji emoji-id="${emojiId}"> </tg-emoji>`;
+    const newValue = value.substring(0, start) + tag + value.substring(end);
+    onChange(newValue);
+    pushHistory(newValue, start, start + tag.length);
+  }, [value, onChange, pushHistory]);
 
   const insertQuote = useCallback(() => {
     const ta = textareaRef.current;
@@ -367,6 +390,24 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
         placeholder={placeholder}
         spellCheck={false}
       />
+
+      {/* Emoji bar — sempre visível abaixo do input */}
+      {recentEmojiIds.length > 0 && (
+        <div className="rte-emoji-bar">
+          {recentEmojiIds.slice(-30).map(id => (
+            <button
+              key={id}
+              type="button"
+              className="rte-emoji-bar-item"
+              title="Inserir emoji"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => insertEmoji(id)}
+            >
+              <EmojiRenderer emojiId={id} size={22} />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Footer info */}
       <div className="rte-footer">

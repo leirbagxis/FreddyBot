@@ -217,7 +217,11 @@ func (r *ChannelRepository) GetChannelButtons(ctx context.Context, channelId int
 func (r *ChannelRepository) UpdateDefaultCaption(ctx context.Context, channelID int64, caption string) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&models.DefaultCaption{}).
 		Where("owner_channel_id = ?", channelID).
-		Update("caption", caption)
+		Updates(map[string]interface{}{
+			"caption":      caption,
+			"entities":     "",    // limpa entities ao salvar via dashboard
+			"use_entities": false, // desabilita path de entities
+		})
 	return result.RowsAffected, result.Error
 }
 

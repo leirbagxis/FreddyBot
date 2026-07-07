@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Settings, ShieldCheck, Construction, FileText, Save, KeyRound, Code2 } from 'lucide-react';
+import { Save } from 'lucide-react';
 import { fetchServerConfig, updateServerConfig } from '../api';
 import { ServerConfig } from '../types';
 import { useToast } from './Toast';
@@ -7,7 +7,6 @@ import { RichTextEditor } from './RichTextEditor';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
-import { Textarea } from './ui/textarea';
 
 export function AdminConfigTab() {
     const [config, setConfig] = useState<ServerConfig | null>(null);
@@ -101,164 +100,145 @@ export function AdminConfigTab() {
     );
 
     return (
-        <div className="space-y-4 pb-12">
-            {/* Header */}
-            <div className="flex items-center gap-3">
-                <div className="flex items-center justify-center size-10 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                    <Settings size={20} />
-                </div>
-                <div>
-                    <h2 className="text-base font-bold">Configurações Globais</h2>
-                    <p className="text-xs text-muted-foreground">Gerencie o estado do bot e legendas iniciais</p>
-                </div>
-            </div>
+        <div className="admin-config pb-16">
+            <div className="admin-config-card">
 
-            {/* Toggles Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Manutenção */}
-                <div className="rounded-xl border border-border p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-                            <Construction size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h3 className="text-[13px] font-semibold">Modo Manutenção</h3>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                {/* ── Header ── */}
+                <div className="cfg-header">
+                    <span className="cfg-header-title">Configurações Globais</span>
+                    <span className="cfg-header-sub">Estado do bot e legendas padrão</span>
+                </div>
+
+                {/* ── Sistema ── */}
+                <div className="cfg-section">
+                    <span className="cfg-section-label">Sistema</span>
+
+                    <div className="cfg-row" onClick={() => !saving && handleToggle('maintence')}>
+                        <div className="cfg-row-text">
+                            <span className="cfg-row-title">Manutenção</span>
+                            <span className="cfg-row-desc">
                                 {config?.maintence ? 'Bot offline para usuários' : 'Operando normalmente'}
-                            </p>
+                            </span>
                         </div>
+                        <Switch
+                            checked={!!config?.maintence}
+                            onCheckedChange={() => !saving && handleToggle('maintence')}
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                        />
                     </div>
-                    <div
-                        className={`flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all ${config?.maintence ? 'bg-warning/10' : 'bg-muted/30'}`}
-                        onClick={() => !saving && handleToggle('maintence')}
-                    >
-                        <span className="text-[12px] font-medium">Ativar Manutenção</span>
-                        <Switch checked={!!config?.maintence} onCheckedChange={() => !saving && handleToggle('maintence')} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
-                    </div>
-                </div>
 
-                {/* Force Join */}
-                <div className="rounded-xl border border-border p-4">
-                    <div className="flex items-center gap-3 mb-3">
-                        <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                            <ShieldCheck size={16} />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h3 className="text-[13px] font-semibold">Force Join</h3>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                    <div className="cfg-divider" />
+
+                    <div className="cfg-row" onClick={() => !saving && handleToggle('forceJoin')}>
+                        <div className="cfg-row-text">
+                            <span className="cfg-row-title">Force Join</span>
+                            <span className="cfg-row-desc">
                                 {config?.forceJoin ? 'Inscrição obrigatória' : 'Acesso livre'}
-                            </p>
+                            </span>
                         </div>
+                        <Switch
+                            checked={!!config?.forceJoin}
+                            onCheckedChange={() => !saving && handleToggle('forceJoin')}
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                        />
                     </div>
-                    <div
-                        className={`flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all ${config?.forceJoin ? 'bg-accent/10' : 'bg-muted/30'}`}
-                        onClick={() => !saving && handleToggle('forceJoin')}
+                </div>
+
+                <div className="cfg-divider-full" />
+
+                {/* ── Legendas ── */}
+                <div className="cfg-section">
+                    <span className="cfg-section-label">Legendas</span>
+
+                    <div className="cfg-editor">
+                        <div className="cfg-editor-header">
+                            <span className="cfg-editor-title">Legenda Padrão Global</span>
+                            <span className="cfg-editor-desc">Preenche novos canais vinculados ao bot</span>
+                        </div>
+                        <RichTextEditor
+                            value={globalDefault}
+                            onChange={setGlobalDefault}
+                            placeholder="Ex: @legendasbot [t.me/legendasbot](https://t.me/botusername)"
+                        />
+                    </div>
+
+                    <div className="cfg-editor">
+                        <div className="cfg-editor-header">
+                            <span className="cfg-editor-title">Legenda de Novo Pack</span>
+                            <span className="cfg-editor-desc">Valor inicial para mensagem de pack padrão</span>
+                        </div>
+                        <RichTextEditor
+                            value={globalNewPack}
+                            onChange={setGlobalNewPack}
+                            placeholder="Texto inicial para novos packs..."
+                        />
+                    </div>
+                </div>
+
+                <div className="cfg-divider-full" />
+
+                {/* ── PostBuilder ── */}
+                <div className="cfg-section">
+                    <span className="cfg-section-label">PostBuilder</span>
+
+                    <div className="cfg-row" onClick={() => !saving && handleToggle('fixedPostBuilderEnabled')}>
+                        <div className="cfg-row-text">
+                            <span className="cfg-row-title">Postagem fixa</span>
+                            <span className="cfg-row-desc">Post permanente usado no inline com chave fixa</span>
+                        </div>
+                        <Switch
+                            checked={fixedPostEnabled}
+                            onCheckedChange={() => !saving && handleToggle('fixedPostBuilderEnabled')}
+                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                        />
+                    </div>
+
+                    <div className="cfg-fields">
+                        <div className="cfg-field">
+                            <label className="cfg-field-label">Chave fixa</label>
+                            <Input
+                                value={fixedPostKey}
+                                onChange={(e) => setFixedPostKey(e.target.value)}
+                                placeholder="legendasbot"
+                                disabled={saving}
+                                className="h-9"
+                            />
+                        </div>
+
+                        <div className="cfg-field">
+                            <label className="cfg-field-label">Payload JSON</label>
+                            <textarea
+                                value={fixedPostPayload}
+                                onChange={(e) => setFixedPostPayload(e.target.value)}
+                                className="cfg-textarea"
+                                placeholder='{ "media_type": "photo", "media_file_id": "..." }'
+                                disabled={saving}
+                            />
+                        </div>
+
+                        <p className="cfg-hint">
+                            Uso inline:{' '}
+                            <code className="cfg-code">
+                                @FreddyCaptionBot pb {fixedPostKey || 'legendasbot'}
+                            </code>
+                            . Quando desativado, a chave é removida do Redis.
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── Save ── */}
+                <div className="cfg-footer">
+                    <Button
+                        variant="default"
+                        className="cfg-save-btn"
+                        onClick={() => !saving && handleSave()}
+                        disabled={saving}
                     >
-                        <span className="text-[12px] font-medium">Exigir inscrição no canal</span>
-                        <Switch checked={!!config?.forceJoin} onCheckedChange={() => !saving && handleToggle('forceJoin')} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
-                    </div>
+                        <Save size={15} />
+                        {saving ? 'Salvando...' : 'Salvar'}
+                    </Button>
                 </div>
             </div>
-
-            {/* Global Caption */}
-            <div className="rounded-xl border border-border p-4">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                        <FileText size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-[13px] font-semibold">Legenda Padrão Global</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Preenche novos canais vinculados ao bot</p>
-                    </div>
-                </div>
-                <RichTextEditor
-                    value={globalDefault}
-                    onChange={setGlobalDefault}
-                    placeholder="Ex: @legendasbot [t.me/legendasbot](https://t.me/botusername)  ‹"
-                />
-            </div>
-
-            {/* New Pack Caption */}
-            <div className="rounded-xl border border-border p-4">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-                        <FileText size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-[13px] font-semibold">Legenda de Novo Pack (Global)</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Valor inicial para mensagem de pack padrão</p>
-                    </div>
-                </div>
-                <RichTextEditor
-                    value={globalNewPack}
-                    onChange={setGlobalNewPack}
-                    placeholder="Texto inicial para novos packs..."
-                />
-            </div>
-
-            {/* PostBuilder Fixo */}
-            <div className="rounded-xl border border-border p-4">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                        <Code2 size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-[13px] font-semibold">PostBuilder Fixo</h3>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">Post permanente usado no inline com chave fixa</p>
-                    </div>
-                </div>
-
-                <div
-                    className={`flex items-center justify-between px-4 py-3 rounded-xl cursor-pointer transition-all mb-4 ${fixedPostEnabled ? 'bg-accent/10' : 'bg-muted/30'}`}
-                    onClick={() => !saving && handleToggle('fixedPostBuilderEnabled')}
-                >
-                    <span className="text-[12px] font-medium">Postagem fixa ativa</span>
-                    <Switch checked={fixedPostEnabled} onCheckedChange={() => !saving && handleToggle('fixedPostBuilderEnabled')} onClick={(e: React.MouseEvent) => e.stopPropagation()} />
-                </div>
-
-                <div className="space-y-3">
-                    <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5 mb-1.5">
-                            <KeyRound size={13} /> Key fixa
-                        </label>
-                        <Input
-                            value={fixedPostKey}
-                            onChange={(e) => setFixedPostKey(e.target.value)}
-                            placeholder="legendasbot"
-                            disabled={saving}
-                            className="h-9"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5 mb-1.5">
-                            <Code2 size={13} /> Payload JSON
-                        </label>
-                        <Textarea
-                            value={fixedPostPayload}
-                            onChange={(e) => setFixedPostPayload(e.target.value)}
-                            className="min-h-[220px] rounded-xl font-mono text-xs resize-y"
-                            placeholder='{ "media_type": "photo", "media_file_id": "..." }'
-                            disabled={saving}
-                        />
-                    </div>
-
-                    <p className="text-[11px] text-muted-foreground leading-relaxed">
-                        Uso inline: <code className="bg-muted/30 px-1.5 py-0.5 rounded text-accent text-[10px]">@FreddyCaptionBot pb {fixedPostKey || 'legendasbot'}</code>. Quando desativado, a chave é removida do Redis.
-                    </p>
-                </div>
-            </div>
-
-            {/* Save All */}
-            <Button
-                variant="default"
-                className="w-full h-12 font-bold shadow-lg shadow-accent/20"
-                onClick={() => !saving && handleSave()}
-                disabled={saving}
-            >
-                <Save size={18} />
-                {saving ? 'Salvando...' : 'Salvar Legendas Globais'}
-            </Button>
         </div>
     );
 }

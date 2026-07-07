@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"context"
 	"net/http"
 	"strconv"
 
@@ -40,6 +41,16 @@ func (c *CaptionController) UpdateDefaultCaptionController(ctx *gin.Context) {
 		return
 	}
 
+	// ── Baixar emojis personalizados em background ──
+	userID, _ := ctx.Get("userID")
+	if uid, ok := userID.(int64); ok && c.container.EmojiService.TextContainsEmoji(captionData.Caption) {
+		go func(uID int64, caption string) {
+			if err := c.container.EmojiService.EnsureEmojisForText(context.Background(), uID, caption); err != nil {
+				// Apenas loga, não quebra o fluxo
+			}
+		}(uid, captionData.Caption)
+	}
+
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Legenda padrão atualizada com sucesso"))
 }
 
@@ -61,6 +72,15 @@ func (c *CaptionController) UpdateNewPackCaptionController(ctx *gin.Context) {
 	if err != nil {
 		ctx.Error(err)
 		return
+	}
+
+	// ── Baixar emojis personalizados em background ──
+	captionText := captionData.Text()
+	userID, _ := ctx.Get("userID")
+	if uid, ok := userID.(int64); ok && c.container.EmojiService.TextContainsEmoji(captionText) {
+		go func(uID int64, caption string) {
+			_ = c.container.EmojiService.EnsureEmojisForText(context.Background(), uID, caption)
+		}(uid, captionText)
 	}
 
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Legenda de novos packs atualizada com sucesso"))
