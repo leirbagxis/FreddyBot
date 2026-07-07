@@ -44,7 +44,9 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
     fetch('/api/emoji/history', { credentials: 'same-origin' })
       .then(res => res.json())
       .then(data => setRecentEmojiIds(data.ids || []))
-      .catch(() => {});
+      .catch(() => {
+        // Falha silenciosa — emojis recentes são um recurso opcional
+      });
   }, []);
 
   const pushHistory = useCallback((text: string, selStart: number, selEnd: number) => {

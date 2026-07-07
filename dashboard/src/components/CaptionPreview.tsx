@@ -8,6 +8,19 @@ interface Props {
 // ── Regex to find emoji tags ──
 const EMOJI_RE = /(<tg-emoji\s+emoji-id="(\d+)"[^>]*>)(.*?)(<\/tg-emoji>)/gi;
 
+// ── URL sanitization ──
+function sanitizeUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (['http:', 'https:'].includes(parsed.protocol)) {
+      return parsed.href;
+    }
+    return '#';
+  } catch {
+    return '#';
+  }
+}
+
 // ── Markdown → HTML (for non-emoji parts) ──
 function mdToHtml(text: string): string {
   if (!text) return '';
@@ -31,8 +44,10 @@ function mdToHtml(text: string): string {
     .replace(/&lt;u&gt;(.+?)&lt;\/u&gt;/g, '<u>$1</u>')
     // Code block
     .replace(/```(.+?)```/gs, '<pre class="cp-pre"><code>$1</code></pre>')
-    // Markdown links
-    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a class="cp-a" href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    // Markdown links (with URL sanitization)
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_m, text, url) =>
+      `<a class="cp-a" href="${sanitizeUrl(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`
+    )
     // Blockquote
     .replace(/^&gt;\s?(.+)$/gm, '<blockquote class="cp-bq">$1</blockquote>')
     // List items
@@ -103,7 +118,7 @@ export function CaptionPreview({ text }: Props) {
 
       {/* Character count */}
       <div className="cp-meta">
-        <span>{text.length} caractere{text.length !== 1 ? 's' : ''}</span>
+        <span>{[...text].length} caractere{[...text].length !== 1 ? 's' : ''}</span>
       </div>
     </div>
   );

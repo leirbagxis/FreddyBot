@@ -18,10 +18,10 @@ import (
 // ── Emoji Service ──
 
 type EmojiService struct {
-	repo   *repositories.EmojiRepository
-	bot    *telego.Bot
-	client *http.Client
-	mu     sync.Mutex
+	repo      *repositories.EmojiRepository
+	bot       *telego.Bot
+	client    *http.Client
+	downloadMu sync.Map // map[string]*sync.Mutex — um mutex por emojiID
 }
 
 func NewEmojiService(repo *repositories.EmojiRepository, bot *telego.Bot) *EmojiService {
@@ -79,15 +79,16 @@ func (s *EmojiService) FetchForUser(ctx context.Context, userID int64, emojiID s
 		return emoji, nil
 	}
 
-	// 3. Não existe — baixar via Bot API
-	s.mu.Lock()
-	// Double-check
+	// 3. Não existe — baixar via Bot API com mutex por emojiID
+	mu, _ := s.downloadMu.LoadOrStore(emojiID, &sync.Mutex{})
+	mu.(*sync.Mutex).Lock()
+	defer mu.(*sync.Mutex).Unlock()
+
+	// Double-check dentro do lock
 	existing, _ := s.repo.GetEmoji(ctx, emojiID)
 	if existing != nil {
-		s.mu.Unlock()
 		return existing, nil
 	}
-	s.mu.Unlock()
 
 	download, err := s.downloadAndSave(ctx, emojiID)
 	if err != nil {
@@ -210,7 +211,9 @@ func (s *EmojiService) downloadAndSave(ctx context.Context, emojiID string) (*mo
 // downloadFile baixa o arquivo binário do Telegram.
 func (s *EmojiService) downloadFile(ctx context.Context, filePath string) ([]byte, error) {
 	// Usamos a URL pública: https://api.telegram.org/file/bot<token>/<file_path>
-	// O token vem do bot interno, não expõe nada externamente
+	// Logar apenas o filePath, nunca a URL completa (que contém o token)
+	logger.Info("EMOJI", "Baixando arquivo: %s", filePath)
+
 	url := fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", s.bot.Token(), filePath)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
@@ -228,7 +231,7 @@ func (s *EmojiService) downloadFile(ctx context.Context, filePath string) ([]byt
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("HTTP %d ao baixar %s", resp.StatusCode, filePath)
+		return nil, fmt.Errorf("HTTP %d ao baixar arquivo", resp.StatusCode)
 	}
 
 	limited := io.LimitReader(resp.Body, maxEmojiSize)

@@ -36,8 +36,7 @@ export function AdminConfigTab() {
                         setFixedPostPayload(serverData.fixedPostBuilderPayload || '');
                     }
                 }
-            } catch (err) {
-                console.error("Erro ao carregar configurações:", err);
+            } catch {
                 toast('Erro ao carregar configurações', 'error');
             } finally {
                 setLoading(false);

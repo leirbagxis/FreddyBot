@@ -327,7 +327,10 @@ func closeTag(e entityDTO) string {
 	case "pre":
 		return "```"
 	case "text_link":
-		return fmt.Sprintf("](%s)", e.URL)
+		if strings.HasPrefix(e.URL, "http://") || strings.HasPrefix(e.URL, "https://") {
+			return fmt.Sprintf("](%s)", e.URL)
+		}
+		return "]()"
 	case "custom_emoji":
 		return "</tg-emoji>"
 	case "blockquote":

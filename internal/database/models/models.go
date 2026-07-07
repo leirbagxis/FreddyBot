@@ -161,8 +161,8 @@ type CustomCaptionButton struct {
 // ── Custom Emoji (cache global do arquivo) ──
 type CustomEmoji struct {
 	EmojiID   string    `gorm:"primaryKey;type:text" json:"emojiId"`
-	FileData  []byte    `gorm:"type:bytea" json:"-"`               // BLOB do MP4 (bytea no PostgreSQL)
-	FileType  string    `gorm:"type:text;default:mp4" json:"fileType"` // "mp4" ou "webp"
+	FileData  []byte    `gorm:"type:bytea" json:"-"`               // BLOB do arquivo (bytea no PostgreSQL)
+	FileType  string    `gorm:"type:text;default:.webp" json:"fileType"` // ".webp", ".webm" ou ".tgs"
 	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }

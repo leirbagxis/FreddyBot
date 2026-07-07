@@ -2,12 +2,16 @@ package controllers
 
 import (
 	"net/http"
+	"regexp"
 	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
+
+// validEmojiID valida que o emoji ID contém apenas dígitos
+var validEmojiID = regexp.MustCompile(`^\d+$`)
 
 type EmojiController struct {
 	container *container.AppContainer
@@ -28,6 +32,12 @@ func (ctrl *EmojiController) ServeEmoji(ctx *gin.Context) {
 
 	// Separa extensão opcional do ID (ex: "123.tgs" → id="123", ext=".tgs")
 	emojiID, ext := splitEmojiID(rawID)
+
+	// Validar formato do emoji ID
+	if !validEmojiID.MatchString(emojiID) {
+		ctx.Error(errors.BadRequest("emoji ID inválido"))
+		return
+	}
 
 	// Extrair userID do contexto JWT
 	userID := getUserID(ctx)
