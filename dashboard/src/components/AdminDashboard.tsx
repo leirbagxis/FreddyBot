@@ -4,6 +4,9 @@ import { AdminNoticeTab } from './AdminNoticeTab';
 import { AdminConfigTab } from './AdminConfigTab';
 import { AdminAuditTab } from './AdminAuditTab';
 import { AdminLogsTab } from './AdminLogsTab';
+import { AdminMTProtoAccountsTab } from './AdminMTProtoAccountsTab';
+import { AdminPremiumFeaturesTab } from './AdminPremiumFeaturesTab';
+import { AdminSubscriptionsTab } from './AdminSubscriptionsTab';
 import { NoticeButton, NoticeTarget, updateUserAdmin, updateUserBlacklist } from '../api';
 import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare, Radio, Activity, BarChart3, TrendingUp, Crown, Ban, Mail } from 'lucide-react';
 import { useToast } from './Toast';
@@ -13,7 +16,7 @@ import { Badge } from './ui/badge';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
-  activeTab: 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs';
+  activeTab: 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs' | 'accounts' | 'premium-features' | 'subscriptions';
   initialLogsChannelId?: string;
   navigateToChannel: (id: number) => void;
   selectedUserId: number | null;
@@ -39,6 +42,7 @@ interface AdminDashboardProps {
   setAuditResults: Dispatch<SetStateAction<AuditResult[] | null>>;
   auditLoading: boolean;
   handleRunAudit: () => void;
+  toast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
 // ───── Helpers ─────
@@ -664,6 +668,9 @@ export function AdminDashboard({
               {localActiveTab === 'audit' && 'Auditoria de bots nos canais'}
               {localActiveTab === 'logs' && 'Histórico de eventos do sistema'}
               {localActiveTab === 'config' && 'Configurações globais do servidor'}
+              {localActiveTab === 'accounts' && 'Contas Telegram para edição de postagens'}
+              {localActiveTab === 'premium-features' && 'Gerencie as features premium do sistema'}
+              {localActiveTab === 'subscriptions' && 'Gerencie assinaturas de todos os usuários'}
             </p>
           </div>
         </div>
@@ -696,6 +703,21 @@ export function AdminDashboard({
       {localActiveTab === 'config' && (
         <div className="space-y-4">
           <AdminConfigTab />
+        </div>
+      )}
+      {localActiveTab === 'accounts' && (
+        <div className="space-y-4">
+          <AdminMTProtoAccountsTab />
+        </div>
+      )}
+      {localActiveTab === 'premium-features' && (
+        <div className="space-y-4">
+          <AdminPremiumFeaturesTab toast={toast} />
+        </div>
+      )}
+      {localActiveTab === 'subscriptions' && (
+        <div className="space-y-4">
+          <AdminSubscriptionsTab toast={toast} />
         </div>
       )}
     </div>

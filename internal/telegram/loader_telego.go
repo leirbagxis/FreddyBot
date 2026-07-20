@@ -20,6 +20,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/tutorial"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/addChannel"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/postBuilder"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/payments"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegohandler"
@@ -105,6 +106,9 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	bh.Handle(callbackMyChannel.RequireStickerSeparatorHandlerTelego(c), telegohandler.CallbackDataEqual("sptc-config"))
 	bh.Handle(callbackMyChannel.DeleteSeparatorHandlerTelego(c), telegohandler.CallbackDataEqual("spex"))
 
+	// Premium Callbacks
+	bh.Handle(callbackMyChannel.PremiumFeaturesHandlerTelego(c), telegohandler.CallbackDataPrefix("premium-features:"))
+
 	// Transfer Access Callbacks
 	bh.Handle(callbackMyChannel.AskTransferAccessHandlerTelego(c), telegohandler.CallbackDataEqual("paccess-info"))
 	bh.Handle(callbackMyChannel.TransferAcessHandlerTelego(c), telegohandler.CallbackDataEqual("transfer"))
@@ -118,6 +122,10 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 
 	// Post Builder Callbacks
 	bh.Handle(postbuilder.CallbackHandlerTelego(c), telegohandler.CallbackDataPrefix("pb-"))
+
+	// Payment Handlers (Telegram Stars)
+	bh.Handle(payments.PreCheckoutHandler(c), telegohandler.AnyPreCheckoutQuery())
+	bh.Handle(payments.SuccessfulPaymentHandler(c), anySuccessfulPayment())
 
 	// Inline Handlers
 	bh.HandleInlineQuery(postbuilder.InlineHandlerTelego(c), telegohandler.InlineQueryPrefix("pb "))
@@ -208,6 +216,12 @@ func matchAdminOrOwnerTelego(c *container.AppContainer) telegohandler.Predicate 
 
 		user, err := c.UserService.GetUserByID(context.Background(), userID)
 		return err == nil && user != nil && user.IsAdmin
+	}
+}
+
+func anySuccessfulPayment() telegohandler.Predicate {
+	return func(ctx context.Context, update telego.Update) bool {
+		return update.Message != nil && update.Message.SuccessfulPayment != nil
 	}
 }
 

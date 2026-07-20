@@ -243,3 +243,31 @@ Usuários com contas conectadas precisam configurar legendas com formatação ri
 - Dispatchers migrados para `ExecutorFactory.ForUser(ownerID)`
 - StageTransformTelego detecta `UseEntities + HasActiveAccount`
 - Build existente 100% preservado, zero breaking changes
+
+# Decisão: Stars Test Mode com Preço de 1 Star e Sistema de Reembolso
+
+## Data
+2026-07-10
+
+## Contexto
+O modo de teste de assinaturas Stars ativava a assinatura gratuitamente sem passar pelo fluxo real de pagamento. Além disso, não havia sistema de reembolso — o admin só conseguia cancelar assinaturas, sem devolver os Stars pagos.
+
+## Decisão tomada
+1. `STARS_TEST_MODE=true` agora faz as invoices custarem 1 star (em vez de ativar grátis)
+2. Removeu-se a ativação automática sem pagamento — o usuário sempre paga (1 star em teste, real em produção)
+3. Criou-se tabela `refunds` com modelo `Refund` no banco
+4. Implementou-se `AdminRefundPayment` que chama `bot.RefundStarPayment()` do Telegram
+5. `POST /api/admin/subscriptions/refund` aceita `{userId, telegramPaymentChargeId}`
+6. AdminSubscriptionsTab exibiu charge_id e botão "Reembolsar" com confirmação
+7. `TelegramPaymentID` (charge_id) é sempre salvo na subscription via `HandlePayment`
+
+## Motivo
+- Testar com Stars reais (mesmo que 1) valida o fluxo completo de pagamento
+- Admin pode devolver Stars sem precisar de acesso ao Telegram
+- Tabela refunds previne reembolso duplicado e mantém auditoria
+
+## Impacto
+- Test mode agora custa 1 star (não mais grátis)
+- Admin pode reembolsar qualquer pagamento via dashboard
+- Nenhuma subscription antiga perde dados
+- `bot.RefundStarPayment()` disponível na telego v1.9.0

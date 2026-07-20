@@ -1,13 +1,14 @@
-import { useState, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import {
-    Users, LogOut, ShieldCheck, Send
+    Users, LogOut, ShieldCheck, Send, Crown
 } from 'lucide-react';
 import { Channel } from '../types';
 import { ConfirmModal } from './ConfirmModal';
-import { fetchUserInfo, transferChannel } from '../api';
+import { fetchUserInfo, transferChannel, fetchSubscriptionStatus, fetchAccountStatus } from '../api';
 import { useToast } from './Toast';
 import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
+import { Badge } from './ui/badge';
 import { Input } from './ui/input';
 
 interface DashboardInicioTabProps {
@@ -37,7 +38,23 @@ export const DashboardInicioTab = memo(({
     const [showTransferError, setShowTransferError] = useState(false);
     const [transferErrorMessage, setTransferErrorMessage] = useState('');
     const [showTransferSuccess, setShowTransferSuccess] = useState(false);
+    const [hasPremium, setHasPremium] = useState(false);
     const toast = useToast();
+
+    useEffect(() => {
+        let cancelled = false;
+        Promise.all([
+            fetchSubscriptionStatus().catch(() => ({ data: null })),
+            fetchAccountStatus().catch(() => ({ status: 'disconnected' })),
+        ]).then(([subRes, accStatus]) => {
+            if (cancelled) return;
+            const s = subRes?.data;
+            const active = s?.hasSubscription && s?.subscription?.status === 'active';
+            const account = accStatus?.status === 'connected';
+            setHasPremium(active || account);
+        });
+        return () => { cancelled = true; };
+    }, []);
 
     const handleTransferClick = async () => {
         const newOwner = transferInput.trim();
@@ -114,9 +131,16 @@ export const DashboardInicioTab = memo(({
                                 <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Painel de Controle</p>
                             </div>
                         </div>
-                        <div className="flex items-center gap-1.5 bg-accent/10 px-2.5 py-1 rounded-lg">
-                            <ShieldCheck size={12} className="text-accent" />
-                            <span className="text-[11px] font-mono font-bold text-accent">{channel.ownerId}</span>
+                        <div className="flex items-center gap-1.5">
+                            {hasPremium && (
+                                <Badge variant="default" className="text-[10px] gap-1 px-2 py-0.5 h-5">
+                                    <Crown size={10} /> Premium
+                                </Badge>
+                            )}
+                            <div className="flex items-center gap-1.5 bg-accent/10 px-2.5 py-1 rounded-lg">
+                                <ShieldCheck size={12} className="text-accent" />
+                                <span className="text-[11px] font-mono font-bold text-accent">{channel.ownerId}</span>
+                            </div>
                         </div>
                     </div>
 

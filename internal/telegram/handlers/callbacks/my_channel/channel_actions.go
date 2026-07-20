@@ -202,8 +202,8 @@ func SetSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler 
 				logger.Bot("📝 Separador custom_emoji: text=%q entities=%d json=%s",
 					separator.EmojiText, len(emojiEntities), separator.EmojiEntitiesJSON)
 
-				// Custom emoji requer conta conectada
-				if !c.ConnectedAccountService.HasActiveAccount(context.Background(), userId) {
+				// Custom emoji requer conta conectada ou assinatura premium
+				if !c.HasPremiumAccess(context.Background(), userId) {
 					text, kb := parser.GetMessageTelego("require-connected-account-separator", map[string]string{
 						"channelId": fmt.Sprintf("%d", channelId),
 					})

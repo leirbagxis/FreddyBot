@@ -70,14 +70,12 @@ func (e *ephemeralSession) StoreSession(ctx context.Context, data []byte) error 
 
 var _ telegram.SessionStorage = (*ephemeralSession)(nil)
 
-// withClient cria um cliente MTProto ephemeral, executa fn e retorna.
-func (e *MTProtoExecutor) withClient(ctx context.Context, userID int64, fn func(ctx context.Context, api *tg.Client, accountID string) error) error {
-	sessionData, accountID, err := e.sessionProvider.GetSessionAndID(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("get session: %w", err)
-	}
+// WithSession cria um cliente MTProto ephemeral a partir de dados de sessao explicitos,
+// executa fn e retorna. Util para cenarios onde a sessao nao esta vinculada a um userID
+// (ex: conta admin gerenciada).
+func (e *MTProtoExecutor) WithSession(ctx context.Context, sessionData []byte, accountID string, fn func(ctx context.Context, api *tg.Client, accountID string) error) error {
 	if sessionData == nil {
-		return fmt.Errorf("no session data for user %d", userID)
+		return fmt.Errorf("no session data")
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -91,6 +89,18 @@ func (e *MTProtoExecutor) withClient(ctx context.Context, userID int64, fn func(
 	return client.Run(ctx, func(ctx context.Context) error {
 		return fn(ctx, client.API(), accountID)
 	})
+}
+
+// withClient cria um cliente MTProto ephemeral, executa fn e retorna.
+func (e *MTProtoExecutor) withClient(ctx context.Context, userID int64, fn func(ctx context.Context, api *tg.Client, accountID string) error) error {
+	sessionData, accountID, err := e.sessionProvider.GetSessionAndID(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("get session: %w", err)
+	}
+	if sessionData == nil {
+		return fmt.Errorf("no session data for user %d", userID)
+	}
+	return e.WithSession(ctx, sessionData, accountID, fn)
 }
 
 // botAPIToMTProtoChannelID converte um channel ID da Bot API (ex: -1001234567890)
@@ -184,21 +194,10 @@ func convertKeyboard(keyboard *InlineKeyboardMarkup) tg.ReplyMarkupClass {
 	return &tg.ReplyInlineMarkup{Rows: rows}
 }
 
-// --- Metodos User-bound (chamados pelo UserExecutor) ---
-// Nota: o parametro parseMode e ignorado nessas funcoes porque o MTProto
-// usa entities diretamente (opts.Entities) ao inves de parse mode HTML/Markdown.
+// --- Callback factories (compartilhados entre User-bound e Session-based) ---
 
-func (e *MTProtoExecutor) EditMessageForUser(
-	ctx context.Context,
-	userID int64,
-	chatID int64,
-	messageID int,
-	text string,
-	parseMode string,
-	keyboard *InlineKeyboardMarkup,
-	opts *EditOptions,
-) error {
-	return e.withClient(ctx, userID, func(ctx context.Context, api *tg.Client, accountID string) error {
+func (e *MTProtoExecutor) editMessageCallback(chatID int64, messageID int, text string, opts *EditOptions, keyboard *InlineKeyboardMarkup) func(ctx context.Context, api *tg.Client, accountID string) error {
+	return func(ctx context.Context, api *tg.Client, accountID string) error {
 		peer, err := e.resolvePeer(ctx, api, accountID, chatID)
 		if err != nil {
 			return fmt.Errorf("resolve peer: %w", err)
@@ -218,15 +217,6 @@ func (e *MTProtoExecutor) EditMessageForUser(
 			}
 			if len(entities) > 0 {
 				req.SetEntities(entities)
-				logger.Bot("📝 MTProto EditMessage: %d entities applied (text=%q, len=%d)", len(entities), text, len(text))
-			} else {
-				logger.Bot("📝 MTProto EditMessage: entities JSON but zero entities parsed")
-			}
-		} else {
-			if opts != nil {
-				logger.Bot("📝 MTProto EditMessage: no entities (entities len=%d)", len(opts.Entities))
-			} else {
-				logger.Bot("📝 MTProto EditMessage: opts is nil")
 			}
 		}
 
@@ -239,53 +229,20 @@ func (e *MTProtoExecutor) EditMessageForUser(
 		// Reply markup
 		if kb := convertKeyboard(keyboard); kb != nil {
 			req.SetReplyMarkup(kb)
-			logger.Bot("🎹 MTProto EditMessage: with reply markup (%T)", kb)
-		} else {
-			logger.Bot("🎹 MTProto EditMessage: no reply markup")
 		}
 
-		logger.Bot("📤 MTProto EditMessage: calling api.MessagesEditMessage (peer=%T, id=%d, msg=%q)",
-			peer, messageID, text)
 		_, err = api.MessagesEditMessage(ctx, req)
-		if err != nil {
-			logger.Error("MTPROTO", "❌ MTProto EditMessage failed: %v", err)
-		} else {
-			logger.Bot("✅ MTProto EditMessage succeeded")
-		}
 		return err
-	})
+	}
 }
 
-func (e *MTProtoExecutor) EditCaptionForUser(
-	ctx context.Context,
-	userID int64,
-	chatID int64,
-	messageID int,
-	caption string,
-	parseMode string,
-	keyboard *InlineKeyboardMarkup,
-	opts *EditOptions,
-) error {
-	// Para midia, editamos a mensagem com o texto caption + entities.
-	return e.EditMessageForUser(ctx, userID, chatID, messageID, caption, parseMode, keyboard, opts)
-}
-
-func (e *MTProtoExecutor) SendMessageForUser(
-	ctx context.Context,
-	userID int64,
-	chatID int64,
-	text string,
-	parseMode string,
-	keyboard *InlineKeyboardMarkup,
-	opts *EditOptions,
-) error {
-	return e.withClient(ctx, userID, func(ctx context.Context, api *tg.Client, accountID string) error {
+func (e *MTProtoExecutor) sendMessageCallback(chatID int64, text string, opts *EditOptions, keyboard *InlineKeyboardMarkup) func(ctx context.Context, api *tg.Client, accountID string) error {
+	return func(ctx context.Context, api *tg.Client, accountID string) error {
 		peer, err := e.resolvePeer(ctx, api, accountID, chatID)
 		if err != nil {
 			return fmt.Errorf("resolve peer: %w", err)
 		}
 
-		// Gerar RandomID unico para evitar mensagens duplicadas
 		var randomID int64
 		_ = binary.Read(rand.Reader, binary.LittleEndian, &randomID)
 
@@ -295,7 +252,6 @@ func (e *MTProtoExecutor) SendMessageForUser(
 			RandomID: randomID,
 		}
 
-		// Entities
 		if opts != nil && opts.Entities != "" {
 			entities, err := entitiesJSONToGotd(opts.Entities)
 			if err != nil {
@@ -303,34 +259,20 @@ func (e *MTProtoExecutor) SendMessageForUser(
 			}
 			if len(entities) > 0 {
 				req.SetEntities(entities)
-				logger.Bot("📝 MTProto SendMessage: %d entities applied (text=%q)", len(entities), text)
 			}
 		}
 
-		// Reply markup
 		if kb := convertKeyboard(keyboard); kb != nil {
 			req.SetReplyMarkup(kb)
 		}
 
-		logger.Bot("📤 MTProto SendMessage: calling api.MessagesSendMessage (peer=%T, msg=%q)", peer, text)
 		_, err = api.MessagesSendMessage(ctx, req)
-		if err != nil {
-			logger.Error("MTPROTO", "❌ MTProto SendMessage failed: %v", err)
-		} else {
-			logger.Bot("✅ MTProto SendMessage succeeded")
-		}
 		return err
-	})
+	}
 }
 
-func (e *MTProtoExecutor) EditReplyMarkupForUser(
-	ctx context.Context,
-	userID int64,
-	chatID int64,
-	messageID int,
-	keyboard *InlineKeyboardMarkup,
-) error {
-	return e.withClient(ctx, userID, func(ctx context.Context, api *tg.Client, accountID string) error {
+func (e *MTProtoExecutor) editReplyMarkupCallback(chatID int64, messageID int, keyboard *InlineKeyboardMarkup) func(ctx context.Context, api *tg.Client, accountID string) error {
+	return func(ctx context.Context, api *tg.Client, accountID string) error {
 		peer, err := e.resolvePeer(ctx, api, accountID, chatID)
 		if err != nil {
 			return err
@@ -348,5 +290,109 @@ func (e *MTProtoExecutor) EditReplyMarkupForUser(
 
 		_, err = api.MessagesEditMessage(ctx, req)
 		return err
-	})
+	}
+}
+
+// --- Metodos User-bound (chamados pelo UserExecutor) ---
+
+func (e *MTProtoExecutor) EditMessageForUser(
+	ctx context.Context,
+	userID int64,
+	chatID int64,
+	messageID int,
+	text string,
+	parseMode string,
+	keyboard *InlineKeyboardMarkup,
+	opts *EditOptions,
+) error {
+	return e.withClient(ctx, userID, e.editMessageCallback(chatID, messageID, text, opts, keyboard))
+}
+
+func (e *MTProtoExecutor) EditCaptionForUser(
+	ctx context.Context,
+	userID int64,
+	chatID int64,
+	messageID int,
+	caption string,
+	parseMode string,
+	keyboard *InlineKeyboardMarkup,
+	opts *EditOptions,
+) error {
+	return e.EditMessageForUser(ctx, userID, chatID, messageID, caption, parseMode, keyboard, opts)
+}
+
+func (e *MTProtoExecutor) SendMessageForUser(
+	ctx context.Context,
+	userID int64,
+	chatID int64,
+	text string,
+	parseMode string,
+	keyboard *InlineKeyboardMarkup,
+	opts *EditOptions,
+) error {
+	return e.withClient(ctx, userID, e.sendMessageCallback(chatID, text, opts, keyboard))
+}
+
+func (e *MTProtoExecutor) EditReplyMarkupForUser(
+	ctx context.Context,
+	userID int64,
+	chatID int64,
+	messageID int,
+	keyboard *InlineKeyboardMarkup,
+) error {
+	return e.withClient(ctx, userID, e.editReplyMarkupCallback(chatID, messageID, keyboard))
+}
+
+// --- Metodos Session-based (chamados pelo PremiumExecutor) ---
+
+func (e *MTProtoExecutor) EditMessageWithSession(
+	ctx context.Context,
+	sessionData []byte,
+	accountID string,
+	chatID int64,
+	messageID int,
+	text string,
+	parseMode string,
+	keyboard *InlineKeyboardMarkup,
+	opts *EditOptions,
+) error {
+	return e.WithSession(ctx, sessionData, accountID, e.editMessageCallback(chatID, messageID, text, opts, keyboard))
+}
+
+func (e *MTProtoExecutor) EditCaptionWithSession(
+	ctx context.Context,
+	sessionData []byte,
+	accountID string,
+	chatID int64,
+	messageID int,
+	caption string,
+	parseMode string,
+	keyboard *InlineKeyboardMarkup,
+	opts *EditOptions,
+) error {
+	return e.EditMessageWithSession(ctx, sessionData, accountID, chatID, messageID, caption, parseMode, keyboard, opts)
+}
+
+func (e *MTProtoExecutor) SendMessageWithSession(
+	ctx context.Context,
+	sessionData []byte,
+	accountID string,
+	chatID int64,
+	text string,
+	parseMode string,
+	keyboard *InlineKeyboardMarkup,
+	opts *EditOptions,
+) error {
+	return e.WithSession(ctx, sessionData, accountID, e.sendMessageCallback(chatID, text, opts, keyboard))
+}
+
+func (e *MTProtoExecutor) EditReplyMarkupWithSession(
+	ctx context.Context,
+	sessionData []byte,
+	accountID string,
+	chatID int64,
+	messageID int,
+	keyboard *InlineKeyboardMarkup,
+) error {
+	return e.WithSession(ctx, sessionData, accountID, e.editReplyMarkupCallback(chatID, messageID, keyboard))
 }

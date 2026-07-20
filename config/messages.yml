@@ -107,8 +107,37 @@
     - - text: "Sticker Separador"
         callback_data: "sptc"
         custom_emoji: "5472164874886846699"
-    - - text: "📝 Configurar Legenda"
-        callback_data: "setcaption:{channelId}"
+    - - text: "Transferir Acesso"
+        callback_data: "paccess-info"
+        custom_emoji: "5330115548900501467"
+    #- - text: "🔗 Agrupar Canais"
+        #callback_data: "gc-info:{channelId}"
+    - - text: "Remover Canal"
+        callback_data: "del"
+        custom_emoji: "5372825386591732174"
+    - - text: "🔙 Voltar"
+        callback_data: "profile-user-channels"
+      - text: "Início"
+        callback_data: "start"
+        custom_emoji: "5465226866321268133"
+
+- name: config-channel-premium
+  text: |
+    <b>📢 Canal Selecionado</b>
+    
+    <blockquote>🔹 <b>Nome:</b> {title}
+    🔹 <b>ID:</b> <code>{channelId}</code></blockquote>
+    
+    <b>⚙️ Aqui você pode gerenciar as configurações de legendas deste canal. Edite conforme necessário e salve as alterações.</b>
+  buttons:
+    - - text: "⚙ Configure Agora"
+        web_app: "{webAppUrl}"
+        style: "primary"
+    - - text: "⭐ Premium"
+        callback_data: "premium-features:{channelId}"
+        custom_emoji: "5472164874886846699"
+    - - text: "Sticker Separador"
+        callback_data: "sptc"
         custom_emoji: "5472164874886846699"
     - - text: "Transferir Acesso"
         callback_data: "paccess-info"
@@ -123,6 +152,26 @@
       - text: "Início"
         callback_data: "start"
         custom_emoji: "5465226866321268133"
+
+- name: premium-features
+  text: |
+    <b>⭐ Recursos Premium</b>
+    
+    <blockquote>🎯 Configure recursos exclusivos para sua assinatura premium.
+    
+    ✨ <b>Legenda Premium:</b> Use emojis customizados na legenda do canal.
+    🎯 <b>Separador Premium:</b> Configure emojis customizados como separador.</blockquote>
+    
+    Selecione uma opção abaixo para configurar:
+  buttons:
+    - - text: "✨ Legenda Premium"
+        callback_data: "setcaption:{channelId}"
+        custom_emoji: "5472164874886846699"
+    - - text: "🎯 Separador Premium"
+        callback_data: "sptc-config"
+        custom_emoji: "5472164874886846699"
+    - - text: "🔙 Voltar"
+        callback_data: "config:{channelId}"
 
 - name: del
   text: |

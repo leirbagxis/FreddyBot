@@ -115,6 +115,17 @@ export interface AdminLogsResponse {
   offset: number;
 }
 
+/* ===== Premium Features (Admin) ===== */
+export interface PremiumFeature {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  price: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdminLogsFilters {
   channelId?: string;
   ownerId?: string;
@@ -146,6 +157,37 @@ export interface ChannelsResponse {
   success: boolean;
 }
 
+/* ===== Subscription / Premium ===== */
+export interface Subscription {
+  id: string;
+  userId: number;
+  status: 'active' | 'canceled' | 'expired';
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  extraChannels: number;
+  cancelAtPeriodEnd: boolean;
+  telegramPaymentId: string;
+  extraChannelPayments: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserFeatures {
+  managedPremiumAccount?: boolean;
+  customEmojis?: boolean;
+  extraChannels?: number;
+}
+
+export interface SubscriptionStatus {
+  hasSubscription: boolean;
+  subscription?: Subscription;
+  features?: UserFeatures;
+  basePrice: number;
+  extraChannelPrice: number;
+  starsTestMode?: boolean;
+  hasAccount?: boolean;
+}
+
 /* ===== Connected Account (MTProto) ===== */
 export interface AccountStatus {
   status: 'connected' | 'disconnected';
@@ -161,6 +203,32 @@ export interface AuthStatus {
   error?: string;
   hasPassword?: boolean;
 }
+
+/* ===== Admin MTProto Accounts ===== */
+export interface AdminMTProtoAccount {
+  id: string;
+  label: string;
+  phoneNumber: string;
+  telegramUserId: number;
+  username: string;
+  firstName: string;
+  enabled: boolean;
+  status: string; // "connected", "disconnected", "error"
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAuthStep {
+  step: 'phone' | 'code' | 'password' | 'done' | 'error';
+  sessionId?: string;
+  hasPassword?: boolean;
+  error?: string;
+}
+
+/* ===== Invoice / Payment ===== */
+
+export type InvoiceStatus = 'paid' | 'cancelled' | 'failed' | 'pending';
 
 /* ===== Telegram WebApp ===== */
 export interface TelegramUser {
@@ -194,8 +262,10 @@ declare global {
         headerColor: string;
         backgroundColor: string;
         showConfirm: (message: string, callback: (ok: boolean) => void) => void;
+        showPopup: (params: { title?: string; message: string; buttons?: { type?: string; text: string; id?: string }[] }, callback?: (buttonId: string) => void) => void;
         setHeaderColor: (color: string) => void;
         setBackgroundColor: (color: string) => void;
+        openInvoice: (url: string, callback: (status: InvoiceStatus) => void) => void;
         BackButton: {
           isVisible: boolean;
           show: () => void;

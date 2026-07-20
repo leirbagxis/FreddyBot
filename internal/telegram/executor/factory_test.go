@@ -44,13 +44,15 @@ func (m *mockExecutor) SendMessage(ctx context.Context, chatID int64, text, pars
 
 // mockProvider implements executor.Provider for testing.
 type mockProvider struct {
-	mu          sync.RWMutex
-	connected   map[int64]bool
+	mu        sync.RWMutex
+	connected map[int64]bool
+	premium   map[int64]bool
 }
 
 func newMockProvider() *mockProvider {
 	return &mockProvider{
 		connected: make(map[int64]bool),
+		premium:   make(map[int64]bool),
 	}
 }
 
@@ -60,16 +62,28 @@ func (p *mockProvider) HasConnectedAccount(ctx context.Context, userID int64) bo
 	return p.connected[userID]
 }
 
+func (p *mockProvider) HasPremiumManagedAccount(ctx context.Context, userID int64) bool {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.premium[userID]
+}
+
 func (p *mockProvider) SetConnected(userID int64, connected bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.connected[userID] = connected
 }
 
+func (p *mockProvider) SetPremium(userID int64, premium bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.premium[userID] = premium
+}
+
 func TestExecutorFactory_ForUser_NoConnectedAccount(t *testing.T) {
 	botAPI := &mockExecutor{name: "bot-api"}
 	provider := newMockProvider()
-	factory := executor.NewExecutorFactory(botAPI, nil, provider)
+	factory := executor.NewExecutorFactory(botAPI, nil, nil, provider)
 	ctx := context.Background()
 
 	exec := factory.ForUser(ctx, 100)
@@ -84,7 +98,7 @@ func TestExecutorFactory_ForUser_NoConnectedAccount(t *testing.T) {
 func TestExecutorFactory_ForUser_WithConnectedAccount(t *testing.T) {
 	botAPI := &mockExecutor{name: "bot-api"}
 	provider := newMockProvider()
-	factory := executor.NewExecutorFactory(botAPI, nil, provider)
+	factory := executor.NewExecutorFactory(botAPI, nil, nil, provider)
 	ctx := context.Background()
 
 	// User without connected account
@@ -104,7 +118,7 @@ func TestExecutorFactory_ForUser_WithConnectedAccount(t *testing.T) {
 func TestExecutorFactory_WithNilMTProto(t *testing.T) {
 	botAPI := &mockExecutor{name: "bot-api"}
 	provider := newMockProvider()
-	factory := executor.NewExecutorFactory(botAPI, nil, provider)
+	factory := executor.NewExecutorFactory(botAPI, nil, nil, provider)
 	ctx := context.Background()
 
 	provider.SetConnected(300, true)
@@ -119,7 +133,7 @@ func TestExecutorFactory_WithNilMTProto(t *testing.T) {
 func TestExecutorFactory_InvalidateCache(t *testing.T) {
 	botAPI := &mockExecutor{name: "bot-api"}
 	provider := newMockProvider()
-	factory := executor.NewExecutorFactory(botAPI, nil, provider)
+	factory := executor.NewExecutorFactory(botAPI, nil, nil, provider)
 	ctx := context.Background()
 
 	provider.SetConnected(400, true)
@@ -141,7 +155,7 @@ func TestExecutorFactory_InvalidateCache(t *testing.T) {
 func TestExecutorFactory_ConcurrentAccess(t *testing.T) {
 	botAPI := &mockExecutor{name: "bot-api"}
 	provider := newMockProvider()
-	factory := executor.NewExecutorFactory(botAPI, nil, provider)
+	factory := executor.NewExecutorFactory(botAPI, nil, nil, provider)
 	ctx := context.Background()
 
 	var wg sync.WaitGroup
@@ -159,6 +173,46 @@ func TestExecutorFactory_ConcurrentAccess(t *testing.T) {
 		}(int64(i))
 	}
 	wg.Wait()
+}
+
+func TestExecutorFactory_ForUser_WithPremium(t *testing.T) {
+	botAPI := &mockExecutor{name: "bot-api"}
+	provider := newMockProvider()
+	// MTProto configured, adminSP configured, user has premium but no connected account
+	factory := executor.NewExecutorFactory(botAPI, &executor.MTProtoExecutor{}, &mockAdminSessionProvider{}, provider)
+	ctx := context.Background()
+
+	// User with premium
+	provider.SetPremium(500, true)
+
+	exec := factory.ForUser(ctx, 500)
+	if exec == nil {
+		t.Fatal("ForUser() returned nil for premium user")
+	}
+}
+
+func TestExecutorFactory_ForUser_PremiumOverConnectedAccount(t *testing.T) {
+	botAPI := &mockExecutor{name: "bot-api"}
+	provider := newMockProvider()
+	factory := executor.NewExecutorFactory(botAPI, &executor.MTProtoExecutor{}, &mockAdminSessionProvider{}, provider)
+	ctx := context.Background()
+
+	// User has BOTH connected account AND premium
+	// Connected account should take priority (user's own MTProto)
+	provider.SetConnected(600, true)
+	provider.SetPremium(600, true)
+
+	exec := factory.ForUser(ctx, 600)
+	if exec == nil {
+		t.Fatal("ForUser() returned nil")
+	}
+}
+
+// mockAdminSessionProvider implements executor.AdminSessionProvider for testing.
+type mockAdminSessionProvider struct{}
+
+func (m *mockAdminSessionProvider) GetAdminSession(ctx context.Context) ([]byte, string, error) {
+	return nil, "", nil
 }
 
 func TestNewEmptyKeyboard(t *testing.T) {

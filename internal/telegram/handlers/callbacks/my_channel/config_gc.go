@@ -54,7 +54,15 @@ func ConfigHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			"channelId": channelIdString,
 			"webAppUrl": auth.GenerateMiniAppUrl(userIDStr, channelIdString),
 		}
-		text, kb := parser.GetMessageTelego("config-channel", data)
+
+		// Verificar se usuario tem acesso premium (assinatura ativa ou conta conectada)
+		hasPremium := c.HasPremiumAccess(context.Background(), userID)
+
+		templateName := "config-channel"
+		if hasPremium {
+			templateName = "config-channel-premium"
+		}
+		text, kb := parser.GetMessageTelego(templateName, data)
 
 		err = c.CacheService.SetSelectedChannel(context.Background(), userID, channelId)
 		if err != nil {

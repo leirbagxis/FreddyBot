@@ -77,7 +77,7 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot) {
 
 		_ = tb.SetWebhook(context.Background(), &telego.SetWebhookParams{
 			URL:            webhookUrl,
-			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post"},
+			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post", "pre_checkout_query", "successful_payment"},
 		})
 
 		logger.Bot("✅ Webhook configurado com sucesso")
@@ -100,7 +100,8 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot) {
 		pollingUpdates, _ := tb.UpdatesViaLongPolling(context.Background(), &telego.GetUpdatesParams{
 			Timeout: 8,
 			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query",
-				"chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post"},
+				"chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post",
+				"pre_checkout_query", "successful_payment"},
 		})
 		go func() {
 			for u := range pollingUpdates {

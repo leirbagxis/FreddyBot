@@ -28,13 +28,28 @@ func (a *accountSaverAdapter) SaveSession(ctx context.Context, userID int64, tel
 	return err
 }
 
-// providerAdapter adapta *services.ConnectedAccountService para executor.Provider.
+// providerAdapter adapta *services.ConnectedAccountService e *services.SubscriptionService
+// para executor.Provider.
 type providerAdapter struct {
-	svc *services.ConnectedAccountService
+	connSvc *services.ConnectedAccountService
+	subSvc  *services.SubscriptionService
 }
 
 func (a *providerAdapter) HasConnectedAccount(ctx context.Context, userID int64) bool {
-	return a.svc.HasActiveAccount(ctx, userID)
+	return a.connSvc.HasActiveAccount(ctx, userID)
+}
+
+func (a *providerAdapter) HasPremiumManagedAccount(ctx context.Context, userID int64) bool {
+	return a.subSvc != nil && a.subSvc.UserHasFeature(ctx, userID, "managed_premium_account")
+}
+
+// adminSessionAdapter adapta *services.AdminAccountService para executor.AdminSessionProvider.
+type adminSessionAdapter struct {
+	svc *services.AdminAccountService
+}
+
+func (a *adminSessionAdapter) GetAdminSession(ctx context.Context) ([]byte, string, error) {
+	return a.svc.GetAdminSession(ctx)
 }
 
 type BroadcastButton struct {
@@ -71,9 +86,14 @@ type AppContainer struct {
 
 	// ## MTProto / CONNECTED ACCOUNTS ## \\
 	ConnectedAccountService *services.ConnectedAccountService
+	AdminAccountService     *services.AdminAccountService
 	MTProtoAuthService      *mtprotoAuth.Service
 	BotAPIExecutor          *executor.BotAPIExecutor
 	ExecutorFactory         *executor.ExecutorFactory
+
+	// ## SUBSCRIPTION / PREMIUM ## \\
+	SubscriptionService      *services.SubscriptionService
+	PremiumFeatureService    *services.PremiumFeatureService
 
 	// ## CACHE ## \\
 	CacheService   *cache.Service
@@ -122,6 +142,19 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	// MTProto Auth Service - uses AppID/AppHash from config (placeholder: 0/"" until configured)
 	mtprotoAppID := config.GetMTProtoAppID()
 	mtprotoAppHash := config.GetMTProtoAppHash()
+
+	// Admin MTProto Service
+	adminAccountRepo := repositories.NewAdminAccountRepository(db)
+	adminAccountService := services.NewAdminAccountService(adminAccountRepo, redisClient, mtprotoAppID, mtprotoAppHash)
+
+	// Premium Feature Service (modular — admin pode ativar/desativar)
+	premiumFeatureRepo := repositories.NewPremiumFeatureRepository(db)
+	premiumFeatureService := services.NewPremiumFeatureService(premiumFeatureRepo)
+
+	// Subscription Service
+	subscriptionRepo := repositories.NewSubscriptionRepository(db)
+	subscriptionService := services.NewSubscriptionService(subscriptionRepo, userRepo, telegoClient, premiumFeatureService)
+
 	saverAdapter := &accountSaverAdapter{svc: connectedAccountService}
 	mtprotoAuthService := mtprotoAuth.NewService(redisClient, mtprotoAppID, mtprotoAppHash, saverAdapter)
 
@@ -138,8 +171,12 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	}
 
 	// Factory
-	provAdapter := &providerAdapter{svc: connectedAccountService}
-	executorFactory := executor.NewExecutorFactory(botAPIExecutor, mtprotoExecutor, provAdapter)
+	provAdapter := &providerAdapter{connSvc: connectedAccountService, subSvc: subscriptionService}
+	var adminSP executor.AdminSessionProvider
+	if mtprotoExecutor != nil {
+		adminSP = &adminSessionAdapter{svc: adminAccountService}
+	}
+	executorFactory := executor.NewExecutorFactory(botAPIExecutor, mtprotoExecutor, adminSP, provAdapter)
 
 	container := &AppContainer{
 		DB:        db,
@@ -164,9 +201,14 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 
 		// MTProto
 		ConnectedAccountService: connectedAccountService,
+		AdminAccountService:     adminAccountService,
 		MTProtoAuthService:      mtprotoAuthService,
 		BotAPIExecutor:          botAPIExecutor,
 		ExecutorFactory:         executorFactory,
+
+		// Subscription / Premium
+		SubscriptionService:   subscriptionService,
+		PremiumFeatureService: premiumFeatureService,
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),
@@ -176,6 +218,16 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	go container.ChannelEventService.CleanupOld(context.Background(), services.ChannelEventRetentionDays)
 	container.startBroadcastWorkers(5)
 	return container
+}
+
+// HasPremiumAccess verifica se o usuario tem acesso a recursos premium,
+// seja por assinatura ativa ou conta Telegram conectada.
+func (c *AppContainer) HasPremiumAccess(ctx context.Context, userID int64) bool {
+	status, err := c.SubscriptionService.GetStatus(ctx, userID)
+	if err == nil && status != nil && status.HasSubscription {
+		return true
+	}
+	return c.ConnectedAccountService.HasActiveAccount(ctx, userID)
 }
 
 func (c *AppContainer) syncFixedPostBuilderSession(ctx context.Context) {

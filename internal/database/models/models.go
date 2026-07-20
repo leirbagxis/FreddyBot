@@ -22,6 +22,7 @@ type User struct {
 	IsAdmin       bool      `gorm:"default:false" json:"is_admin"`
 	IsBlacklisted bool      `gorm:"default:false" json:"is_blacklisted"`
 	IsContribute  bool      `gorm:"default:false" json:"isContribute"`
+	Features      string    `gorm:"type:text;default:'{}'" json:"features"` // JSON de UserFeatures
 	Channels      []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
 	CreatedAt     time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`

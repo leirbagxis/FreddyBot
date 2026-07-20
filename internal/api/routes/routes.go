@@ -31,9 +31,15 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	channelEventsController := admincontroller.NewChannelEventsController(c)
 	accountController := controllers.NewAccountController(c)
 	emojiController := controllers.NewEmojiController(c)
+	adminAccountController := admincontroller.NewAdminAccountController(c)
+	subscriptionController := controllers.NewSubscriptionController(c.SubscriptionService)
+	adminSubscriptionController := admincontroller.NewAdminSubscriptionController(c.SubscriptionService)
 
 	// --- Rota de Login Unificada ---
 	api.POST("/login", authController.Login)
+
+	// --- Log de erros do frontend (sem auth - captura erros antes do login) ---
+	api.POST("/log/client-error", handlers.ClientErrorHandler(c))
 
 	// --- Rotas Protegidas ---
 	api.Use(auth.AuthMiddlewareJWT(c))
@@ -44,6 +50,14 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.POST("/channel/transfer", userController.TransferChannelController)
 		api.GET("/emoji/history", emojiController.ListEmojiHistory)
 		api.GET("/emoji/:id", emojiController.ServeEmoji)
+
+		// Rotas de Assinatura Premium
+		api.GET("/subscription", subscriptionController.GetSubscription)
+		api.POST("/subscription/create", subscriptionController.CreateInvoice)
+		api.POST("/subscription/cancel", subscriptionController.Cancel)
+		api.POST("/subscription/channels/add", subscriptionController.AddExtraChannel)
+		api.POST("/subscription/channels/add-invoice", subscriptionController.CreateExtraChannelInvoice)
+		api.POST("/subscription/channels/remove", subscriptionController.RemoveExtraChannel)
 
 		// Rotas específicas de Canal (Com verificação de autorização)
 		channelRoutes := api.Group("/channel/:channelId")
@@ -74,6 +88,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 			channelRoutes.DELETE("/custom-captions/:captionId/buttons/:buttonId", customCaptionController.DeleteCustomCaptionButtonController)
 
 			channelRoutes.GET("/separator/:separatorId", channelController.GetSeparator)
+			channelRoutes.GET("/separator", channelController.GetSeparatorByChannel)
+			channelRoutes.PUT("/separator", channelController.UpdateSeparator)
+			channelRoutes.DELETE("/separator", channelController.DeleteSeparator)
 		}
 	}
 
@@ -96,6 +113,24 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 		adminRoute.POST("/users/:userId/admin", getALlUsers.UpdateUserAdminController)
 		adminRoute.POST("/users/:userId/blacklist", getALlUsers.UpdateUserBlacklistController)
+
+		adminRoute.GET("/accounts", adminAccountController.ListAccounts)
+		adminRoute.POST("/accounts/connect", adminAccountController.ConnectAccount)
+		adminRoute.POST("/accounts/verify", adminAccountController.VerifyCode)
+		adminRoute.POST("/accounts/password", adminAccountController.SendPassword)
+		adminRoute.DELETE("/accounts/:id", adminAccountController.DeleteAccount)
+		adminRoute.POST("/accounts/:id/toggle", adminAccountController.ToggleAccount)
+
+		// Premium Features
+		premiumFeaturesController := admincontroller.NewPremiumFeaturesController(c)
+		adminRoute.GET("/premium/features", premiumFeaturesController.ListFeatures)
+		adminRoute.PUT("/premium/features/:key", premiumFeaturesController.UpdateFeature)
+		adminRoute.POST("/premium/features/:key/toggle", premiumFeaturesController.ToggleFeature)
+
+		// Admin Subscriptions
+		adminRoute.GET("/subscriptions", adminSubscriptionController.ListSubscriptions)
+		adminRoute.POST("/subscriptions/cancel", adminSubscriptionController.Cancel)
+		adminRoute.POST("/subscriptions/refund", adminSubscriptionController.Refund)
 	}
 
 	// --- Rotas de Conta Conectada MTProto ---
@@ -109,4 +144,5 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		accountRoutes.POST("/password", accountController.SendPassword)
 		accountRoutes.DELETE("", accountController.DisconnectAccount)
 	}
+
 }

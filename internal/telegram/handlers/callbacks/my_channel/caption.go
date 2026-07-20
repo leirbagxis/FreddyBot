@@ -52,8 +52,8 @@ func AskCaptionHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		bot := ctx.Bot()
 		userID := update.CallbackQuery.From.ID
 
-		// Verificar se o usuario tem conta conectada
-		if !c.ConnectedAccountService.HasActiveAccount(context.Background(), userID) {
+		// Verificar se o usuario tem acesso premium (conta conectada ou assinatura)
+		if !c.HasPremiumAccess(context.Background(), userID) {
 			_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "❌ Voce precisa conectar uma conta Telegram primeiro!",

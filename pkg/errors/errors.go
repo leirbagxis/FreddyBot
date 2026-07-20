@@ -28,6 +28,7 @@ var (
 	ErrUnauthorized = New(http.StatusUnauthorized, "Não autorizado")
 	ErrForbidden    = New(http.StatusForbidden, "Acesso negado")
 	ErrBadRequest   = New(http.StatusBadRequest, "Dados inválidos")
+	ErrConflict     = New(http.StatusConflict, "Conflito")
 	ErrInternal     = New(http.StatusInternalServerError, "Erro interno do servidor")
 )
 

@@ -7,19 +7,29 @@ import (
 )
 
 // Provider e a interface que a factory usa para consultar se um usuario
-// possui conta conectada ativa. Isso evita dependencia circular com o
-// pacote de servicos.
+// possui conta conectada ativa ou assinatura premium. Isso evita
+// dependencia circular com o pacote de servicos.
 type Provider interface {
 	// HasConnectedAccount retorna true se o usuario possui uma conta
 	// conectada ativa e com sessao valida.
 	HasConnectedAccount(ctx context.Context, userID int64) bool
+
+	// HasPremiumManagedAccount retorna true se o usuario possui uma
+	// assinatura premium ativa com o recurso ManagedPremiumAccount habilitado.
+	HasPremiumManagedAccount(ctx context.Context, userID int64) bool
 }
 
 // ExecutorFactory cria a implementacao correta de TelegramExecutor
-// com base na existencia de conta conectada para o usuario.
+// com base na existencia de conta conectada ou premium para o usuario.
+//
+// A ordem de prioridade e:
+//  1. ConnectedAccount (MTProto proprio do usuario) -> UserExecutor
+//  2. Premium (conta admin gerenciada) -> PremiumExecutor
+//  3. Padrao -> BotAPIExecutor
 type ExecutorFactory struct {
 	botAPI   TelegramExecutor
 	mtproto  *MTProtoExecutor
+	adminSP  AdminSessionProvider
 	provider Provider
 	cache    map[int64]TelegramExecutor
 	mu       sync.RWMutex
@@ -28,23 +38,28 @@ type ExecutorFactory struct {
 // NewExecutorFactory cria uma nova factory.
 // botAPI: executor via Bot API (sempre disponivel).
 // mtproto: executor via MTProto (opcional, nil se nao configurado).
-// provider: interface para consultar se usuario tem conta ativa.
+// adminSP: provedor de sessao admin para PremiumExecutor (opcional, nil se nao configurado).
+// provider: interface para consultar se usuario tem conta ativa ou premium.
 func NewExecutorFactory(
 	botAPI TelegramExecutor,
 	mtproto *MTProtoExecutor,
+	adminSP AdminSessionProvider,
 	provider Provider,
 ) *ExecutorFactory {
 	return &ExecutorFactory{
 		botAPI:   botAPI,
 		mtproto:  mtproto,
+		adminSP:  adminSP,
 		provider: provider,
 		cache:    make(map[int64]TelegramExecutor),
 	}
 }
 
 // ForUser retorna o executor apropriado para o usuario.
-// Se o usuario tiver uma conta conectada ativa, retorna UserExecutor com MTProto.
-// Caso contrario, retorna apenas o BotAPIExecutor.
+// A ordem de prioridade:
+//  1. Se o usuario tiver uma conta conectada ativa -> UserExecutor com MTProto.
+//  2. Se o usuario tiver premium (ManagedPremiumAccount) -> PremiumExecutor com admin MTProto.
+//  3. Caso contrario -> BotAPIExecutor.
 func (f *ExecutorFactory) ForUser(ctx context.Context, userID int64) TelegramExecutor {
 	f.mu.RLock()
 	exec, ok := f.cache[userID]
@@ -57,6 +72,8 @@ func (f *ExecutorFactory) ForUser(ctx context.Context, userID int64) TelegramExe
 	var chosen TelegramExecutor
 	if f.mtproto != nil && f.provider.HasConnectedAccount(ctx, userID) {
 		chosen = NewUserExecutor(userID, f.botAPI, f.mtproto)
+	} else if f.mtproto != nil && f.adminSP != nil && f.provider.HasPremiumManagedAccount(ctx, userID) {
+		chosen = NewPremiumExecutor(userID, f.botAPI, f.mtproto, f.adminSP)
 	} else {
 		chosen = f.botAPI
 	}

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { DashboardData, Button, TelegramUser, AdminDashboardData, Channel, AuditResult } from './types';
 import {
   login, fetchDashboardData, fetchUserChannels, fetchAdminDashboard,
@@ -6,15 +6,16 @@ import {
   createButton, deleteButton, updateButton, updateLayoutButtons,
   updateDefaultCaption, updateNewPackCaption, updateReactions, 
   updateReactionPosition, updateDynamicLinks, transferChannel, fetchUserInfo,
-  sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot
+  sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot,
+  fetchSubscriptionStatus, fetchAccountStatus
 } from './api';
 import { ButtonGrid } from './components/ButtonGrid';
-import { CaptionCard } from './components/CaptionCard';
-import { NewPackCaptionCard } from './components/NewPackCaptionCard';
-import { ReactionsCard } from './components/ReactionsCard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { DashboardInicioTab } from './components/DashboardInicioTab';
 import { ContaTelegramTab } from './components/ContaTelegramTab';
+import { PremiumTab } from './components/PremiumTab';
+import { PremiumConfigTab } from './components/PremiumConfigTab';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, Tab } from './components/TabBar';
 import { AdminSidebar } from './components/AdminSidebar';
 import { ToastProvider, useToast } from './components/Toast';
@@ -30,12 +31,12 @@ import {
   Users, Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
   AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings, FileClock, UserCheck, X,
-  CloudMoon, Sunrise, Headphones, Video, Image, FileText, Smile, Film, SlidersHorizontal
+  CloudMoon, Sunrise, Headphones, Video, Image, FileText, Smile, Film, SlidersHorizontal, Smartphone,
+  Crown, Star
 } from 'lucide-react';
 
-const tabs: Tab[] = [
+const BASE_TABS: Tab[] = [
   { id: 'geral', label: 'Início', icon: <LayoutDashboard size={22} /> },
-  { id: 'legendas', label: 'Legendas', icon: <Type size={22} /> },
   { id: 'botoes', label: 'Botões', icon: <Grid3X3 size={22} /> },
   { id: 'permissoes', label: 'Permissões', icon: <Shield size={22} /> },
   { id: 'conta', label: 'Conta Telegram', icon: <UserCheck size={22} /> },
@@ -48,6 +49,9 @@ const adminTabs: Tab[] = [
   { id: 'audit', label: 'Auditoria', icon: <Zap size={22} /> },
   { id: 'logs', label: 'Logs', icon: <FileClock size={22} /> },
   { id: 'notice', label: 'Broadcast', icon: <MessageSquare size={22} /> },
+  { id: 'accounts', label: 'Contas MTProto', icon: <Smartphone size={22} /> },
+  { id: 'premium-features', label: 'Features', icon: <Crown size={22} /> },
+  { id: 'subscriptions', label: 'Assinaturas', icon: <Star size={22} /> },
   { id: 'config', label: 'Configurações', icon: <Settings size={22} /> },
 ];
 
@@ -74,12 +78,12 @@ function isAdminDashRoute(): boolean {
   return window.location.pathname.startsWith('/admin/dash');
 }
 
-type AdminTabId = 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs';
+type AdminTabId = 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs' | 'accounts' | 'premium-features' | 'subscriptions';
 
 function getInitialAdminTabFromUrl(): AdminTabId {
   const tab = new URLSearchParams(window.location.search).get('tab');
   if (tab === 'logs') return 'logs';
-  if (tab === 'users' || tab === 'channels' || tab === 'notice' || tab === 'config' || tab === 'audit') return tab as AdminTabId;
+  if (tab === 'users' || tab === 'channels' || tab === 'notice' || tab === 'config' || tab === 'audit' || tab === 'accounts' || tab === 'premium-features' || tab === 'subscriptions') return tab as AdminTabId;
   return 'overview';
 }
 
@@ -115,6 +119,9 @@ const DashboardContent = memo(function DashboardContent() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [initialLogsChannelId] = useState(() => getInitialLogsChannelIdFromUrl());
   const [showContaModal, setShowContaModal] = useState(false);
+  const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
+  const [hasSubscription, setHasSubscription] = useState(false);
+  const [hasMtprotoAccount, setHasMtprotoAccount] = useState(false);
 
   // Travar scroll do body quando o modal estiver aberto (funciona no iOS tambem)
   useEffect(() => {
@@ -150,6 +157,27 @@ const DashboardContent = memo(function DashboardContent() {
     if (savedUid) {
       setAdminSelectedUserId(parseInt(savedUid, 10));
     }
+  }, []);
+
+  // Check premium access for channel-level tabs
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([
+      fetchSubscriptionStatus().catch(() => ({ data: null })),
+      fetchAccountStatus().catch(() => ({ status: 'disconnected' })),
+    ]).then(([subRes, accStatus]) => {
+      if (cancelled) return;
+
+      const s = subRes?.data;
+      const active = s?.hasSubscription && s?.subscription?.status === 'active';
+      const account = accStatus?.status === 'connected';
+
+      setHasSubscription(active);
+      setHasMtprotoAccount(account);
+      setHasPremiumAccess(active || account);
+    });
+    return () => { cancelled = true; };
   }, []);
 
   const channelId = getChannelIdFromUrl();
@@ -794,6 +822,19 @@ const DashboardContent = memo(function DashboardContent() {
     // Tab switch effect handled via CSS entrance animations
   }, [activeTab, adminActiveTab, loading]);
 
+  // derived state — must be defined before early returns to maintain hook order
+  // (useMemo below is a hook and must run on every render per React's Rules of Hooks)
+  const channel = data?.channel;
+
+  // Dynamic tabs — premium tab only shows when user has subscription or MTProto account
+  const userTabs: Tab[] = useMemo(() => {
+    const list: Tab[] = [...BASE_TABS];
+    if (hasPremiumAccess && channel) {
+      list.push({ id: 'premium', label: 'Premium', icon: <Crown size={22} /> });
+    }
+    return list;
+  }, [hasPremiumAccess, channel]);
+
   if (authState === 'error') {
     let displayMessage = authError || 'Não foi possível autenticar. Tente novamente pelo Telegram.';
     
@@ -833,7 +874,6 @@ const DashboardContent = memo(function DashboardContent() {
     );
   }
 
-  const channel = data?.channel;
   const user = data?.user;
   const displayName = tgUser?.first_name || user?.firstName || user?.first_name || 'Administrador';
   const initials = displayName[0]?.toUpperCase() || '?';
@@ -928,6 +968,7 @@ const DashboardContent = memo(function DashboardContent() {
                 auditLoading={auditLoading}
                 handleRunAudit={handleRunAudit}
                 initialLogsChannelId={initialLogsChannelId}
+                toast={toast}
               />
             </div>
           )}
@@ -969,6 +1010,11 @@ const DashboardContent = memo(function DashboardContent() {
                       <ChevronRight size={18} className="shrink-0 text-muted-foreground/30" />
                     </CardContent>
                   </Card>
+
+                  {/* Premium com seletor de canais */}
+                  <div className="animate-stagger-in" style={{ animationDelay: '0.15s' }}>
+                    <PremiumTab toast={toast} channels={user?.channels || undefined} />
+                  </div>
                 </>
               )}
 
@@ -1047,21 +1093,6 @@ const DashboardContent = memo(function DashboardContent() {
             </div>
           )}
 
-          {!isChannels && !isAdmin && activeTab === 'legendas' && channel && (
-            <div className="space-y-4 tab-content-wrapper">
-              <CaptionCard caption={channel.defaultCaption} onUpdate={handleUpdateCaption} />
-              <NewPackCaptionCard
-                caption={channel.newPackCaption}
-                messageButtons={channel.newPackMessageButtons ?? true}
-                stickerButtons={channel.newPackStickerButtons ?? true}
-                messagePosition={channel.newPackMessagePosition ?? 'above'}
-                replyToSticker={channel.newPackReplyToSticker ?? false}
-                onUpdate={handleUpdateNewPack}
-              />
-              <ReactionsCard reactions={channel.reactions} onUpdate={handleUpdateReactions} />
-            </div>
-          )}
-
           {!isChannels && !isAdmin && activeTab === 'botoes' && channel && (
             <ButtonGrid
               buttons={channel.buttons}
@@ -1079,6 +1110,19 @@ const DashboardContent = memo(function DashboardContent() {
           {!isChannels && !isAdmin && activeTab === 'conta' && (
             <div className="tab-content-wrapper">
               <ContaTelegramTab />
+            </div>
+          )}
+
+          {!isChannels && !isAdmin && activeTab === 'premium' && channel && (
+            <div className="tab-content-wrapper">
+              <PremiumConfigTab
+                channelId={channel.id}
+                caption={channel.defaultCaption?.caption || ''}
+                onUpdateCaption={handleUpdateCaption}
+                toast={toast}
+                hasSubscription={hasSubscription}
+                hasAccount={hasMtprotoAccount}
+              />
             </div>
           )}
 
@@ -1241,7 +1285,7 @@ const DashboardContent = memo(function DashboardContent() {
       </div>
       
       {!isChannels && !isAdmin && (
-        <TabBar tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
+        <TabBar tabs={userTabs} activeTab={activeTab} onTabChange={setActiveTab} />
       )}
 
       {/* Modal Conta Telegram */}
@@ -1263,7 +1307,9 @@ const DashboardContent = memo(function DashboardContent() {
 export default function App() {
   return (
     <ToastProvider>
-      <DashboardContent />
+      <ErrorBoundary>
+        <DashboardContent />
+      </ErrorBoundary>
     </ToastProvider>
   );
 }

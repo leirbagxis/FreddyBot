@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"strings"
 	"time"
 
@@ -45,12 +46,24 @@ func validFixedPostBuilderPayload(payload string) bool {
 func InitDB() *gorm.DB {
 	var dialector gorm.Dialector
 
-	if config.AppEnv == "dev" {
-		customLogger.DB("📦 Usando banco de dados SQLite (modo dev)")
-		dialector = sqlite.Open(config.DatabaseFile)
-	} else {
-		customLogger.DB("🐘 Usando banco de dados PostgreSQL (modo prod)")
+	// DatabaseDriver permite forçar postgres/sqlite independente do AppEnv.
+	// Valores: "postgres", "sqlite" (ou vazio = usa AppEnv).
+	dbDriver := os.Getenv("DATABASE_DRIVER")
+	switch dbDriver {
+	case "postgres":
+		customLogger.DB("🐘 Usando banco de dados PostgreSQL (forçado por DATABASE_DRIVER)")
 		dialector = postgres.Open(config.DatabaseFile)
+	case "sqlite":
+		customLogger.DB("📦 Usando banco de dados SQLite (forçado por DATABASE_DRIVER)")
+		dialector = sqlite.Open(config.DatabaseFile)
+	default:
+		if config.AppEnv == "dev" {
+			customLogger.DB("📦 Usando banco de dados SQLite (modo dev)")
+			dialector = sqlite.Open(config.DatabaseFile)
+		} else {
+			customLogger.DB("🐘 Usando banco de dados PostgreSQL (modo prod)")
+			dialector = postgres.Open(config.DatabaseFile)
+		}
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{})
@@ -78,6 +91,7 @@ func InitDB() *gorm.DB {
 
 	err = db.AutoMigrate(
 		&models.User{},
+		&models.Subscription{},
 		&models.ServerConfig{},
 		&models.Channel{},
 		&models.ChannelEvent{},
@@ -93,12 +107,19 @@ func InitDB() *gorm.DB {
 		&models.ConnectedAccountChannel{},
 		&models.CustomEmoji{},
 		&models.UserEmojiAccess{},
+		&models.AdminMTProtoAccount{},
+		&models.PremiumFeature{},
+		&models.Refund{},
 	)
 	if err != nil {
 		panic(err)
 	}
 
 	if err := initServerConfig(db); err != nil {
+		panic(err)
+	}
+
+	if err := seedPremiumFeatures(db); err != nil {
 		panic(err)
 	}
 
@@ -146,5 +167,50 @@ func initServerConfig(db *gorm.DB) error {
 	}
 
 	customLogger.DB("✔️ ServerConfig iniciado criadas com sucesso.")
+	return nil
+}
+
+// seedPremiumFeatures cria as features premium padrao se nao existirem.
+func seedPremiumFeatures(db *gorm.DB) error {
+	defaults := []models.PremiumFeature{
+		{
+			Key:         "managed_premium_account",
+			Name:        "Conta Telegram Gerenciada",
+			Description: "Usa uma conta Telegram gerenciada pelo admin como executor MTProto para edicoes avançadas.",
+			Enabled:     true,
+			Price:       80,
+		},
+		{
+			Key:         "custom_emojis",
+			Name:        "Emojis Customizados",
+			Description: "Permite o uso de emojis customizados (Premium) nas legendas dos posts.",
+			Enabled:     true,
+			Price:       0,
+		},
+		{
+			Key:         "extra_channels",
+			Name:        "Canais Extras",
+			Description: "Permite adicionar canais adicionais alem do limite padrao. Preco por canal extra.",
+			Enabled:     true,
+			Price:       35,
+		},
+	}
+
+	for _, f := range defaults {
+		var existing models.PremiumFeature
+		err := db.WithContext(context.Background()).
+			Where("key = ?", f.Key).
+			First(&existing).Error
+		if err == gorm.ErrRecordNotFound {
+			if err := db.WithContext(context.Background()).Create(&f).Error; err != nil {
+				customLogger.Error("DATABASE", "Erro ao criar feature premium %s: %v", f.Key, err)
+				return err
+			}
+			customLogger.DB("🌟 Feature premium criada: %s (%d stars)", f.Key, f.Price)
+		} else if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

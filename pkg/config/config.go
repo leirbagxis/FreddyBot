@@ -33,6 +33,11 @@ var (
 	JWTIssuer        string
 	CORSAllowOrigins []string
 
+	// StarsTestMode define se as invoices usam precos de teste (1 star).
+	// Quando true, ?test=true faz todas as invoices custarem apenas 1 star
+	// (em vez do preco real), permitindo testar o fluxo completo de pagamento.
+	StarsTestMode bool
+
 	// MTProto
 	MTProtoAppID    int
 	MTProtoAppHash  string
@@ -54,6 +59,12 @@ func init() {
 	WebAppURL = mustGetEnv("WEBAPP_URL")
 	WebhookURL = os.Getenv("WEBHOOK_URL") // opcional
 	AppEnv = os.Getenv("APP_ENV")         // dev ou prod
+	StarsTestMode = os.Getenv("STARS_TEST_MODE") == "true"
+	if StarsTestMode {
+		logger.Bot("🧪 Modo teste Stars ATIVADO — invoices com ?test=true custam 1 star")
+	} else {
+		logger.Bot("⭐ Modo teste Stars DESATIVADO — assinaturas usam precos reais")
+	}
 	JWTIssuer = getEnvDefault("JWT_ISSUER", "t.me/legendasbrbot")
 	CORSAllowOrigins = parseOrigins(os.Getenv("CORS_ALLOW_ORIGINS"), WebAppURL)
 

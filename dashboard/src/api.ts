@@ -334,3 +334,145 @@ export const sendPassword = async (password: string): Promise<AuthStatus> => {
 export const disconnectAccount = async (): Promise<void> => {
     await apiFetch('/api/account', { method: 'DELETE' });
 };
+
+// ===== Admin MTProto Accounts API =====
+
+export const fetchAdminAccounts = async () => {
+    const response = await apiFetch('/api/admin/accounts', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const adminConnectAccount = async (label: string, phoneNumber: string) => {
+    const response = await apiFetch('/api/admin/accounts/connect', {
+        method: 'POST',
+        body: JSON.stringify({ label, phoneNumber }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao conectar' };
+};
+
+export const adminVerifyCode = async (sessionId: string, code: string) => {
+    const response = await apiFetch('/api/admin/accounts/verify', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, code }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar código' };
+};
+
+export const adminSendPassword = async (sessionId: string, password: string) => {
+    const response = await apiFetch('/api/admin/accounts/password', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, password }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar senha' };
+};
+
+export const adminDeleteAccount = async (id: string) => {
+    return apiFetch(`/api/admin/accounts/${id}`, { method: 'DELETE' });
+};
+
+/* ===== Subscription (Premium) ===== */
+
+export const fetchSubscriptionStatus = async (): Promise<any> => {
+    return apiFetch('/api/subscription', { method: 'GET' });
+};
+
+/** Cria uma invoice link para pagamento via WebApp.openInvoice().
+ *  test: se true, ativa direto sem cobrar Stars (requer STARS_TEST_MODE=true no backend)
+ *  channels: numero de canais a incluir no premium (para calculo de preco) */
+export const createSubscriptionInvoice = async (test?: boolean, channels?: number): Promise<any> => {
+    const params = new URLSearchParams();
+    if (test) params.set('test', 'true');
+    if (channels && channels > 1) params.set('channels', String(channels));
+    const query = params.toString();
+    return apiFetch(`/api/subscription/create${query ? '?' + query : ''}`, { method: 'POST' });
+};
+
+export const cancelSubscription = async (): Promise<any> => {
+    return apiFetch('/api/subscription/cancel', { method: 'POST' });
+};
+
+export const addExtraChannel = async (): Promise<any> => {
+    return apiFetch('/api/subscription/channels/add', { method: 'POST' });
+};
+
+export const createExtraChannelInvoice = async (test?: boolean): Promise<any> => {
+    const params = new URLSearchParams();
+    if (test) params.set('test', 'true');
+    return apiFetch(`/api/subscription/channels/add-invoice?${params.toString()}`, { method: 'POST' });
+};
+
+export const removeExtraChannel = async (): Promise<any> => {
+    return apiFetch('/api/subscription/channels/remove', { method: 'POST' });
+};
+
+/* ===== Channel Separator (Premium) ===== */
+
+export const getChannelSeparator = async (channelId: number): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/separator`, { method: 'GET' });
+};
+
+export const saveChannelSeparator = async (channelId: number, data: { type?: string; emojiText: string; emojiId: string; emojiEntitiesJSON: string }): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/separator`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deleteChannelSeparator = async (channelId: number): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/separator`, { method: 'DELETE' });
+};
+
+/* ===== Admin Premium Features ===== */
+
+export const fetchPremiumFeatures = async (): Promise<any> => {
+    return apiFetch('/api/admin/premium/features', { method: 'GET' });
+};
+
+export const togglePremiumFeature = async (key: string, enabled: boolean): Promise<any> => {
+    return apiFetch(`/api/admin/premium/features/${key}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+    });
+};
+
+export const updatePremiumFeature = async (key: string, data: Partial<{ name: string; description: string; enabled: boolean; price: number }>): Promise<any> => {
+    return apiFetch(`/api/admin/premium/features/${key}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+/* ===== Admin Subscriptions ===== */
+
+export const fetchAdminSubscriptions = async (): Promise<any> => {
+    return apiFetch('/api/admin/subscriptions', { method: 'GET' });
+};
+
+export const adminCancelSubscriptions = async (userIds: number[], instant: boolean): Promise<any> => {
+    return apiFetch('/api/admin/subscriptions/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ userIds, instant }),
+    });
+};
+
+export const adminRefundPayment = async (userId: number, telegramPaymentChargeId: string): Promise<any> => {
+    return apiFetch('/api/admin/subscriptions/refund', {
+        method: 'POST',
+        body: JSON.stringify({ userId, telegramPaymentChargeId }),
+    });
+};
+
+export const adminToggleAccount = async (id: string, enabled: boolean) => {
+    const response = await apiFetch(`/api/admin/accounts/${id}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+    });
+    return response?.data;
+};
+
+/* ===== Emoji History ===== */
+
+export const fetchEmojiHistory = async (): Promise<string[]> => {
+    const response = await apiFetch('/api/emoji/history', { method: 'GET' });
+    return response?.ids || [];
+};
