@@ -221,13 +221,17 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 }
 
 // HasPremiumAccess verifica se o usuario tem acesso a recursos premium,
-// seja por assinatura ativa ou conta Telegram conectada.
+// seja por assinatura ativa ou conta Telegram conectada (se a feature estiver habilitada).
 func (c *AppContainer) HasPremiumAccess(ctx context.Context, userID int64) bool {
 	status, err := c.SubscriptionService.GetStatus(ctx, userID)
 	if err == nil && status != nil && status.HasSubscription {
 		return true
 	}
-	return c.ConnectedAccountService.HasActiveAccount(ctx, userID)
+	// Conta conectada só concede acesso se a feature "connected_account" estiver habilitada
+	if c.PremiumFeatureService.IsFeatureEnabled(ctx, "connected_account") {
+		return c.ConnectedAccountService.HasActiveAccount(ctx, userID)
+	}
+	return false
 }
 
 func (c *AppContainer) syncFixedPostBuilderSession(ctx context.Context) {

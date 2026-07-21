@@ -186,6 +186,8 @@ export interface SubscriptionStatus {
   extraChannelPrice: number;
   starsTestMode?: boolean;
   hasAccount?: boolean;
+  premiumEnabled?: boolean;
+  connectedAccountEnabled?: boolean;
 }
 
 /* ===== Connected Account (MTProto) ===== */

@@ -48,6 +48,17 @@ func PremiumFeaturesHandlerTelego(c *container.AppContainer) telegohandler.Handl
 			return nil
 		}
 
+		// Verificar se premium esta habilitado globalmente
+		premiumEnabled := c.PremiumFeatureService.IsPremiumEnabled(context.Background())
+		if !premiumEnabled {
+			_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+				Text:            "⭐ O sistema premium está desativado no momento.",
+				ShowAlert:       true,
+			})
+			return nil
+		}
+
 		// Verificar acesso premium
 		hasPremium := c.HasPremiumAccess(context.Background(), userID)
 

@@ -65,12 +65,14 @@ type InvoiceResult struct {
 
 // SubscriptionStatusDTO e o DTO retornado para o frontend.
 type SubscriptionStatusDTO struct {
-	HasSubscription   bool                    `json:"hasSubscription"`
-	Subscription      *models.Subscription    `json:"subscription,omitempty"`
-	Features          *models.UserFeatures    `json:"features,omitempty"`
-	BasePrice         int                     `json:"basePrice"`
-	ExtraChannelPrice int                     `json:"extraChannelPrice"`
-	StarsTestMode     bool                    `json:"starsTestMode"`
+	HasSubscription        bool                    `json:"hasSubscription"`
+	Subscription           *models.Subscription    `json:"subscription,omitempty"`
+	Features               *models.UserFeatures    `json:"features,omitempty"`
+	BasePrice              int                     `json:"basePrice"`
+	ExtraChannelPrice      int                     `json:"extraChannelPrice"`
+	StarsTestMode          bool                    `json:"starsTestMode"`
+	PremiumEnabled         bool                    `json:"premiumEnabled"`
+	ConnectedAccountEnabled bool                   `json:"connectedAccountEnabled"`
 }
 
 // ── Metodos Publicos ──
@@ -91,12 +93,14 @@ func (s *SubscriptionService) GetStatus(ctx context.Context, userID int64) (*Sub
 	extraPrice, _ := s.featureSvc.GetExtraChannelPrice(ctx)
 
 	dto := &SubscriptionStatusDTO{
-		HasSubscription:   sub != nil && sub.Status == models.SubscriptionActive,
-		Subscription:      sub,
-		Features:          features,
-		BasePrice:         basePrice,
-		ExtraChannelPrice: extraPrice,
-		StarsTestMode:     config.StarsTestMode,
+		HasSubscription:         sub != nil && sub.Status == models.SubscriptionActive,
+		Subscription:            sub,
+		Features:                features,
+		BasePrice:               basePrice,
+		ExtraChannelPrice:       extraPrice,
+		StarsTestMode:           config.StarsTestMode,
+		PremiumEnabled:          s.featureSvc.IsPremiumEnabled(ctx),
+		ConnectedAccountEnabled: s.featureSvc.IsFeatureEnabled(ctx, "connected_account"),
 	}
 
 	if dto.Subscription != nil && dto.Subscription.Status != models.SubscriptionActive {

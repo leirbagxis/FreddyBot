@@ -10,6 +10,9 @@ import {
   fetchSubscriptionStatus, fetchAccountStatus
 } from './api';
 import { ButtonGrid } from './components/ButtonGrid';
+import { CaptionCard } from './components/CaptionCard';
+import { NewPackCaptionCard } from './components/NewPackCaptionCard';
+import { ReactionsCard } from './components/ReactionsCard';
 import { AdminDashboard } from './components/AdminDashboard';
 import { DashboardInicioTab } from './components/DashboardInicioTab';
 import { ContaTelegramTab } from './components/ContaTelegramTab';
@@ -17,7 +20,7 @@ import { PremiumTab } from './components/PremiumTab';
 import { PremiumConfigTab } from './components/PremiumConfigTab';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, Tab } from './components/TabBar';
-import { AdminSidebar } from './components/AdminSidebar';
+import { AdminLayout } from './components/admin/AdminLayout';
 import { ToastProvider, useToast } from './components/Toast';
 import { useTheme } from './hooks/useTheme';
 import { Card, CardContent } from './components/ui/card';
@@ -37,22 +40,10 @@ import {
 
 const BASE_TABS: Tab[] = [
   { id: 'geral', label: 'Início', icon: <LayoutDashboard size={22} /> },
+  { id: 'legendas', label: 'Legendas', icon: <Type size={22} /> },
   { id: 'botoes', label: 'Botões', icon: <Grid3X3 size={22} /> },
   { id: 'permissoes', label: 'Permissões', icon: <Shield size={22} /> },
   { id: 'conta', label: 'Conta Telegram', icon: <UserCheck size={22} /> },
-];
-
-const adminTabs: Tab[] = [
-  { id: 'overview', label: 'Visão Geral', icon: <LayoutDashboard size={22} /> },
-  { id: 'users', label: 'Usuários', icon: <Users size={22} /> },
-  { id: 'channels', label: 'Canais', icon: <Hash size={22} /> },
-  { id: 'audit', label: 'Auditoria', icon: <Zap size={22} /> },
-  { id: 'logs', label: 'Logs', icon: <FileClock size={22} /> },
-  { id: 'notice', label: 'Broadcast', icon: <MessageSquare size={22} /> },
-  { id: 'accounts', label: 'Contas MTProto', icon: <Smartphone size={22} /> },
-  { id: 'premium-features', label: 'Features', icon: <Crown size={22} /> },
-  { id: 'subscriptions', label: 'Assinaturas', icon: <Star size={22} /> },
-  { id: 'config', label: 'Configurações', icon: <Settings size={22} /> },
 ];
 
 const permLabels: Record<string, string> = {
@@ -78,7 +69,7 @@ function isAdminDashRoute(): boolean {
   return window.location.pathname.startsWith('/admin/dash');
 }
 
-type AdminTabId = 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs' | 'accounts' | 'premium-features' | 'subscriptions';
+export type AdminTabId = 'overview' | 'users' | 'channels' | 'notice' | 'config' | 'audit' | 'logs' | 'accounts' | 'premium-features' | 'subscriptions';
 
 function getInitialAdminTabFromUrl(): AdminTabId {
   const tab = new URLSearchParams(window.location.search).get('tab');
@@ -116,12 +107,13 @@ const DashboardContent = memo(function DashboardContent() {
   const [isSendingNotice, setIsSendingNotice] = useState(false);
   const [auditResults, setAuditResults] = useState<AuditResult[] | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [initialLogsChannelId] = useState(() => getInitialLogsChannelIdFromUrl());
   const [showContaModal, setShowContaModal] = useState(false);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [hasMtprotoAccount, setHasMtprotoAccount] = useState(false);
+  const [premiumEnabled, setPremiumEnabled] = useState(true);
+  const [connectedAccountEnabled, setConnectedAccountEnabled] = useState(true);
 
   // Travar scroll do body quando o modal estiver aberto (funciona no iOS tambem)
   useEffect(() => {
@@ -172,10 +164,14 @@ const DashboardContent = memo(function DashboardContent() {
       const s = subRes?.data;
       const active = s?.hasSubscription && s?.subscription?.status === 'active';
       const account = accStatus?.status === 'connected';
+      const pEnabled = s?.premiumEnabled !== false; // default true se não vier
+      const caEnabled = s?.connectedAccountEnabled !== false; // default true se não vier
 
       setHasSubscription(active);
       setHasMtprotoAccount(account);
       setHasPremiumAccess(active || account);
+      setPremiumEnabled(pEnabled);
+      setConnectedAccountEnabled(caEnabled);
     });
     return () => { cancelled = true; };
   }, []);
@@ -806,7 +802,6 @@ const DashboardContent = memo(function DashboardContent() {
     setAdminSelectedUserId(id);
     sessionStorage.setItem('lastAdminUserId', id.toString());
     setAdminActiveTab('users');
-    setIsSidebarOpen(false);
   }, []);
 
   const openSupportNoticeForUser = useCallback((id: number) => {
@@ -815,7 +810,6 @@ const DashboardContent = memo(function DashboardContent() {
     setNoticeTarget('single');
     setNoticeTargetId(id.toString());
     setAdminActiveTab('notice');
-    setIsSidebarOpen(false);
   }, []);
 
   useEffect(() => {
@@ -826,14 +820,19 @@ const DashboardContent = memo(function DashboardContent() {
   // (useMemo below is a hook and must run on every render per React's Rules of Hooks)
   const channel = data?.channel;
 
-  // Dynamic tabs — premium tab only shows when user has subscription or MTProto account
+  // Dynamic tabs — premium tab only shows when premium is enabled AND user has subscription or MTProto account
   const userTabs: Tab[] = useMemo(() => {
     const list: Tab[] = [...BASE_TABS];
-    if (hasPremiumAccess && channel) {
+    // Filtrar aba "Conta" se a feature connected_account estiver desativada
+    if (!connectedAccountEnabled) {
+      const idx = list.findIndex(t => t.id === 'conta');
+      if (idx !== -1) list.splice(idx, 1);
+    }
+    if (premiumEnabled && hasPremiumAccess && channel) {
       list.push({ id: 'premium', label: 'Premium', icon: <Crown size={22} /> });
     }
     return list;
-  }, [hasPremiumAccess, channel]);
+  }, [connectedAccountEnabled, premiumEnabled, hasPremiumAccess, channel]);
 
   if (authState === 'error') {
     let displayMessage = authError || 'Não foi possível autenticar. Tente novamente pelo Telegram.';
@@ -878,40 +877,52 @@ const DashboardContent = memo(function DashboardContent() {
   const displayName = tgUser?.first_name || user?.firstName || user?.first_name || 'Administrador';
   const initials = displayName[0]?.toUpperCase() || '?';
 
+  // ── Admin: use new CRM layout ──
+  if (isAdmin && adminData) {
+    return (
+      <AdminLayout
+        activeTab={adminActiveTab}
+        onTabChange={(id) => setAdminActiveTab(id)}
+        adminName={displayName}
+        adminAvatar={tgUser?.photo_url}
+      >
+        <MemoizedAdminDashboard
+          adminData={adminData}
+          activeTab={adminActiveTab}
+          navigateToChannel={navigateToChannel}
+          selectedUserId={adminSelectedUserId}
+          onSelectUser={onSelectAdminUser}
+          onOpenUserDetail={openAdminUserDetail}
+          onMessageUser={openSupportNoticeForUser}
+          noticeMessage={noticeMessage}
+          setNoticeMessage={setNoticeMessage}
+          noticeImageUrl={noticeImageUrl}
+          setNoticeImageUrl={setNoticeImageUrl}
+          noticeTarget={noticeTarget}
+          setNoticeTarget={setNoticeTarget}
+          noticeTargetId={noticeTargetId}
+          setNoticeTargetId={setNoticeTargetId}
+          noticeButtons={noticeButtons}
+          handleAddNoticeButton={handleAddNoticeButton}
+          updateNoticeButton={updateNoticeButton}
+          removeNoticeButton={removeNoticeButton}
+          handleSendNotice={handleSendNotice}
+          isSendingNotice={isSendingNotice}
+          auditResults={auditResults}
+          setAuditResults={setAuditResults}
+          auditLoading={auditLoading}
+          handleRunAudit={handleRunAudit}
+          initialLogsChannelId={initialLogsChannelId}
+          toast={toast}
+        />
+      </AdminLayout>
+    );
+  }
+
   return (
     <div className={`app-layout ${isAdmin ? 'admin-layout' : ''}`}>
-      {isAdmin && adminData && (
-        <>
-          {isSidebarOpen && (
-            <div 
-              className="admin-overlay" 
-              onClick={() => setIsSidebarOpen(false)} 
-            />
-          )}
-          <AdminSidebar
-            tabs={adminTabs}
-            activeTab={adminActiveTab}
-            onTabChange={(id) => {
-              setAdminActiveTab(id as any);
-              setIsSidebarOpen(false);
-            }}
-            isCollapsed={!isSidebarOpen}
-          />
-        </>
-      )}
-      
       <div className={isAdmin ? 'app-main' : 'w-full flex flex-col min-h-screen'}>
         <div className="top-bar animate-stagger-in" style={{ animationDelay: '0s' }}>
-          {isAdmin && (
-            <button 
-              className="sidebar-trigger-btn mr-2" 
-              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-              title={isSidebarOpen ? "Desativar menu" : "Ativar menu"}
-            >
-              <Menu size={22} />
-            </button>
-          )}
-
           {isSpecificChannel && (
             <button 
               className="sidebar-trigger-btn mr-2" 
@@ -991,25 +1002,27 @@ const DashboardContent = memo(function DashboardContent() {
                     </CardContent>
                   </Card>
 
-                  {/* Conta Telegram compacto */}
-                  <Card
-                    className="cursor-pointer hover:bg-muted/50 transition-colors animate-stagger-in"
-                    style={{ animationDelay: '0.1s' }}
-                    onClick={() => setShowContaModal(true)}
-                  >
-                    <CardContent className="flex items-center gap-3 py-4">
-                      <div className="flex items-center justify-center size-11 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)' }}>
-                        <UserCheck size={22} style={{ color: 'var(--accent)' }} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <span className="text-sm font-semibold">Conta Telegram</span>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
-                          Conecte sua conta pessoal para recursos exclusivos
-                        </p>
-                      </div>
-                      <ChevronRight size={18} className="shrink-0 text-muted-foreground/30" />
-                    </CardContent>
-                  </Card>
+                  {/* Conta Telegram compacto — só aparece se a feature estiver habilitada */}
+                  {connectedAccountEnabled && (
+                    <Card
+                      className="cursor-pointer hover:bg-muted/50 transition-colors animate-stagger-in"
+                      style={{ animationDelay: '0.1s' }}
+                      onClick={() => setShowContaModal(true)}
+                    >
+                      <CardContent className="flex items-center gap-3 py-4">
+                        <div className="flex items-center justify-center size-11 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)' }}>
+                          <UserCheck size={22} style={{ color: 'var(--accent)' }} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="text-sm font-semibold">Conta Telegram</span>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Conecte sua conta pessoal para recursos exclusivos
+                          </p>
+                        </div>
+                        <ChevronRight size={18} className="shrink-0 text-muted-foreground/30" />
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {/* Premium com seletor de canais */}
                   <div className="animate-stagger-in" style={{ animationDelay: '0.15s' }}>
@@ -1093,6 +1106,21 @@ const DashboardContent = memo(function DashboardContent() {
             </div>
           )}
 
+          {!isChannels && !isAdmin && activeTab === 'legendas' && channel && (
+            <div className="space-y-4 tab-content-wrapper">
+              <CaptionCard caption={channel.defaultCaption} onUpdate={handleUpdateCaption} />
+              <NewPackCaptionCard
+                caption={channel.newPackCaption}
+                messageButtons={channel.newPackMessageButtons ?? true}
+                stickerButtons={channel.newPackStickerButtons ?? true}
+                messagePosition={channel.newPackMessagePosition ?? 'above'}
+                replyToSticker={channel.newPackReplyToSticker ?? false}
+                onUpdate={handleUpdateNewPack}
+              />
+              <ReactionsCard reactions={channel.reactions} onUpdate={handleUpdateReactions} />
+            </div>
+          )}
+
           {!isChannels && !isAdmin && activeTab === 'botoes' && channel && (
             <ButtonGrid
               buttons={channel.buttons}
@@ -1113,7 +1141,7 @@ const DashboardContent = memo(function DashboardContent() {
             </div>
           )}
 
-          {!isChannels && !isAdmin && activeTab === 'premium' && channel && (
+          {!isChannels && !isAdmin && activeTab === 'premium' && channel && premiumEnabled && (
             <div className="tab-content-wrapper">
               <PremiumConfigTab
                 channelId={channel.id}
@@ -1288,18 +1316,20 @@ const DashboardContent = memo(function DashboardContent() {
         <TabBar tabs={userTabs} activeTab={activeTab} onTabChange={setActiveTab} />
       )}
 
-      {/* Modal Conta Telegram */}
-      <Dialog open={showContaModal} onOpenChange={(open) => setShowContaModal(open)}>
-        <DialogContent
-          className="sm:max-w-lg p-0 bg-background"
-          style={{ maxHeight: '90vh', overflowY: 'auto' }}
-          showCloseButton={true}
-        >
-          <div className="p-5">
-            <ContaTelegramTab startConnecting />
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Modal Conta Telegram — só aparece se a feature estiver habilitada */}
+      {connectedAccountEnabled && (
+        <Dialog open={showContaModal} onOpenChange={(open) => setShowContaModal(open)}>
+          <DialogContent
+            className="sm:max-w-lg p-0 bg-background"
+            style={{ maxHeight: '90vh', overflowY: 'auto' }}
+            showCloseButton={true}
+          >
+            <div className="p-5">
+              <ContaTelegramTab startConnecting />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 });

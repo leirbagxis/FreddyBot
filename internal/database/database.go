@@ -181,6 +181,13 @@ func seedPremiumFeatures(db *gorm.DB) error {
 			Price:       80,
 		},
 		{
+			Key:         "connected_account",
+			Name:        "Conta Telegram Pessoal",
+			Description: "Permite ao usuario conectar sua propria conta Telegram via MTProto para recursos exclusivos.",
+			Enabled:     true,
+			Price:       0,
+		},
+		{
 			Key:         "custom_emojis",
 			Name:        "Emojis Customizados",
 			Description: "Permite o uso de emojis customizados (Premium) nas legendas dos posts.",

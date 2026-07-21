@@ -64,6 +64,13 @@ func (s *PremiumFeatureService) IsFeatureEnabled(ctx context.Context, key string
 	return err == nil && ok
 }
 
+// IsPremiumEnabled verifica se pelo menos uma feature premium esta habilitada.
+// Se nenhuma feature estiver ativa, o sistema premium como todo deve ser desconsiderado.
+func (s *PremiumFeatureService) IsPremiumEnabled(ctx context.Context) bool {
+	features, err := s.repo.ListEnabled(ctx)
+	return err == nil && len(features) > 0
+}
+
 // CalculateBasePrice calcula o preco base da assinatura somando os precos de
 // todas as features habilitadas que possuem preco > 0.
 func (s *PremiumFeatureService) CalculateBasePrice(ctx context.Context) (int, error) {

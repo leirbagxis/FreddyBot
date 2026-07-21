@@ -34,6 +34,9 @@ export function PremiumTab({ toast, channels, onStatusChange }: PremiumTabProps)
     const [step, setStep] = useState<'info' | 'select'>('info');
     const [selectedChannels, setSelectedChannels] = useState<number[]>([]);
 
+    // Derived values BEFORE any useEffect that references them
+    const sub = status?.subscription;
+
     const loadStatus = useCallback(async () => {
         try {
             const res = await fetchSubscriptionStatus();
@@ -186,7 +189,6 @@ export function PremiumTab({ toast, channels, onStatusChange }: PremiumTabProps)
     };
 
     const isActive = status?.hasSubscription && status.subscription?.status === 'active';
-    const sub = status?.subscription;
     const isCancelling = sub?.cancelAtPeriodEnd;
     const periodEnd = sub?.currentPeriodEnd ? new Date(sub.currentPeriodEnd).toLocaleDateString('pt-BR') : '';
     const periodStart = sub?.currentPeriodStart ? new Date(sub.currentPeriodStart).toLocaleDateString('pt-BR') : '';
@@ -237,6 +239,9 @@ export function PremiumTab({ toast, channels, onStatusChange }: PremiumTabProps)
     );
 
     if (loading) return triggerCard;
+
+    // Se premium foi desativado pelo admin, não mostrar nada
+    if (status?.premiumEnabled === false) return null;
 
     // ── Modal Content ──
 

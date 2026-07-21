@@ -56,7 +56,9 @@ func ConfigHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		}
 
 		// Verificar se usuario tem acesso premium (assinatura ativa ou conta conectada)
-		hasPremium := c.HasPremiumAccess(context.Background(), userID)
+		// E se o sistema premium esta habilitado globalmente
+		premiumEnabled := c.PremiumFeatureService.IsPremiumEnabled(context.Background())
+		hasPremium := premiumEnabled && c.HasPremiumAccess(context.Background(), userID)
 
 		templateName := "config-channel"
 		if hasPremium {

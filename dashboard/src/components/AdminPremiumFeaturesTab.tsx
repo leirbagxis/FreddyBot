@@ -69,6 +69,7 @@ export function AdminPremiumFeaturesTab({ toast }: AdminPremiumFeaturesTabProps)
     const getFeatureIcon = (key: string): string => {
         switch (key) {
             case 'managed_premium_account': return '🤖';
+            case 'connected_account': return '👤';
             case 'custom_emojis': return '✨';
             case 'extra_channels': return '📡';
             default: return '⚙️';
