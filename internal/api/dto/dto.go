@@ -28,6 +28,9 @@ type ChannelDTO struct {
 	DLBotButtons           bool               `json:"dlBotButtons"`
 	DLBotCaptions          bool               `json:"dlBotCaptions"`
 	DLBotReactions         bool               `json:"dlBotReactions"`
+	NativeReactionsEnabled bool               `json:"nativeReactionsEnabled"`
+	NativeReactions        string             `json:"nativeReactions"`
+	NativeReactionMode     string             `json:"nativeReactionMode"`
 	DefaultCaption         *DefaultCaptionDTO `json:"defaultCaption,omitempty"`
 	Buttons                []ButtonDTO        `json:"buttons,omitempty"`
 	CustomCaptions         []CustomCaptionDTO `json:"customCaptions,omitempty"`

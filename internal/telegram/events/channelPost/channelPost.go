@@ -139,6 +139,7 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			StageTransformTelego(c),
 			StageDecorateTelego(c),
 			StageSendTelego(c),
+			StageNativeReactionsTelego(c), // reação nativa após o envio
 		)
 
 		// 2. Discovery Pipeline

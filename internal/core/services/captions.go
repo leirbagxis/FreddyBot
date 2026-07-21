@@ -134,3 +134,47 @@ func (s *CaptionService) UpdateReactionPosition(ctx context.Context, channelID i
 
 	return rowsAffected, nil
 }
+
+func (s *CaptionService) UpdateNativeReactions(ctx context.Context, channelID int64, emojis string) error {
+	if emojis != "" {
+		parts := strings.Split(emojis, ",")
+		for _, p := range parts {
+			p = strings.TrimSpace(p)
+			if p == "" {
+				continue
+			}
+			if !s.isEmoji(p) {
+				return errors.BadRequest("apenas emojis são permitidos para reações nativas")
+			}
+		}
+	}
+
+	if err := s.channelRepo.UpdateNativeReactions(ctx, channelID, emojis); err != nil {
+		return errors.Internal(err)
+	}
+
+	s.cache.InvalidateChannel(ctx, channelID)
+	return nil
+}
+
+func (s *CaptionService) UpdateNativeReactionMode(ctx context.Context, channelID int64, mode string) error {
+	if mode != "fixed" && mode != "random" {
+		return errors.BadRequest("modo deve ser 'fixed' ou 'random'")
+	}
+
+	if err := s.channelRepo.UpdateNativeReactionMode(ctx, channelID, mode); err != nil {
+		return errors.Internal(err)
+	}
+
+	s.cache.InvalidateChannel(ctx, channelID)
+	return nil
+}
+
+func (s *CaptionService) UpdateNativeReactionsEnabled(ctx context.Context, channelID int64, enabled bool) error {
+	if err := s.channelRepo.UpdateNativeReactionsEnabled(ctx, channelID, enabled); err != nil {
+		return errors.Internal(err)
+	}
+
+	s.cache.InvalidateChannel(ctx, channelID)
+	return nil
+}

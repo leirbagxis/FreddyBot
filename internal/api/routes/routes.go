@@ -59,6 +59,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.POST("/subscription/channels/add-invoice", subscriptionController.CreateExtraChannelInvoice)
 		api.POST("/subscription/channels/remove", subscriptionController.RemoveExtraChannel)
 
+		// Rota pública da foto do canal (sem auth, porque <img> não manda header)
+		api.GET("/channel/:channelId/photo", captionController.GetChannelPhotoController)
+
 		// Rotas específicas de Canal (Com verificação de autorização)
 		channelRoutes := api.Group("/channel/:channelId")
 		channelRoutes.Use(auth.AuthorizeChannel(c))
@@ -70,6 +73,9 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 			channelRoutes.PUT("/reactions", captionController.UpdateReactionsController)
 			channelRoutes.PUT("/reactions/active", permissionsController.UpdateReactionsActiveController)
 			channelRoutes.PUT("/reactions/position", captionController.UpdateReactionPositionController)
+			channelRoutes.PUT("/native-reactions", captionController.UpdateNativeReactionsController)
+			channelRoutes.PUT("/native-reactions/mode", captionController.UpdateNativeReactionModeController)
+			channelRoutes.PUT("/native-reactions/enabled", captionController.UpdateNativeReactionsEnabledController)
 			channelRoutes.PUT("/dynamic-links", permissionsController.UpdateDynamicLinksController)
 			channelRoutes.PUT("/caption/permissions", permissionsController.UpdateMessagePermissionController)
 			channelRoutes.PUT("/buttons/permissions", permissionsController.UpdateButtonsPermissionController)

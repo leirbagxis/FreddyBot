@@ -65,6 +65,9 @@ export interface Channel {
   dlBotButtons: boolean;
   dlBotCaptions: boolean;
   dlBotReactions: boolean;
+  nativeReactionsEnabled: boolean;
+  nativeReactions: string;
+  nativeReactionMode: 'fixed' | 'random';
   defaultCaption: Caption;
   buttons: Button[];
   customCaptions: Caption[];

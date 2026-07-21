@@ -17,6 +17,8 @@ import { AdminDashboard } from './components/AdminDashboard';
 import { DashboardInicioTab } from './components/DashboardInicioTab';
 import { ContaTelegramTab } from './components/ContaTelegramTab';
 import { PremiumTab } from './components/PremiumTab';
+import { NativeReactionsCard } from './components/NativeReactionsCard';
+import { PerfLine } from './components/WaveDivider';
 import { PremiumConfigTab } from './components/PremiumConfigTab';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, Tab } from './components/TabBar';
@@ -942,7 +944,7 @@ const DashboardContent = memo(function DashboardContent() {
           </div>
           <div className="min-w-0 flex-1">
             <h1 className="text-[15px] font-bold truncate">{displayName}</h1>
-            <p className="text-xs truncate text-muted-foreground">{isChannels ? 'Meus Canais' : (isAdmin ? 'Painel Admin' : channel?.title)}</p>
+            <p className="text-xs truncate text-muted-foreground">{isChannels ? 'Meus Canais' : (isAdmin ? 'Painel Admin' : 'Visão Geral')}</p>
           </div>
           <button className="theme-switch" onClick={toggleTheme} title={`Tema atual: ${theme === 'telegram' ? 'Telegram' : theme === 'dark' ? 'Escuro' : 'Claro'}`}>
             {theme === 'telegram' ? <Send size={17} /> : theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
@@ -1032,7 +1034,7 @@ const DashboardContent = memo(function DashboardContent() {
               )}
 
               <div className="space-y-3">
-                {isChannels && <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--hint)' }}>Canais Encontrados</h3>}
+                {isChannels && <h3 className="text-sm font-semibold mb-2 px-4" style={{ color: 'var(--hint)' }}>Canais Encontrados</h3>}
 
                 {user?.channels && user?.channels.length > 0 && isChannels ? (
                   user?.channels.map((c: Channel, idx: number) => (
@@ -1107,8 +1109,9 @@ const DashboardContent = memo(function DashboardContent() {
           )}
 
           {!isChannels && !isAdmin && activeTab === 'legendas' && channel && (
-            <div className="space-y-4 tab-content-wrapper">
+            <div className="space-y-2 tab-content-wrapper">
               <CaptionCard caption={channel.defaultCaption} onUpdate={handleUpdateCaption} />
+              <PerfLine accent />
               <NewPackCaptionCard
                 caption={channel.newPackCaption}
                 messageButtons={channel.newPackMessageButtons ?? true}
@@ -1117,7 +1120,16 @@ const DashboardContent = memo(function DashboardContent() {
                 replyToSticker={channel.newPackReplyToSticker ?? false}
                 onUpdate={handleUpdateNewPack}
               />
+              <PerfLine accent />
               <ReactionsCard reactions={channel.reactions} onUpdate={handleUpdateReactions} />
+              <PerfLine accent />
+              <NativeReactionsCard
+                channelId={channel.id}
+                enabled={channel.nativeReactionsEnabled ?? false}
+                emojis={channel.nativeReactions ?? ''}
+                mode={channel.nativeReactionMode ?? 'fixed'}
+                toast={toast}
+              />
             </div>
           )}
 
@@ -1155,7 +1167,7 @@ const DashboardContent = memo(function DashboardContent() {
           )}
 
           {!isChannels && !isAdmin && activeTab === 'permissoes' && channel && (
-            <div className="space-y-3 tab-content-wrapper">
+            <div className="space-y-2 tab-content-wrapper">
               {/* Configurações de Reações */}
               <Card>
                 <CardContent className="pt-4">
@@ -1180,6 +1192,8 @@ const DashboardContent = memo(function DashboardContent() {
                   </div>
                 </CardContent>
               </Card>
+
+              <PerfLine accent />
 
               {/* Links Dinâmicos */}
               <Card>
@@ -1233,6 +1247,8 @@ const DashboardContent = memo(function DashboardContent() {
                   )}
                 </CardContent>
               </Card>
+
+              <PerfLine accent />
 
               {/* Permissões por Tipo — combinado: legenda + botões */}
               <Card>

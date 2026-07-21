@@ -111,6 +111,27 @@ export const updateReactionPosition = async (channelId: number, reactionPosition
     });
 };
 
+export const updateNativeReactions = async (channelId: number, nativeReactions: string) => {
+    return apiFetch(`/api/channel/${channelId}/native-reactions`, {
+        method: 'PUT',
+        body: JSON.stringify({ nativeReactions }),
+    });
+};
+
+export const updateNativeReactionMode = async (channelId: number, mode: string) => {
+    return apiFetch(`/api/channel/${channelId}/native-reactions/mode`, {
+        method: 'PUT',
+        body: JSON.stringify({ mode }),
+    });
+};
+
+export const updateNativeReactionsEnabled = async (channelId: number, enabled: boolean) => {
+    return apiFetch(`/api/channel/${channelId}/native-reactions/enabled`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
+    });
+};
+
 export const updateDynamicLinks = async (channelId: number, settings: {
     dynamicLinks: boolean;
     dlBotButtons: boolean;

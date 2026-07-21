@@ -9,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
+	"github.com/mymmrac/telego"
 )
 
 type CaptionController struct {
@@ -130,4 +131,106 @@ func (c *CaptionController) UpdateReactionPositionController(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{"rows_affected": rowsAffected}, "Posição das reações atualizada com sucesso"))
+}
+
+func (c *CaptionController) UpdateNativeReactionsController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
+	if err != nil {
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
+		return
+	}
+
+	var req types.NativeReactionsUpdateRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
+		return
+	}
+
+	if err := c.container.CaptionService.UpdateNativeReactions(ctx, channelId, req.NativeReactions); err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Reações nativas atualizadas"))
+}
+
+func (c *CaptionController) UpdateNativeReactionModeController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
+	if err != nil {
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
+		return
+	}
+
+	var req types.NativeReactionModeRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
+		return
+	}
+
+	if err := c.container.CaptionService.UpdateNativeReactionMode(ctx, channelId, req.Mode); err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Modo de reações nativas atualizado"))
+}
+
+func (c *CaptionController) UpdateNativeReactionsEnabledController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
+	if err != nil {
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
+		return
+	}
+
+	var req types.NativeReactionsEnabledRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
+		return
+	}
+
+	if err := c.container.CaptionService.UpdateNativeReactionsEnabled(ctx, channelId, req.Enabled); err != nil {
+		ctx.Error(err)
+		return
+	}
+
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Reações nativas "+map[bool]string{true: "ativadas", false: "desativadas"}[req.Enabled]))
+}
+
+// GetChannelPhotoController busca a foto do canal via Telegram Bot API e redireciona.
+func (c *CaptionController) GetChannelPhotoController(ctx *gin.Context) {
+	channelIdStr := ctx.Param("channelId")
+	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
+	if err != nil {
+		ctx.Error(errors.BadRequest("ID do canal inválido"))
+		return
+	}
+
+	bot := c.container.TelegoBot
+
+	chat, err := bot.GetChat(context.Background(), &telego.GetChatParams{
+		ChatID: telego.ChatID{ID: channelId},
+	})
+	if err != nil || chat == nil {
+		ctx.Error(errors.New(http.StatusNotFound, "Canal não encontrado ou sem foto"))
+		return
+	}
+
+	if chat.Photo == nil || chat.Photo.BigFileID == "" {
+		ctx.Error(errors.New(http.StatusNotFound, "Este canal não possui foto"))
+		return
+	}
+
+	file, err := bot.GetFile(context.Background(), &telego.GetFileParams{
+		FileID: chat.Photo.BigFileID,
+	})
+	if err != nil || file == nil || file.FilePath == "" {
+		ctx.Error(errors.New(http.StatusNotFound, "Não foi possível obter a foto"))
+		return
+	}
+
+	downloadURL := bot.FileDownloadURL(file.FilePath)
+	ctx.Redirect(http.StatusFound, downloadURL)
 }

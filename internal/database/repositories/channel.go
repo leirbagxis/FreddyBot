@@ -279,3 +279,21 @@ func (r *ChannelRepository) UpdateDynamicLinks(ctx context.Context, channelID in
 		Updates(settings)
 	return result.RowsAffected, result.Error
 }
+
+func (r *ChannelRepository) UpdateNativeReactions(ctx context.Context, channelID int64, emojis string) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("native_reactions", emojis).Error
+}
+
+func (r *ChannelRepository) UpdateNativeReactionMode(ctx context.Context, channelID int64, mode string) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("native_reaction_mode", mode).Error
+}
+
+func (r *ChannelRepository) UpdateNativeReactionsEnabled(ctx context.Context, channelID int64, enabled bool) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("native_reactions_enabled", enabled).Error
+}

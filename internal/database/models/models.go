@@ -50,6 +50,9 @@ type Channel struct {
 	DLBotButtons           bool            `gorm:"default:true" json:"dlBotButtons"`
 	DLBotCaptions          bool            `gorm:"default:true" json:"dlBotCaptions"`
 	DLBotReactions         bool            `gorm:"default:true" json:"dlBotReactions"`
+	NativeReactionsEnabled bool            `gorm:"default:false" json:"nativeReactionsEnabled"`
+	NativeReactions        string          `json:"nativeReactions"`
+	NativeReactionMode     string          `gorm:"default:random" json:"nativeReactionMode"`
 	CreatedAt              time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt              time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
 }

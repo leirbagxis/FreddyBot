@@ -10,6 +10,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
+import { PerfLine } from './WaveDivider';
 
 interface DashboardInicioTabProps {
     channel: Channel;
@@ -143,29 +144,35 @@ export const DashboardInicioTab = memo(({
                             </div>
                         </div>
                     </div>
-
-                    {/* User Info */}
-                    <div className="flex items-center gap-3 p-3 bg-muted/50 border border-border rounded-2xl mb-4">
-                        <div className="w-11 h-11 rounded-full flex items-center justify-center bg-primary text-primary-foreground font-bold text-lg flex-shrink-0 shadow-sm">
-                            {displayName.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                            <h3 className="text-[16px] font-bold text-foreground truncate">{displayName}</h3>
-                            <p className="text-[11px] text-muted-foreground truncate">Administrador do Canal</p>
-                        </div>
-                    </div>
-                    
-                    {/* Integrated Disconnect Action */}
-                    <Button 
-                        variant="destructive"
-                        className="w-full"
-                        onClick={handleDisconnect}
-                    >
-                        <LogOut size={16} />
-                        Desconectar Bot
-                    </Button>
                 </CardContent>
             </Card>
+
+            {/* Canal */}
+            <div className="bg-muted/20 rounded-2xl px-5 py-5">
+                <div className="flex items-center gap-5">
+                    <img
+                        src={`/api/channel/${channel.id}/photo`}
+                        alt={channel.title}
+                        className="w-16 h-16 rounded-2xl shrink-0 object-cover bg-accent/10"
+                        onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            const fallback = (e.target as HTMLImageElement).nextElementSibling as HTMLElement;
+                            if (fallback) fallback.style.display = 'flex';
+                        }}
+                    />
+                    <div className="flex items-center justify-center w-16 h-16 rounded-2xl shrink-0 hidden" style={{ background: 'var(--accent-soft)' }}>
+                        <span className="text-3xl font-bold" style={{ color: 'var(--accent)' }}>
+                            {channel.title?.charAt(0).toUpperCase() || '?'}
+                        </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                        <h3 className="text-[19px] font-bold text-foreground truncate leading-tight">{channel.title}</h3>
+                        <p className="text-[12px] text-muted-foreground font-mono mt-1">ID {channel.id}</p>
+                    </div>
+                </div>
+            </div>
+
+            <PerfLine accent />
 
             {/* Transferir Posse */}
             <div className="rounded-xl border border-border p-4 space-y-3">
@@ -178,26 +185,34 @@ export const DashboardInicioTab = memo(({
                         <p className="text-xs truncate text-muted-foreground">Passe a administração para outro usuário</p>
                     </div>
                 </div>
-                <div className="flex gap-2 items-center">
-                    <div className="relative flex-1">
-                        <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
-                        <Input
-                            className="h-10 pl-9 rounded-xl"
-                            placeholder="ID ou Username do novo dono"
-                            value={transferInput}
-                            onChange={(e) => setTransferInput(e.target.value)}
-                        />
-                    </div>
-                    <Button
-                        variant="default"
-                        className="h-10 shrink-0"
-                        onClick={handleTransferClick}
-                        disabled={!transferInput.trim() || isTransferring}
-                    >
-                        {isTransferring ? 'Aguarde...' : <><Send size={16} /> Transferir</>}
-                    </Button>
+                <div className="relative">
+                    <Users size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
+                    <Input
+                        className="h-10 pl-9 rounded-xl"
+                        placeholder="ID ou Username do novo dono"
+                        value={transferInput}
+                        onChange={(e) => setTransferInput(e.target.value)}
+                    />
                 </div>
+                <Button
+                    variant="default"
+                    className="w-full h-10"
+                    onClick={handleTransferClick}
+                    disabled={!transferInput.trim() || isTransferring}
+                >
+                    {isTransferring ? 'Aguarde...' : <><Send size={16} /> Transferir</>}
+                </Button>
             </div>
+
+            {/* Desconectar */}
+            <Button 
+                variant="destructive"
+                className="w-full h-12 text-[15px] font-semibold rounded-xl"
+                onClick={handleDisconnect}
+            >
+                <LogOut size={18} />
+                Desconectar Bot
+            </Button>
 
             {/* Disconnect Confirm Modal */}
             <ConfirmModal

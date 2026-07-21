@@ -70,6 +70,9 @@ func ToChannelDTO(c *models.Channel) ChannelDTO {
 		DLBotButtons:           c.DLBotButtons,
 		DLBotCaptions:          c.DLBotCaptions,
 		DLBotReactions:         c.DLBotReactions,
+		NativeReactionsEnabled: c.NativeReactionsEnabled,
+		NativeReactions:        c.NativeReactions,
+		NativeReactionMode:     c.NativeReactionMode,
 		CreatedAt:              c.CreatedAt,
 		UpdatedAt:              c.UpdatedAt,
 	}
