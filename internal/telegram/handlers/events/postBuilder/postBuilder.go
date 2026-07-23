@@ -141,6 +141,12 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		}
 
 		if mediaID == "" {
+			// Check if user is in schedule input flow (post builder state was deleted after save)
+			scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), update.Message.From.ID)
+			if scheduleState != nil && scheduleState.SessionID != "" {
+				handleScheduleTextInput(ctx, update.Message.Chat.ID, update.Message.From.ID, update.Message.Text, scheduleState, c)
+				return nil
+			}
 			// Check if we are in a state of awaiting text input
 			state, _ := c.CacheService.GetPostBuilderState(context.Background(), update.Message.From.ID)
 			if state != nil && state.Step != "" {
@@ -747,6 +753,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 				status = services.ChannelEventStatusError
 			}
 			recordPostBuilderEvent(c, "postbuilder_preview_sent", status, userID, 0, "", map[string]any{"media_type": state.MediaType, "buttons": len(state.Buttons)}, err)
+			// Reset MenuMessageID so showMenuTelego sends a NEW message below the preview
+			state.MenuMessageID = 0
+			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 			showMenuTelego(ctx, chatID, userID, c, state)
 		case "pb-save":
 			id, err := c.CacheService.SavePostBuilderSession(context.Background(), *state)
