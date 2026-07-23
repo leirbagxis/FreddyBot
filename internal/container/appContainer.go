@@ -95,6 +95,9 @@ type AppContainer struct {
 	SubscriptionService      *services.SubscriptionService
 	PremiumFeatureService    *services.PremiumFeatureService
 
+	// ## SCHEDULER ## \\
+	SchedulerService *services.SchedulerService
+
 	// ## CACHE ## \\
 	CacheService   *cache.Service
 	SessionManager *cache.SessionManager
@@ -155,6 +158,10 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	subscriptionRepo := repositories.NewSubscriptionRepository(db)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, userRepo, telegoClient, premiumFeatureService)
 
+	// Scheduler Service
+	scheduledPostRepo := repositories.NewScheduledPostRepository(db)
+	schedulerService := services.NewSchedulerService(scheduledPostRepo, cacheService, telegoClient)
+
 	saverAdapter := &accountSaverAdapter{svc: connectedAccountService}
 	mtprotoAuthService := mtprotoAuth.NewService(redisClient, mtprotoAppID, mtprotoAppHash, saverAdapter)
 
@@ -210,6 +217,9 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		SubscriptionService:   subscriptionService,
 		PremiumFeatureService: premiumFeatureService,
 
+		// Scheduler
+		SchedulerService: schedulerService,
+
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),
 	}
@@ -217,6 +227,7 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	container.syncFixedPostBuilderSession(context.Background())
 	go container.ChannelEventService.CleanupOld(context.Background(), services.ChannelEventRetentionDays)
 	container.startBroadcastWorkers(5)
+	go container.SchedulerService.Start(context.Background())
 	return container
 }
 

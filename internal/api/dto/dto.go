@@ -74,3 +74,24 @@ type CustomCaptionDTO struct {
 	Buttons     []ButtonDTO `json:"buttons,omitempty"`
 	CreatedAt   time.Time   `json:"created_at"`
 }
+
+type ScheduledPostDTO struct {
+	ID            string     `json:"id"`
+	OwnerID       int64      `json:"ownerId"`
+	ChannelID     int64      `json:"channelId"`
+	ChannelTitle  string     `json:"channelTitle"`
+	ScheduleType  string     `json:"scheduleType"`
+	ScheduleTime  string     `json:"scheduleTime"`
+	ScheduledAt   *time.Time `json:"scheduledAt,omitempty"`
+	ScheduleDays  string     `json:"scheduleDays,omitempty"`
+	NextRunAt     time.Time  `json:"nextRunAt"`
+	RepeatUntil   *time.Time `json:"repeatUntil,omitempty"`
+	QueueGroupID  string     `json:"queueGroupId,omitempty"`
+	QueuePosition int        `json:"queuePosition"`
+	LoopQueue     bool       `json:"loopQueue"`
+	Status        string     `json:"status"`
+	SentAt        *time.Time `json:"sentAt,omitempty"`
+	SentCount     int        `json:"sentCount"`
+	LastError     string     `json:"lastError,omitempty"`
+	CreatedAt     time.Time  `json:"createdAt"`
+}

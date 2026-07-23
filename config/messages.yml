@@ -12,6 +12,8 @@
     - - text: "Meu Perfil"
         callback_data: "profile-info"
         custom_emoji: "5334882760735598374"
+    - - text: "📅 Meus Agendamentos"
+        callback_data: "my-schedules"
     - - text: "ℹ️ Sobre"
         callback_data: "about"
       - text: "🆘 Como Usar"

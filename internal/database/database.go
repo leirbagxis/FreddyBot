@@ -110,6 +110,7 @@ func InitDB() *gorm.DB {
 		&models.AdminMTProtoAccount{},
 		&models.PremiumFeature{},
 		&models.Refund{},
+		&models.ScheduledPost{},
 	)
 	if err != nil {
 		panic(err)

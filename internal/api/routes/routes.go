@@ -34,6 +34,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	adminAccountController := admincontroller.NewAdminAccountController(c)
 	subscriptionController := controllers.NewSubscriptionController(c.SubscriptionService)
 	adminSubscriptionController := admincontroller.NewAdminSubscriptionController(c.SubscriptionService)
+	schedulerController := controllers.NewSchedulerController(c)
 
 	// --- Rota de Login Unificada ---
 	api.POST("/login", authController.Login)
@@ -58,6 +59,13 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.POST("/subscription/channels/add", subscriptionController.AddExtraChannel)
 		api.POST("/subscription/channels/add-invoice", subscriptionController.CreateExtraChannelInvoice)
 		api.POST("/subscription/channels/remove", subscriptionController.RemoveExtraChannel)
+
+		// Rotas de Agendamento
+		api.GET("/schedule", schedulerController.GetMySchedules)
+		api.POST("/schedule", schedulerController.CreateSchedule)
+		api.GET("/schedule/:id", schedulerController.GetScheduleByID)
+		api.PUT("/schedule/:id/status", schedulerController.UpdateStatus)
+		api.DELETE("/schedule/:id", schedulerController.DeleteSchedule)
 
 		// Rota pública da foto do canal (sem auth, porque <img> não manda header)
 		api.GET("/channel/:channelId/photo", captionController.GetChannelPhotoController)

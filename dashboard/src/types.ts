@@ -288,3 +288,24 @@ declare global {
     };
   }
 }
+
+export interface ScheduledPost {
+  id: string;
+  ownerId: number;
+  channelId: number;
+  channelTitle: string;
+  scheduleType: string;
+  scheduleTime: string;
+  scheduledAt?: string;
+  scheduleDays?: string;
+  nextRunAt: string;
+  repeatUntil?: string;
+  queueGroupId?: string;
+  queuePosition: number;
+  loopQueue: boolean;
+  status: string;
+  sentAt?: string;
+  sentCount: number;
+  lastError?: string;
+  createdAt: string;
+}

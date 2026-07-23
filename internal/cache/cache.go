@@ -352,6 +352,39 @@ func (s *Service) DeletePostBuilderState(ctx context.Context, userID int64) erro
 	return client.Del(ctx, key).Err()
 }
 
+func (s *Service) SetScheduleState(ctx context.Context, userID int64, state ScheduleState) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("schedule_state:%d", userID)
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return client.Set(ctx, key, data, 10*time.Minute).Err()
+}
+
+func (s *Service) GetScheduleState(ctx context.Context, userID int64) (*ScheduleState, error) {
+	client := GetRedisClient()
+	key := fmt.Sprintf("schedule_state:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if err.Error() == "redis: nil" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var state ScheduleState
+	if err := json.Unmarshal([]byte(data), &state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func (s *Service) DeleteScheduleState(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("schedule_state:%d", userID)
+	return client.Del(ctx, key).Err()
+}
+
 func (s *Service) SavePostBuilderSession(ctx context.Context, state PostBuilderState) (string, error) {
 	id := generateShortID(8)
 	if err := s.SetPostBuilderSession(ctx, id, state, 24*time.Hour); err != nil {

@@ -497,3 +497,43 @@ export const fetchEmojiHistory = async (): Promise<string[]> => {
     const response = await apiFetch('/api/emoji/history', { method: 'GET' });
     return response?.ids || [];
 };
+
+/* ===== Scheduler API ===== */
+
+export const fetchMySchedules = async (): Promise<any[]> => {
+    const response = await apiFetch('/api/schedule', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const createSchedule = async (data: {
+    channelId: number;
+    scheduleType: string;
+    scheduleTime?: string;
+    scheduledAt?: string;
+    scheduleDays?: number[];
+    repeatUntil?: string;
+    loopQueue?: boolean;
+}): Promise<any> => {
+    const response = await apiFetch('/api/schedule', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const getScheduleById = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/schedule/${id}`, { method: 'GET' });
+    return response?.data;
+};
+
+export const updateScheduleStatus = async (id: string, status: string): Promise<any> => {
+    const response = await apiFetch(`/api/schedule/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+    });
+    return response?.data;
+};
+
+export const deleteSchedule = async (id: string): Promise<any> => {
+    return apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
+};

@@ -13,6 +13,7 @@ import (
 	callbackProfile "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/profile_info"
 	callbackStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/start"
 	callbackVote "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/vote"
+	callbackMySchedules "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_schedules"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/admin"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/help"
 	commandStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/start"
@@ -87,6 +88,7 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	bh.Handle(callbackStart.HandlerTelego(c), telegohandler.CallbackDataEqual("start"))
 	bh.Handle(callbackStart.CheckSubscriptionHandlerTelego(c), telegohandler.CallbackDataEqual("check_subscription"))
 	bh.Handle(callbackProfile.HandlerTelego(c), telegohandler.CallbackDataEqual("profile-info"))
+	bh.Handle(callbackMySchedules.HandlerTelego(c), telegohandler.CallbackDataEqual("my-schedules"))
 	bh.Handle(callbackMyChannel.HandlerTelego(c), telegohandler.CallbackDataEqual("profile-user-channels"))
 	bh.Handle(callbackMyChannel.ConfigHandlerTelego(c), telegohandler.CallbackDataPrefix("config:"))
 	bh.Handle(callbackMyChannel.GroupChannelHandlerTelego(c), telegohandler.CallbackDataPrefix("gc-info:"))

@@ -20,6 +20,7 @@ import { PremiumTab } from './components/PremiumTab';
 import { NativeReactionsCard } from './components/NativeReactionsCard';
 import { PerfLine } from './components/WaveDivider';
 import { PremiumConfigTab } from './components/PremiumConfigTab';
+import { ScheduleTab } from './components/ScheduleTab';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, Tab } from './components/TabBar';
 import { AdminLayout } from './components/admin/AdminLayout';
@@ -37,7 +38,7 @@ import {
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
   AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings, FileClock, UserCheck, X,
   CloudMoon, Sunrise, Headphones, Video, Image, FileText, Smile, Film, SlidersHorizontal, Smartphone,
-  Crown, Star
+  Crown, Star, Calendar
 } from 'lucide-react';
 
 const BASE_TABS: Tab[] = [
@@ -45,6 +46,7 @@ const BASE_TABS: Tab[] = [
   { id: 'legendas', label: 'Legendas', icon: <Type size={22} /> },
   { id: 'botoes', label: 'Botões', icon: <Grid3X3 size={22} /> },
   { id: 'permissoes', label: 'Permissões', icon: <Shield size={22} /> },
+  { id: 'agendamentos', label: 'Agendamentos', icon: <Calendar size={22} /> },
   { id: 'conta', label: 'Conta Telegram', icon: <UserCheck size={22} /> },
 ];
 
@@ -1163,6 +1165,12 @@ const DashboardContent = memo(function DashboardContent() {
                 hasSubscription={hasSubscription}
                 hasAccount={hasMtprotoAccount}
               />
+            </div>
+          )}
+
+          {!isChannels && !isAdmin && activeTab === 'agendamentos' && channel && (
+            <div className="tab-content-wrapper">
+              <ScheduleTab channelId={channel.id} />
             </div>
           )}
 
