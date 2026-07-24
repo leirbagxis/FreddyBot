@@ -255,6 +255,11 @@ func matchPostBuilderTelego(c *container.AppContainer) telegohandler.Predicate {
 		}
 		// Match if in active session for text input
 		state, _ := c.CacheService.GetPostBuilderState(context.Background(), update.Message.From.ID)
-		return state != nil && state.Step != ""
+		if state != nil && state.Step != "" {
+			return true
+		}
+		// Match if in schedule input flow (post builder state was deleted after save)
+		scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), update.Message.From.ID)
+		return scheduleState != nil && scheduleState.SessionID != ""
 	}
 }

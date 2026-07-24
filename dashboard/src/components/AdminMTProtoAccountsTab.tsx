@@ -12,6 +12,7 @@ import { useToast } from './Toast';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 import { Input } from './ui/input';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
 import { UserCheck, UserX, Trash2, Phone, Key, Lock, CheckCircle, XCircle, Loader2, Plus, ChevronRight, Clock, Database, Activity } from 'lucide-react';
 
 type AuthPhase = 'idle' | 'phone' | 'code' | 'password' | 'done';
@@ -183,26 +184,24 @@ export function AdminMTProtoAccountsTab() {
   // ── Loading ──
   if (loading) {
     return (
-      <div className="admin-config pb-16">
-        <div className="admin-config-card">
-          <div className="flex flex-col items-center py-12 gap-3">
-            <div className="auth-spinner" />
-            <p className="text-[13px] text-muted-foreground">Carregando contas MTProto...</p>
-          </div>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="flex flex-col items-center py-12 gap-3">
+          <div className="auth-spinner" />
+          <p className="text-sm text-muted-foreground">Carregando contas MTProto...</p>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <div className="admin-config pb-16">
-      <div className="admin-config-card">
+    <div className="grid gap-4">
 
-        {/* Header */}
-        <div className="cfg-header">
-          <span className="cfg-header-title">Contas MTProto</span>
-          <span className="cfg-header-sub">Gerencie contas Telegram para edição de postagens</span>
-        </div>
+      <Card>
+        <CardHeader>
+          <CardTitle>Contas MTProto</CardTitle>
+          <CardDescription>Gerencie contas Telegram para edição de postagens</CardDescription>
+        </CardHeader>
+        <CardContent>
 
         {/* Auth flow modal inline */}
         {authPhase !== 'idle' && authPhase !== 'done' && (
@@ -230,7 +229,7 @@ export function AdminMTProtoAccountsTab() {
             {authPhase === 'phone' && (
               <div className="space-y-3">
                 <div className="cfg-auth-field">
-                  <label className="cfg-field-label">Identificação (label)</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Identificação (label)</label>
                   <Input
                     value={authLabel}
                     onChange={e => setAuthLabel(e.target.value)}
@@ -240,7 +239,7 @@ export function AdminMTProtoAccountsTab() {
                   />
                 </div>
                 <div className="cfg-auth-field">
-                  <label className="cfg-field-label">Número de Telefone</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Número de Telefone</label>
                   <Input
                     value={authPhone}
                     onChange={e => setAuthPhone(e.target.value)}
@@ -266,7 +265,7 @@ export function AdminMTProtoAccountsTab() {
             {authPhase === 'code' && (
               <div className="space-y-3">
                 <div className="cfg-auth-field">
-                  <label className="cfg-field-label">Código de Verificação</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Código de Verificação</label>
                   <Input
                     value={authCode}
                     onChange={e => setAuthCode(e.target.value)}
@@ -295,7 +294,7 @@ export function AdminMTProtoAccountsTab() {
             {authPhase === 'password' && (
               <div className="space-y-3">
                 <div className="cfg-auth-field">
-                  <label className="cfg-field-label">Senha 2FA</label>
+                  <label className="text-xs font-medium text-muted-foreground mb-1 block">Senha 2FA</label>
                   <Input
                     type="password"
                     value={authPassword}
@@ -337,7 +336,7 @@ export function AdminMTProtoAccountsTab() {
 
         {/* Connect button */}
         {authPhase === 'idle' && (
-          <div className="cfg-section">
+          <div className="px-6 py-3">
             <Button variant="default" size="sm" onClick={handleStartConnect} className="w-full cfg-connect-btn">
               <Plus size={15} />
               Conectar Nova Conta
@@ -345,11 +344,11 @@ export function AdminMTProtoAccountsTab() {
           </div>
         )}
 
-        <div className="cfg-divider-full" />
+        <div className="h-px bg-border mx-6" />
 
         {/* Accounts list */}
-        <div className="cfg-section">
-          <span className="cfg-section-label">
+        <div className="px-6 py-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
             Contas Conectadas ({accounts.length})
           </span>
 
@@ -428,8 +427,6 @@ export function AdminMTProtoAccountsTab() {
             </div>
           )}
         </div>
-
-      </div>
 
       <style>{`
         .cfg-auth-flow {
@@ -561,6 +558,8 @@ export function AdminMTProtoAccountsTab() {
           color: var(--danger);
         }
       `}</style>
+        </CardContent>
+      </Card>
     </div>
   );
 }

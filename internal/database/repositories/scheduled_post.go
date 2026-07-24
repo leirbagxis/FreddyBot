@@ -99,6 +99,26 @@ func (r *ScheduledPostRepository) Delete(ctx context.Context, id string) error {
 		Delete(&models.ScheduledPost{}).Error
 }
 
+func (r *ScheduledPostRepository) UpdateScheduleTime(ctx context.Context, id string, nextRunAt time.Time, scheduleTime string) error {
+	updates := map[string]interface{}{
+		"next_run_at": nextRunAt,
+	}
+	if scheduleTime != "" {
+		updates["schedule_time"] = scheduleTime
+	}
+	return r.db.WithContext(ctx).
+		Model(&models.ScheduledPost{}).
+		Where("id = ?", id).
+		Updates(updates).Error
+}
+
+func (r *ScheduledPostRepository) UpdatePinMessage(ctx context.Context, id string, pinMessage bool) error {
+	return r.db.WithContext(ctx).
+		Model(&models.ScheduledPost{}).
+		Where("id = ?", id).
+		Update("pin_message", pinMessage).Error
+}
+
 func (r *ScheduledPostRepository) GetByOwnerAndChannel(ctx context.Context, ownerID, channelID int64) ([]models.ScheduledPost, error) {
 	var posts []models.ScheduledPost
 	err := r.db.WithContext(ctx).

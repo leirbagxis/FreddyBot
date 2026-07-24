@@ -537,3 +537,11 @@ export const updateScheduleStatus = async (id: string, status: string): Promise<
 export const deleteSchedule = async (id: string): Promise<any> => {
     return apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
 };
+
+export const updateScheduleTime = async (id: string, data: { nextRunAt?: string; scheduleTime?: string; pinMessage?: boolean }): Promise<any> => {
+    const response = await apiFetch(`/api/schedule/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};

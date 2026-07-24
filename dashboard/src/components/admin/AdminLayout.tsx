@@ -20,7 +20,7 @@ export function AdminLayout({ activeTab, onTabChange, children, adminName, admin
   }, []);
 
   return (
-    <div className="admin-layout-v2" data-theme={document.documentElement.getAttribute('data-theme') || 'dark'}>
+    <div className="admin-layout-v2">
       {/* Sidebar */}
       <AdminSidebar
         activeTab={activeTab}

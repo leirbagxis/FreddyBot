@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { ScheduledPost } from '../types';
-import { fetchMySchedules, updateScheduleStatus, deleteSchedule } from '../api';
+import { fetchMySchedules, updateScheduleStatus, deleteSchedule, updateScheduleTime } from '../api';
 import { useToast } from './Toast';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
-import { Clock, Trash2, Pause, Play, Calendar } from 'lucide-react';
+import { Clock, Trash2, Pause, Play, Calendar, Edit, Pin, PinOff } from 'lucide-react';
 
 interface ScheduleTabProps {
   channelId: number;
@@ -19,6 +19,7 @@ const scheduleTypeLabels: Record<string, string> = {
 };
 
 const statusColors: Record<string, string> = {
+  pending: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
   scheduled: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
   paused: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
   cancelled: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
@@ -30,6 +31,10 @@ const statusColors: Record<string, string> = {
 export function ScheduleTab({ channelId }: ScheduleTabProps) {
   const [schedules, setSchedules] = useState<ScheduledPost[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduledPost | null>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editTime, setEditTime] = useState('');
+  const [saving, setSaving] = useState(false);
   const toast = useToast();
 
   useEffect(() => {
@@ -49,7 +54,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
   };
 
   const handleTogglePause = async (schedule: ScheduledPost) => {
-    const newStatus = schedule.status === 'paused' ? 'scheduled' : 'paused';
+    const newStatus = schedule.status === 'paused' ? 'pending' : 'paused';
     try {
       await updateScheduleStatus(schedule.id, newStatus);
       setSchedules(prev =>
@@ -68,6 +73,72 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
       toast.showToast('Agendamento removido', 'success');
     } catch {
       toast.showToast('Erro ao remover agendamento', 'error');
+    }
+  };
+
+  const handleTogglePin = async (schedule: ScheduledPost) => {
+    const newPin = !schedule.pinMessage;
+    try {
+      await updateScheduleTime(schedule.id, { pinMessage: newPin });
+      setSchedules(prev =>
+        prev.map(s => (s.id === schedule.id ? { ...s, pinMessage: newPin } : s))
+      );
+      toast.showToast(newPin ? 'Mensagem será fixada no canal' : 'Mensagem não será mais fixada', 'success');
+    } catch {
+      toast.showToast('Erro ao alterar fixação', 'error');
+    }
+  };
+
+  const openEditModal = (schedule: ScheduledPost) => {
+    setEditingSchedule(schedule);
+    if (schedule.nextRunAt) {
+      const d = new Date(schedule.nextRunAt);
+      setEditDate(d.toISOString().split('T')[0]);
+      setEditTime(d.toTimeString().slice(0, 5));
+    }
+  };
+
+  const closeEditModal = () => {
+    setEditingSchedule(null);
+    setEditDate('');
+    setEditTime('');
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingSchedule) return;
+    if (!editDate || !editTime) {
+      toast.showToast('Preencha data e horário', 'error');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const [year, month, day] = editDate.split('-').map(Number);
+      const [hours, minutes] = editTime.split(':').map(Number);
+      
+      const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:00-03:00`;
+      
+      await updateScheduleTime(editingSchedule.id, { nextRunAt: dateStr });
+      
+      setSchedules(prev =>
+        prev.map(s => {
+          if (s.id === editingSchedule.id) {
+            return {
+              ...s,
+              nextRunAt: new Date(dateStr).toISOString(),
+              scheduleTime: editingSchedule.scheduleType !== 'once' ? editTime : s.scheduleTime,
+            };
+          }
+          return s;
+        })
+      );
+      
+      toast.showToast('Agendamento atualizado com sucesso', 'success');
+      closeEditModal();
+    } catch {
+      toast.showToast('Erro ao atualizar agendamento', 'error');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -104,7 +175,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
 
   return (
     <div className="tab-content-wrapper space-y-3">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center justify-between mb-2 px-1">
         <h3 className="text-sm font-semibold text-foreground">
           Agendamentos Ativos
         </h3>
@@ -150,6 +221,28 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
                   variant="ghost"
                   size="sm"
                   className="h-8 w-8 p-0"
+                  onClick={() => openEditModal(schedule)}
+                  title="Editar data/horário"
+                >
+                  <Edit className="h-4 w-4 text-blue-500" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={() => handleTogglePin(schedule)}
+                  title={schedule.pinMessage ? 'Fixando mensagem' : 'Não fixar mensagem'}
+                >
+                  {schedule.pinMessage ? (
+                    <PinOff className="h-4 w-4 text-purple-500" />
+                  ) : (
+                    <Pin className="h-4 w-4 text-gray-400" />
+                  )}
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
                   onClick={() => handleTogglePause(schedule)}
                   title={schedule.status === 'paused' ? 'Retomar' : 'Pausar'}
                 >
@@ -173,6 +266,52 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
           </CardContent>
         </Card>
       ))}
+
+      {editingSchedule && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-background rounded-lg p-6 w-full max-w-md mx-4 shadow-lg">
+            <h3 className="text-lg font-semibold mb-4">Editar Agendamento</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Data</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={(e) => setEditDate(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md bg-background text-foreground"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">Horário</label>
+                <input
+                  type="time"
+                  value={editTime}
+                  onChange={(e) => setEditTime(e.target.value)}
+                  className="w-full px-3 py-2 border rounded-md bg-background text-foreground"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={closeEditModal}
+                disabled={saving}
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleSaveEdit}
+                disabled={saving}
+              >
+                {saving ? 'Salvando...' : 'Salvar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

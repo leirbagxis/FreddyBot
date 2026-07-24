@@ -8,7 +8,19 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+	"time"
 )
+
+// BrazilTZ returns the Brazil timezone (America/Sao_Paulo).
+// Brazil has not observed DST since 2019, so this is effectively fixed UTC-3.
+func BrazilTZ() *time.Location {
+	loc, err := time.LoadLocation("America/Sao_Paulo")
+	if err != nil {
+		// Fallback: fixed UTC-3
+		return time.FixedZone("BRT", -3*60*60)
+	}
+	return loc
+}
 
 func GenerateRSAKey() (*rsa.PrivateKey, error) {
 	return rsa.GenerateKey(rand.Reader, 2048)

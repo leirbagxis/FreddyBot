@@ -1,5 +1,5 @@
 import { useState, memo } from 'react';
-import { Menu, Search, Bell, Sun, Moon, User, ChevronDown } from 'lucide-react';
+import { Menu, Search, Bell, Sun, Moon, Send, User, ChevronDown } from 'lucide-react';
 import { useTheme } from '../../hooks/useTheme';
 
 interface AdminTopbarProps {
@@ -47,8 +47,8 @@ export const AdminTopbar = memo(function AdminTopbar({
         </button>
 
         {/* Theme toggle */}
-        <button className="admin-topbar-action" onClick={toggleTheme} title="Alternar tema">
-          {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
+        <button className="admin-topbar-action" onClick={toggleTheme} title={`Tema: ${theme === 'telegram' ? 'Telegram' : theme === 'dark' ? 'Escuro' : 'Claro'}`}>
+          {theme === 'telegram' ? <Send size={17} /> : theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
 
         {/* Divider */}

@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Save } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Save, Settings, FileText, Wrench, RefreshCw } from 'lucide-react';
 import { fetchServerConfig, updateServerConfig } from '../api';
 import { ServerConfig } from '../types';
 import { useToast } from './Toast';
@@ -7,11 +7,16 @@ import { RichTextEditor } from './RichTextEditor';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Switch } from './ui/switch';
+import { Textarea } from './ui/textarea';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter, CardAction } from './ui/card';
+
+const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 export function AdminConfigTab() {
     const [config, setConfig] = useState<ServerConfig | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const autoRefreshed = useRef(false);
 
     const [globalDefault, setGlobalDefault] = useState('');
     const [globalNewPack, setGlobalNewPack] = useState('');
@@ -21,6 +26,7 @@ export function AdminConfigTab() {
 
     const toast = useToast();
 
+    // ── Load config on mount ──
     useEffect(() => {
         const loadConfig = async () => {
             try {
@@ -44,6 +50,32 @@ export function AdminConfigTab() {
         };
         loadConfig();
     }, [toast]);
+
+    // ── Auto-refresh PostBuilder cache on mount + periodic ──
+    useEffect(() => {
+        if (loading || !config || !fixedPostEnabled || autoRefreshed.current) return;
+        autoRefreshed.current = true;
+
+        const refresh = async () => {
+            try {
+                await updateServerConfig({
+                    maintence: config.maintence,
+                    forceJoin: config.forceJoin,
+                    globalDefaultCaption: globalDefault,
+                    globalNewPackCaption: globalNewPack,
+                    fixedPostBuilderEnabled: fixedPostEnabled,
+                    fixedPostBuilderKey: fixedPostKey,
+                    fixedPostBuilderPayload: fixedPostPayload,
+                });
+            } catch {
+                // silent — keep old cache alive
+            }
+        };
+
+        refresh();
+        const interval = setInterval(refresh, REFRESH_INTERVAL);
+        return () => clearInterval(interval);
+    }, [loading, config, fixedPostEnabled, fixedPostKey, fixedPostPayload, globalDefault, globalNewPack]);
 
     const handleSave = async (overrides: Partial<ServerConfig> = {}) => {
         if (!config) return;
@@ -91,153 +123,166 @@ export function AdminConfigTab() {
         handleSave({ [field]: !config[field] });
     };
 
+    const refreshPostBuilderCache = async () => {
+        if (!config || saving) return;
+        await handleSave({
+            fixedPostBuilderEnabled: fixedPostEnabled,
+            fixedPostBuilderKey: fixedPostKey,
+            fixedPostBuilderPayload: fixedPostPayload,
+        });
+        toast('Cache do PostBuilder renovado', 'success');
+    };
+
     if (loading) return (
-        <div className="flex flex-col items-center py-12 gap-3">
-            <div className="auth-spinner" />
-            <p className="text-[13px] text-muted-foreground">Carregando configurações...</p>
-        </div>
+        <Card>
+            <CardContent className="flex flex-col items-center py-12 gap-3">
+                <div className="auth-spinner" />
+                <p className="text-sm text-muted-foreground">Carregando configurações...</p>
+            </CardContent>
+        </Card>
     );
 
     return (
-        <div className="admin-config pb-16">
-            <div className="admin-config-card">
-
-                {/* ── Header ── */}
-                <div className="cfg-header">
-                    <span className="cfg-header-title">Configurações Globais</span>
-                    <span className="cfg-header-sub">Estado do bot e legendas padrão</span>
-                </div>
-
-                {/* ── Sistema ── */}
-                <div className="cfg-section">
-                    <span className="cfg-section-label">Sistema</span>
-
-                    <div className="cfg-row" onClick={() => !saving && handleToggle('maintence')}>
-                        <div className="cfg-row-text">
-                            <span className="cfg-row-title">Manutenção</span>
-                            <span className="cfg-row-desc">
+        <div className="grid gap-4">
+            {/* ── Sistema ── */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Settings size={16} className="text-accent" />
+                        <CardTitle>Sistema</CardTitle>
+                    </div>
+                    <CardDescription>Estado do bot e comportamento geral</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">Manutenção</p>
+                            <p className="text-xs text-muted-foreground">
                                 {config?.maintence ? 'Bot offline para usuários' : 'Operando normalmente'}
-                            </span>
+                            </p>
                         </div>
                         <Switch
                             checked={!!config?.maintence}
                             onCheckedChange={() => !saving && handleToggle('maintence')}
-                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            disabled={saving}
                         />
                     </div>
-
-                    <div className="cfg-divider" />
-
-                    <div className="cfg-row" onClick={() => !saving && handleToggle('forceJoin')}>
-                        <div className="cfg-row-text">
-                            <span className="cfg-row-title">Force Join</span>
-                            <span className="cfg-row-desc">
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">Force Join</p>
+                            <p className="text-xs text-muted-foreground">
                                 {config?.forceJoin ? 'Inscrição obrigatória' : 'Acesso livre'}
-                            </span>
+                            </p>
                         </div>
                         <Switch
                             checked={!!config?.forceJoin}
                             onCheckedChange={() => !saving && handleToggle('forceJoin')}
-                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            disabled={saving}
                         />
                     </div>
-                </div>
+                </CardContent>
+            </Card>
 
-                <div className="cfg-divider-full" />
-
-                {/* ── Legendas ── */}
-                <div className="cfg-section">
-                    <span className="cfg-section-label">Legendas</span>
-
-                    <div className="cfg-editor">
-                        <div className="cfg-editor-header">
-                            <span className="cfg-editor-title">Legenda Padrão Global</span>
-                            <span className="cfg-editor-desc">Preenche novos canais vinculados ao bot</span>
-                        </div>
+            {/* ── Legendas ── */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <FileText size={16} className="text-accent" />
+                        <CardTitle>Legendas</CardTitle>
+                    </div>
+                    <CardDescription>Conteúdo padrão aplicado a canais e packs</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div>
+                        <p className="text-sm font-medium mb-1">Legenda Padrão Global</p>
+                        <p className="text-xs text-muted-foreground mb-2">Preenche novos canais vinculados ao bot</p>
                         <RichTextEditor
                             value={globalDefault}
                             onChange={setGlobalDefault}
                             placeholder="Ex: @legendasbot [t.me/legendasbot](https://t.me/botusername)"
                         />
                     </div>
-
-                    <div className="cfg-editor">
-                        <div className="cfg-editor-header">
-                            <span className="cfg-editor-title">Legenda de Novo Pack</span>
-                            <span className="cfg-editor-desc">Valor inicial para mensagem de pack padrão</span>
-                        </div>
+                    <div>
+                        <p className="text-sm font-medium mb-1">Legenda de Novo Pack</p>
+                        <p className="text-xs text-muted-foreground mb-2">Valor inicial para mensagem de pack padrão</p>
                         <RichTextEditor
                             value={globalNewPack}
                             onChange={setGlobalNewPack}
                             placeholder="Texto inicial para novos packs..."
                         />
                     </div>
-                </div>
+                </CardContent>
+            </Card>
 
-                <div className="cfg-divider-full" />
-
-                {/* ── PostBuilder ── */}
-                <div className="cfg-section">
-                    <span className="cfg-section-label">PostBuilder</span>
-
-                    <div className="cfg-row" onClick={() => !saving && handleToggle('fixedPostBuilderEnabled')}>
-                        <div className="cfg-row-text">
-                            <span className="cfg-row-title">Postagem fixa</span>
-                            <span className="cfg-row-desc">Post permanente usado no inline com chave fixa</span>
+            {/* ── PostBuilder ── */}
+            <Card>
+                <CardHeader>
+                    <div className="flex items-center gap-2">
+                        <Wrench size={16} className="text-accent" />
+                        <CardTitle>PostBuilder</CardTitle>
+                    </div>
+                    <CardDescription>Post permanente usado em consultas inline</CardDescription>
+                    <CardAction>
+                        <Button variant="ghost" size="sm" onClick={refreshPostBuilderCache} disabled={saving || !config} title="Renovar cache do Redis">
+                            <RefreshCw size={14} className={saving ? 'animate-spin' : ''} />
+                        </Button>
+                    </CardAction>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                        <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium">Postagem fixa</p>
+                            <p className="text-xs text-muted-foreground">Post permanente usado no inline com chave fixa</p>
                         </div>
                         <Switch
                             checked={fixedPostEnabled}
                             onCheckedChange={() => !saving && handleToggle('fixedPostBuilderEnabled')}
-                            onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                            disabled={saving}
                         />
                     </div>
-
-                    <div className="cfg-fields">
-                        <div className="cfg-field">
-                            <label className="cfg-field-label">Chave fixa</label>
-                            <Input
-                                value={fixedPostKey}
-                                onChange={(e) => setFixedPostKey(e.target.value)}
-                                placeholder="legendasbot"
-                                disabled={saving}
-                                className="h-9"
-                            />
+                    {fixedPostEnabled && (
+                        <div className="space-y-3 pl-1">
+                            <div>
+                                <label className="text-sm font-medium">Chave fixa</label>
+                                <Input
+                                    value={fixedPostKey}
+                                    onChange={(e) => setFixedPostKey(e.target.value)}
+                                    placeholder="legendasbot"
+                                    disabled={saving}
+                                    className="mt-1"
+                                />
+                            </div>
+                            <div>
+                                <label className="text-sm font-medium">Payload JSON</label>
+                                <Textarea
+                                    value={fixedPostPayload}
+                                    onChange={(e) => setFixedPostPayload(e.target.value)}
+                                    placeholder='{ "media_type": "photo", "media_file_id": "..." }'
+                                    disabled={saving}
+                                    className="mt-1 min-h-[100px] font-mono text-xs"
+                                />
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                Uso inline:{' '}
+                                <code className="rounded bg-muted px-1 py-0.5 text-[11px] font-mono text-foreground">
+                                    @FreddyCaptionBot pb {fixedPostKey || 'legendasbot'}
+                                </code>
+                                . Quando desativado, a chave é removida do Redis.
+                            </p>
                         </div>
-
-                        <div className="cfg-field">
-                            <label className="cfg-field-label">Payload JSON</label>
-                            <textarea
-                                value={fixedPostPayload}
-                                onChange={(e) => setFixedPostPayload(e.target.value)}
-                                className="cfg-textarea"
-                                placeholder='{ "media_type": "photo", "media_file_id": "..." }'
-                                disabled={saving}
-                            />
-                        </div>
-
-                        <p className="cfg-hint">
-                            Uso inline:{' '}
-                            <code className="cfg-code">
-                                @FreddyCaptionBot pb {fixedPostKey || 'legendasbot'}
-                            </code>
-                            . Quando desativado, a chave é removida do Redis.
-                        </p>
-                    </div>
-                </div>
-
-                {/* ── Save ── */}
-                <div className="cfg-footer">
+                    )}
+                </CardContent>
+                <CardFooter className="justify-end gap-2">
                     <Button
                         variant="default"
-                        className="cfg-save-btn"
                         onClick={() => !saving && handleSave()}
                         disabled={saving}
                     >
-                        <Save size={15} />
+                        <Save size={15} className="mr-1.5" />
                         {saving ? 'Salvando...' : 'Salvar'}
                     </Button>
-                </div>
-            </div>
+                </CardFooter>
+            </Card>
         </div>
     );
 }

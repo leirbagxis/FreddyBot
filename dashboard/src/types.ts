@@ -303,6 +303,7 @@ export interface ScheduledPost {
   queueGroupId?: string;
   queuePosition: number;
   loopQueue: boolean;
+  pinMessage: boolean;
   status: string;
   sentAt?: string;
   sentCount: number;

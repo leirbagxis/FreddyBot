@@ -9,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
@@ -95,6 +96,50 @@ func (ctrl *SchedulerController) DeleteSchedule(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Agendamento removido"))
 }
 
+func (ctrl *SchedulerController) EditSchedule(ctx *gin.Context) {
+	id := ctx.Param("id")
+	userID := ctx.GetInt64("userID")
+
+	var req types.EditScheduleRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
+		return
+	}
+
+	brazilTZ := utils.BrazilTZ()
+	var nextRunAt time.Time
+	if req.NextRunAt != "" {
+		t, err := time.Parse(time.RFC3339, req.NextRunAt)
+		if err != nil {
+			ctx.Error(errors.BadRequest("Formato de data inválido (use ISO 8601)"))
+			return
+		}
+		nextRunAt = t.In(brazilTZ)
+	} else {
+		nextRunAt = time.Now().In(brazilTZ)
+	}
+
+	// Update next run time if provided
+	if req.NextRunAt != "" || req.ScheduleTime != "" {
+		err := ctrl.container.SchedulerService.UpdateScheduleTime(ctx, id, userID, nextRunAt, req.ScheduleTime)
+		if err != nil {
+			ctx.Error(errors.Internal(err))
+			return
+		}
+	}
+
+	// Update pin message flag if provided
+	if req.PinMessage != nil {
+		err := ctrl.container.SchedulerService.UpdateSchedulePinMessage(ctx, id, userID, *req.PinMessage)
+		if err != nil {
+			ctx.Error(errors.Internal(err))
+			return
+		}
+	}
+
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Agendamento atualizado"))
+}
+
 func (ctrl *SchedulerController) CreateSchedule(ctx *gin.Context) {
 	userID := ctx.GetInt64("userID")
 	if userID == 0 {
@@ -128,6 +173,7 @@ func (ctrl *SchedulerController) CreateSchedule(ctx *gin.Context) {
 		ScheduleTime: req.ScheduleTime,
 		ScheduleDays: req.ScheduleDays,
 		LoopQueue:    req.LoopQueue,
+		PinMessage:   req.PinMessage,
 	}
 
 	if req.ScheduledAt != "" {

@@ -89,6 +89,20 @@ func InitDB() *gorm.DB {
 	// Forçar recriação de índices que mudaram de estrutura
 	db.Exec("DROP INDEX IF EXISTS idx_vote_user")
 
+	// Migração: ScheduledPost.ID mudou de uuid para text
+	db.Exec(`DO $$ BEGIN
+		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
+			ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
+		END IF;
+	END $$;`)
+
+	// Migração: adicionar coluna pin_message se não existir
+	db.Exec(`DO $$ BEGIN
+		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
+			ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
+		END IF;
+	END $$;`)
+
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Subscription{},

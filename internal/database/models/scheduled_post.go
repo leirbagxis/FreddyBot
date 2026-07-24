@@ -3,7 +3,7 @@ package models
 import "time"
 
 type ScheduledPost struct {
-	ID             string     `gorm:"type:uuid;primaryKey" json:"id"`
+	ID             string     `gorm:"type:text;primaryKey" json:"id"`
 	OwnerID        int64      `gorm:"index:idx_schedule_owner" json:"ownerId"`
 	ChannelID      int64      `gorm:"index" json:"channelId"`
 	ChannelTitle   string     `json:"channelTitle"`
@@ -19,6 +19,7 @@ type ScheduledPost struct {
 	QueueGroupID  string `gorm:"index:idx_schedule_queue" json:"queueGroupId"`
 	QueuePosition int    `json:"queuePosition"`
 	LoopQueue     bool   `json:"loopQueue"`
+	PinMessage    bool   `gorm:"default:false" json:"pinMessage"`
 
 	Status    string     `gorm:"index:idx_schedule_next_run" json:"status"` // "pending"|"sent"|"cancelled"|"paused"|"failed"
 	SentAt    *time.Time `json:"sentAt"`

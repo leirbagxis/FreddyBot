@@ -66,6 +66,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.GET("/schedule/:id", schedulerController.GetScheduleByID)
 		api.PUT("/schedule/:id/status", schedulerController.UpdateStatus)
 		api.DELETE("/schedule/:id", schedulerController.DeleteSchedule)
+		api.PATCH("/schedule/:id", schedulerController.EditSchedule)
 
 		// Rota pública da foto do canal (sem auth, porque <img> não manda header)
 		api.GET("/channel/:channelId/photo", captionController.GetChannelPhotoController)

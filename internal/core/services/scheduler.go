@@ -10,6 +10,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 )
@@ -23,6 +24,7 @@ type ScheduleOptions struct {
 	QueueGroupID  string
 	QueuePosition int
 	LoopQueue     bool
+	PinMessage    bool
 }
 
 type SchedulerService struct {
@@ -85,11 +87,19 @@ func (s *SchedulerService) sendScheduledPost(ctx context.Context, post *models.S
 		return
 	}
 
-	err := s.buildAndSend(ctx, post.ChannelID, &state)
+	msgID, err := s.buildAndSend(ctx, post.ChannelID, &state)
 	if err != nil {
 		logger.Error("SCHEDULER", "Erro ao enviar post %s: %v", post.ID, err)
 		s.repo.UpdateError(ctx, post.ID, err.Error(), post.RetryCount+1)
 		return
+	}
+
+	// Fixar mensagem se configurado
+	if post.PinMessage && msgID > 0 {
+		_ = s.bot.PinChatMessage(ctx, &telego.PinChatMessageParams{
+			ChatID:    telego.ChatID{ID: post.ChannelID},
+			MessageID: msgID,
+		})
 	}
 
 	sentAt := time.Now()
@@ -121,7 +131,7 @@ func (s *SchedulerService) sendScheduledPost(ctx context.Context, post *models.S
 	}
 }
 
-func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state *cache.PostBuilderState) error {
+func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state *cache.PostBuilderState) (int, error) {
 	var sb strings.Builder
 	if state.Title != "" {
 		sb.WriteString(state.Title + "\n\n")
@@ -135,7 +145,7 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 	caption := sb.String()
 
 	if strings.TrimSpace(caption) == "" && state.MediaType == "" {
-		return fmt.Errorf("post vazio (sem mídia e sem texto)")
+		return 0, fmt.Errorf("post vazio (sem mídia e sem texto)")
 	}
 
 	var kb telego.ReplyMarkup
@@ -176,8 +186,11 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err := s.bot.SendPhoto(ctx, params)
-		return err
+		msg, err := s.bot.SendPhoto(ctx, params)
+		if err != nil {
+			return 0, err
+		}
+		return msg.MessageID, nil
 	case "video":
 		params := &telego.SendVideoParams{
 			ChatID:    telego.ChatID{ID: chatID},
@@ -188,8 +201,11 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err := s.bot.SendVideo(ctx, params)
-		return err
+		msg, err := s.bot.SendVideo(ctx, params)
+		if err != nil {
+			return 0, err
+		}
+		return msg.MessageID, nil
 	case "animation":
 		params := &telego.SendAnimationParams{
 			ChatID:    telego.ChatID{ID: chatID},
@@ -200,8 +216,11 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err := s.bot.SendAnimation(ctx, params)
-		return err
+		msg, err := s.bot.SendAnimation(ctx, params)
+		if err != nil {
+			return 0, err
+		}
+		return msg.MessageID, nil
 	case "audio":
 		params := &telego.SendAudioParams{
 			ChatID:    telego.ChatID{ID: chatID},
@@ -212,8 +231,11 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err := s.bot.SendAudio(ctx, params)
-		return err
+		msg, err := s.bot.SendAudio(ctx, params)
+		if err != nil {
+			return 0, err
+		}
+		return msg.MessageID, nil
 	case "document":
 		params := &telego.SendDocumentParams{
 			ChatID:    telego.ChatID{ID: chatID},
@@ -224,8 +246,11 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err := s.bot.SendDocument(ctx, params)
-		return err
+		msg, err := s.bot.SendDocument(ctx, params)
+		if err != nil {
+			return 0, err
+		}
+		return msg.MessageID, nil
 	default:
 		params := &telego.SendMessageParams{
 			ChatID:    telego.ChatID{ID: chatID},
@@ -235,20 +260,25 @@ func (s *SchedulerService) buildAndSend(ctx context.Context, chatID int64, state
 		if kb != nil {
 			params.ReplyMarkup = kb
 		}
-		_, err := s.bot.SendMessage(ctx, params)
-		return err
+		msg, err := s.bot.SendMessage(ctx, params)
+		if err != nil {
+			return 0, err
+		}
+		return msg.MessageID, nil
 	}
 }
 
 func (s *SchedulerService) calculateNextDaily(post *models.ScheduledPost) *time.Time {
-	now := time.Now().UTC()
+	brazilTZ := utils.BrazilTZ()
+	now := time.Now().In(brazilTZ)
 	hour, min := parseHHMM(post.ScheduleTime)
-	next := time.Date(now.Year(), now.Month(), now.Day()+1, hour, min, 0, 0, time.UTC)
+	next := time.Date(now.Year(), now.Month(), now.Day()+1, hour, min, 0, 0, brazilTZ).UTC()
 	return &next
 }
 
 func (s *SchedulerService) calculateNextWeekly(post *models.ScheduledPost) *time.Time {
-	now := time.Now().UTC()
+	brazilTZ := utils.BrazilTZ()
+	now := time.Now().In(brazilTZ)
 	hour, min := parseHHMM(post.ScheduleTime)
 
 	var days []int
@@ -263,7 +293,7 @@ func (s *SchedulerService) calculateNextWeekly(post *models.ScheduledPost) *time
 		nextDay := now.AddDate(0, 0, i)
 		for _, d := range days {
 			if int(nextDay.Weekday()) == d {
-				result := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), hour, min, 0, 0, time.UTC)
+				result := time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), hour, min, 0, 0, brazilTZ).UTC()
 				return &result
 			}
 		}
@@ -291,8 +321,10 @@ func (s *SchedulerService) advanceQueue(ctx context.Context, sentPost *models.Sc
 	}
 
 	if nextPost != nil {
+		brazilTZ := utils.BrazilTZ()
+		now := time.Now().In(brazilTZ)
 		hour, min := parseHHMM(sentPost.ScheduleTime)
-		nextRun := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day()+1, hour, min, 0, 0, time.UTC)
+		nextRun := time.Date(now.Year(), now.Month(), now.Day()+1, hour, min, 0, 0, brazilTZ).UTC()
 		s.repo.UpdateNextRunAt(ctx, nextPost.ID, nextRun)
 		logger.Info("SCHEDULER", "Fila %s: próximo post %s agendado para %s", sentPost.QueueGroupID, nextPost.ID, nextRun.Format("02/01 15:04"))
 	} else if sentPost.LoopQueue {
@@ -303,8 +335,10 @@ func (s *SchedulerService) advanceQueue(ctx context.Context, sentPost *models.Sc
 }
 
 func (s *SchedulerService) resetQueue(ctx context.Context, queueGroupID string, posts []models.ScheduledPost, scheduleTime string) {
+	brazilTZ := utils.BrazilTZ()
+	now := time.Now().In(brazilTZ)
 	hour, min := parseHHMM(scheduleTime)
-	nextRun := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day()+1, hour, min, 0, 0, time.UTC)
+	nextRun := time.Date(now.Year(), now.Month(), now.Day()+1, hour, min, 0, 0, brazilTZ).UTC()
 
 	for i := range posts {
 		if posts[i].Status == "sent" {
@@ -344,10 +378,12 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 	if opts.ScheduleType == "once" && opts.ScheduledAt != nil {
 		nextRunAt = *opts.ScheduledAt
 	} else if opts.ScheduleType == "daily" || opts.ScheduleType == "weekly" {
+		brazilTZ := utils.BrazilTZ()
+		now := time.Now().In(brazilTZ)
 		hour, min := parseHHMM(opts.ScheduleTime)
-		nextRun := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), hour, min, 0, 0, time.UTC)
+		nextRun := time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, brazilTZ).UTC()
 		if nextRun.Before(time.Now().UTC()) {
-			nextRun = nextRun.AddDate(0, 0, 1)
+			nextRun = time.Date(now.Year(), now.Month(), now.Day()+1, hour, min, 0, 0, brazilTZ).UTC()
 		}
 		nextRunAt = nextRun
 	}
@@ -373,6 +409,7 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 		QueueGroupID:   opts.QueueGroupID,
 		QueuePosition:  opts.QueuePosition,
 		LoopQueue:      opts.LoopQueue,
+		PinMessage:     opts.PinMessage,
 		Status:         "pending",
 		SentCount:      0,
 	}
@@ -429,6 +466,28 @@ func (s *SchedulerService) DeleteScheduledPost(ctx context.Context, id string, o
 		return fmt.Errorf("não autorizado")
 	}
 	return s.repo.Delete(ctx, id)
+}
+
+func (s *SchedulerService) UpdateScheduleTime(ctx context.Context, id string, ownerID int64, nextRunAt time.Time, scheduleTime string) error {
+	post, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if post.OwnerID != ownerID {
+		return fmt.Errorf("não autorizado")
+	}
+	return s.repo.UpdateScheduleTime(ctx, id, nextRunAt, scheduleTime)
+}
+
+func (s *SchedulerService) UpdateSchedulePinMessage(ctx context.Context, id string, ownerID int64, pinMessage bool) error {
+	post, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if post.OwnerID != ownerID {
+		return fmt.Errorf("não autorizado")
+	}
+	return s.repo.UpdatePinMessage(ctx, id, pinMessage)
 }
 
 func (s *SchedulerService) GetScheduleByID(ctx context.Context, id string) (*models.ScheduledPost, error) {

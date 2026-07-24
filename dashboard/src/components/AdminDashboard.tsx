@@ -8,11 +8,14 @@ import { AdminMTProtoAccountsTab } from './AdminMTProtoAccountsTab';
 import { AdminPremiumFeaturesTab } from './AdminPremiumFeaturesTab';
 import { AdminSubscriptionsTab } from './AdminSubscriptionsTab';
 import { NoticeButton, NoticeTarget, updateUserAdmin, updateUserBlacklist } from '../api';
-import { Users, Hash, Search, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare, Radio, Activity, BarChart3, TrendingUp, Crown, Ban, Mail } from 'lucide-react';
+import { Users, Hash, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare, Radio, BarChart3, Crown, Ban, Mail, TrendingUp } from 'lucide-react';
 import { useToast } from './Toast';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
 import { Badge } from './ui/badge';
+import { Card, CardContent } from './ui/card';
+import { MetricCard } from './admin/MetricCard';
+import { DataTable, Column } from './admin/DataTable';
+import { StatusBadge } from './admin/StatusBadge';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
@@ -53,64 +56,9 @@ function formatNum(n: number): string {
   return String(n);
 }
 
-// ───── Metric Card ─────
 
-function MetricCard({ icon, label, value, sub, color, delay }: {
-  icon: React.ReactNode;
-  label: string;
-  value: string | number;
-  sub?: string;
-  color: 'accent' | 'success' | 'warning' | 'danger' | 'info';
-  delay?: string;
-}) {
-  const colors: Record<string, { bg: string; text: string }> = {
-    accent: { bg: 'var(--accent-soft)', text: 'var(--accent)' },
-    success: { bg: 'var(--success-soft)', text: 'var(--success)' },
-    warning: { bg: 'var(--warning-soft)', text: 'var(--warning)' },
-    danger: { bg: 'var(--danger-soft)', text: 'var(--danger)' },
-    info: { bg: 'rgba(99, 102, 241, 0.06)', text: 'var(--text-secondary)' },
-  };
-  const c = colors[color];
 
-  return (
-    <div
-      className="rounded-xl border border-border p-4 animate-stagger-in"
-      style={{ animationDelay: delay || '0s' }}
-    >
-      <div className="flex items-center gap-3 mb-2">
-        <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: c.bg, color: c.text }}>
-          {icon}
-        </div>
-        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-[0.08em]">{label}</span>
-      </div>
-      <p className="text-2xl font-extrabold tracking-tight">{value}</p>
-      {sub && <p className="text-[11px] text-muted-foreground mt-0.5">{sub}</p>}
-    </div>
-  );
-}
 
-// ───── Distribution Bar ─────
-
-function DistributionBar({ label, count, total, color }: {
-  label: string;
-  count: number;
-  total: number;
-  color: string;
-}) {
-  const pct = total > 0 ? (count / total) * 100 : 0;
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-[12px] font-medium text-muted-foreground w-16 shrink-0 text-right">{label}</span>
-      <div className="flex-1 h-5 rounded-md bg-muted/30 overflow-hidden">
-        <div
-          className="h-full rounded-md transition-all duration-700"
-          style={{ width: `${pct}%`, background: color }}
-        />
-      </div>
-      <span className="text-[13px] font-bold w-8 text-right">{count}</span>
-    </div>
-  );
-}
 
 // ───── Main Component ─────
 
@@ -133,11 +81,6 @@ export function AdminDashboard({
   auditResults, setAuditResults, auditLoading, handleRunAudit,
   initialLogsChannelId
 }: AdminDashboardProps) {
-  const [adminSearch, setAdminSearch] = useState('');
-  const [adminChannelCountFilter, setAdminChannelCountFilter] = useState('');
-  const [visibleUsersCount, setVisibleUsersCount] = useState(40);
-  const [visibleChannelsCount, setVisibleChannelsCount] = useState(40);
-  const [channelSearch, setChannelSearch] = useState('');
   const toast = useToast();
 
   const [localActiveTab, setLocalActiveTab] = useState(activeTab);
@@ -168,7 +111,7 @@ export function AdminDashboard({
     const avgChannels = totalUsers > 0 ? (totalChannels / totalUsers) : 0;
 
     // Channel distribution
-    const dist: Record<number, number> = { 0: 0, 1: 0, 2: 0, 3: 0, '4+': 0 };
+    const dist: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, '4+': 0 };
     usersList.forEach(u => {
       const c = u.channels?.length || 0;
       if (c >= 4) dist['4+']++;
@@ -182,36 +125,6 @@ export function AdminDashboard({
 
     return { totalUsers, totalChannels, admins, blacklisted, withChannels, avgChannels, dist, topUsers };
   }, [usersList, channelsList]);
-
-  const filteredUsers = useMemo(() => {
-    const minChannelCount = parseInt(adminChannelCountFilter, 10);
-    const hasChannelCountFilter = !Number.isNaN(minChannelCount);
-
-    const filtered = usersList.filter(u => {
-      const name = (u.firstName || (u as any).first_name || '').toLowerCase();
-      const matchesSearch = name.includes(adminSearch.toLowerCase()) || u.id.toString().includes(adminSearch);
-      const matchesCount = hasChannelCountFilter ? (u.channels?.length || 0) >= minChannelCount : true;
-      return matchesSearch && matchesCount;
-    });
-
-    if (!hasChannelCountFilter) return filtered;
-
-    return [...filtered].sort((a, b) => {
-      const channelDiff = (a.channels?.length || 0) - (b.channels?.length || 0);
-      if (channelDiff !== 0) return channelDiff;
-      const aName = (a.firstName || (a as any).first_name || '').toLowerCase();
-      const bName = (b.firstName || (b as any).first_name || '').toLowerCase();
-      const nameDiff = aName.localeCompare(bName);
-      if (nameDiff !== 0) return nameDiff;
-      return a.id - b.id;
-    });
-  }, [usersList, adminSearch, adminChannelCountFilter]);
-
-  const filteredChannels = useMemo(() => {
-    return channelsList.filter(c => {
-      return c.title.toLowerCase().includes(channelSearch.toLowerCase()) || c.id.toString().includes(channelSearch);
-    });
-  }, [channelsList, channelSearch]);
 
   const adminSelectedUser = useMemo(() =>
     selectedUserId ? usersList.find(u => u.id === selectedUserId) : null,
@@ -253,117 +166,122 @@ export function AdminDashboard({
     const { totalUsers, totalChannels, admins, blacklisted, withChannels, avgChannels, dist, topUsers } = analytics;
     const activeRate = totalUsers > 0 ? Math.round((withChannels / totalUsers) * 100) : 0;
 
+    const distributionColors: Record<string, string> = {
+      '0': 'var(--hint)',
+      '1': 'var(--accent)',
+      '2': 'var(--success)',
+      '3': 'var(--warning)',
+      '4+': 'var(--danger)',
+    };
+
+    const topUserColumns: Column<any>[] = [
+      { key: 'rank', label: '#', width: '48px', render: (_: any, row: any) => (
+        <span className="text-[11px] font-bold text-muted-foreground">{row.rank}</span>
+      )},
+      { key: 'initial', label: '', width: '36px', render: (_: any, row: any) => (
+        <div className="flex items-center justify-center size-7 rounded-full text-[11px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+          {row.name.charAt(0).toUpperCase()}
+        </div>
+      )},
+      { key: 'name', label: 'Nome', render: (_: any, row: any) => (
+        <span className="text-[13px] font-semibold">{row.name}</span>
+      )},
+      { key: 'channels', label: 'Canais', align: 'right', render: (_: any, row: any) => (
+        <Badge variant="secondary" className="text-[10px] font-mono">
+          {row.channels} {row.channels === 1 ? 'canal' : 'canais'}
+        </Badge>
+      )},
+    ];
+
+    const topUserData = topUsers.map((u, i) => ({
+      rank: i + 1,
+      initial: u.first_name?.charAt(0) || '?',
+      name: u.first_name || 'Sem nome',
+      channels: u.channels?.length || 0,
+      id: u.id,
+    }));
+
     return (
       <div className="space-y-5">
         {/* Metric Grid */}
-        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+        <div className="admin-metrics-grid">
           <MetricCard
-            icon={<Users size={16} />}
-            label="Usuários"
+            title="Usuários"
             value={formatNum(totalUsers)}
-            sub={`${withChannels} ativos (${activeRate}%)`}
-            color="accent"
-            delay="0.02s"
+            changeLabel={`${withChannels} ativos (${activeRate}%)`}
+            icon={<Users size={18} />}
+            iconColor="var(--accent)"
           />
           <MetricCard
-            icon={<Hash size={16} />}
-            label="Canais"
+            title="Canais"
             value={formatNum(totalChannels)}
-            sub={`${avgChannels.toFixed(1)} por usuário`}
-            color="success"
-            delay="0.04s"
+            changeLabel={`${avgChannels.toFixed(1)} por usuário`}
+            icon={<Hash size={18} />}
+            iconColor="var(--success)"
           />
           <MetricCard
-            icon={<Crown size={16} />}
-            label="Admins"
+            title="Admins"
             value={admins}
-            sub={totalUsers > 0 ? `${((admins / totalUsers) * 100).toFixed(1)}% dos usuários` : '—'}
-            color="warning"
-            delay="0.06s"
+            changeLabel={totalUsers > 0 ? `${((admins / totalUsers) * 100).toFixed(1)}%` : '—'}
+            icon={<Crown size={18} />}
+            iconColor="var(--warning)"
           />
           <MetricCard
-            icon={<Ban size={16} />}
-            label="Blacklist"
+            title="Blacklist"
             value={blacklisted}
-            sub={totalUsers > 0 ? `${((blacklisted / totalUsers) * 100).toFixed(1)}% dos usuários` : '—'}
-            color="danger"
-            delay="0.08s"
-          />
-          <MetricCard
-            icon={<Activity size={16} />}
-            label="Taxa de Ativação"
-            value={`${activeRate}%`}
-            sub={`${withChannels} de ${totalUsers} usam canais`}
-            color="info"
-            delay="0.1s"
+            changeLabel={totalUsers > 0 ? `${((blacklisted / totalUsers) * 100).toFixed(1)}%` : '—'}
+            icon={<Ban size={18} />}
+            iconColor="var(--danger)"
           />
         </div>
 
         {/* Distribution + Top Users */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {/* Distribution */}
-          <div className="rounded-xl border border-border p-4 animate-stagger-in" style={{ animationDelay: '0.12s' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <BarChart3 size={16} className="text-accent" />
-              <h3 className="text-[13px] font-bold">Distribuição de Canais</h3>
-            </div>
-            <div className="space-y-2">
-              {Object.entries(dist).map(([key, count]) => {
-                const colors: Record<string, string> = {
-                  '0': 'var(--hint)',
-                  '1': 'var(--accent)',
-                  '2': 'var(--success)',
-                  '3': 'var(--warning)',
-                  '4+': 'var(--danger)',
-                };
-                return (
-                  <DistributionBar
-                    key={key}
-                    label={key === '4+' ? '4+' : key}
-                    count={count}
-                    total={totalUsers}
-                    color={colors[key] || 'var(--accent)'}
-                  />
-                );
-              })}
-            </div>
-          </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <BarChart3 size={16} className="text-accent" />
+                <h3 className="text-sm font-bold">Distribuição de Canais</h3>
+              </div>
+              <div className="space-y-2">
+                {Object.entries(dist).map(([key, count]) => {
+                  const pct = totalUsers > 0 ? (count / totalUsers) * 100 : 0;
+                  return (
+                    <div key={key} className="flex items-center gap-3">
+                      <span className="text-xs font-medium text-muted-foreground w-12 shrink-0 text-right">{key === '4+' ? '4+' : key}</span>
+                      <div className="flex-1 h-5 rounded-md bg-muted/30 overflow-hidden">
+                        <div
+                          className="h-full rounded-md transition-all duration-700"
+                          style={{ width: `${pct}%`, background: distributionColors[key] || 'var(--accent)' }}
+                        />
+                      </div>
+                      <span className="text-sm font-bold w-8 text-right">{count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
 
-          {/* Top Users */}
-          <div className="rounded-xl border border-border p-4 animate-stagger-in" style={{ animationDelay: '0.14s' }}>
-            <div className="flex items-center gap-2 mb-4">
-              <TrendingUp size={16} className="text-accent" />
-              <h3 className="text-[13px] font-bold">Top 5 — Mais Canais</h3>
-            </div>
-            <div className="space-y-2">
-              {topUsers.length > 0 ? topUsers.map((u, i) => {
-                const name = u.firstName || (u as any).first_name || 'Sem nome';
-                const chCount = u.channels?.length || 0;
-                return (
-                  <div key={u.id} className="flex items-center gap-3 py-1.5">
-                    <span className="text-[11px] font-bold text-muted-foreground w-5 shrink-0 text-right">
-                      {i + 1}
-                    </span>
-                    <div className="flex items-center justify-center size-7 rounded-full shrink-0 text-[11px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                      {name.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[13px] font-semibold truncate block">{name}</span>
-                    </div>
-                    <Badge variant="secondary" className="text-[10px] font-mono">
-                      {chCount} {chCount === 1 ? 'canal' : 'canais'}
-                    </Badge>
-                  </div>
-                );
-              }) : (
-                <p className="text-[13px] text-muted-foreground text-center py-4">Nenhum usuário com canais</p>
-              )}
-            </div>
-          </div>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-4">
+                <TrendingUp size={16} className="text-accent" />
+                <h3 className="text-sm font-bold">Top 5 — Mais Canais</h3>
+              </div>
+              <DataTable
+                columns={topUserColumns}
+                data={topUserData}
+                searchable={false}
+                pageSize={5}
+                emptyMessage="Nenhum usuário com canais"
+              />
+            </CardContent>
+          </Card>
         </div>
 
         {/* Quick Actions */}
-        <div className="flex flex-wrap gap-2 animate-stagger-in" style={{ animationDelay: '0.16s' }}>
+        <div className="flex flex-wrap gap-2">
           <Button variant="secondary" size="sm" onClick={() => window.location.href = '/admin/dash?tab=users'}>
             <Users size={14} /> Gerenciar Usuários
           </Button>
@@ -382,7 +300,7 @@ export function AdminDashboard({
 
   const renderUserDetail = () => {
     if (!adminSelectedUser) return null;
-    const name = adminSelectedUser.firstName || (adminSelectedUser as any).first_name || 'Sem nome';
+    const name = adminSelectedUser.first_name || 'Sem nome';
     return (
       <div className="space-y-4">
         <Button
@@ -468,96 +386,51 @@ export function AdminDashboard({
   // ── Users Tab ──
 
   const renderUsersTab = () => {
-    const visibleUsers = filteredUsers.slice(0, visibleUsersCount);
+    const userColumns: Column<any>[] = [
+      { key: 'first_name', label: 'Nome', render: (_: any, row: any) => (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center justify-center size-7 rounded-full shrink-0 text-[11px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
+            {(row.first_name || '?')[0].toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <span className="text-sm font-semibold truncate block">{row.first_name || 'Sem nome'}</span>
+            <span className="text-[10px] text-muted-foreground">ID: {row.id}</span>
+          </div>
+        </div>
+      )},
+      { key: 'channels', label: 'Canais', align: 'center', render: (v: any) => (
+        <Badge variant="secondary" className="text-[10px] font-mono">{v ? v.length : 0}</Badge>
+      )},
+      { key: 'is_admin', label: 'Admin', align: 'center', render: (v: boolean) => (
+        v ? <StatusBadge label="Admin" variant="accent" dot /> : <span className="text-[11px] text-muted-foreground">—</span>
+      )},
+      { key: 'is_blacklisted', label: 'Bloqueado', align: 'center', render: (v: boolean) => (
+        v ? <StatusBadge label="Bloqueado" variant="danger" dot /> : <span className="text-[11px] text-muted-foreground">—</span>
+      )},
+    ];
 
     return (
       <div className="space-y-4">
-        {/* Stats mini-row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="secondary" className="text-[11px] gap-1.5">
-            <Users size={12} /> {usersList.length} total
-          </Badge>
-          <Badge variant="default" className="text-[11px] gap-1.5">
-            <Crown size={12} /> {analytics.admins} admins
-          </Badge>
-          <Badge variant="destructive" className="text-[11px] gap-1.5">
-            <Ban size={12} /> {analytics.blacklisted} blacklist
-          </Badge>
-        </div>
-
-        {/* Search */}
-        <div className="flex flex-col gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input
-              type="text"
-              placeholder="Buscar usuário por nome ou ID..."
-              className="pl-9 h-10 rounded-xl"
-              value={adminSearch}
-              onChange={(e) => {
-                setAdminSearch(e.target.value);
-                setVisibleUsersCount(40);
-              }}
-            />
-          </div>
-          <div className="relative">
-            <Hash className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-            <Input
-              type="number"
-              placeholder="Filtrar por mínimo de canais"
-              className="pl-9 h-10 rounded-xl"
-              value={adminChannelCountFilter}
-              onChange={(e) => {
-                setAdminChannelCountFilter(e.target.value);
-                setVisibleUsersCount(40);
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Users list */}
-        <div className="space-y-1.5">
-          {visibleUsers.length > 0 ? (
-            <>
-              {visibleUsers.map((u) => (
-                <button
-                  key={u.id}
-                  className="flex items-center w-full text-left gap-3 rounded-xl border border-border p-3 hover:bg-muted/30 transition-colors"
-                  onClick={() => setAdminSelectedUser(u)}
-                >
-                  <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                    <UserIcon size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-[13px] font-semibold truncate">{u.firstName || (u as any).first_name || 'Sem nome'}</span>
-                      {u.is_admin && <Badge variant="default" className="text-[9px] h-[18px]">Admin</Badge>}
-                      {u.is_blacklisted && <Badge variant="destructive" className="text-[9px] h-[18px]">Bloqueado</Badge>}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      ID: {u.id} • {u.channels?.length || 0} canais
-                    </p>
-                  </div>
-                  <ChevronRight size={16} className="shrink-0 text-muted-foreground/30" />
-                </button>
-              ))}
-              {filteredUsers.length > visibleUsersCount && (
-                <Button
-                  variant="secondary"
-                  className="w-full mt-2"
-                  onClick={() => setVisibleUsersCount(prev => prev + 40)}
-                >
-                  Carregar mais usuários...
-                </Button>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center py-8 text-muted-foreground rounded-xl border border-border">
-              <UserIcon size={28} className="opacity-30 mb-2" />
-              <p className="text-[13px] font-medium">Nenhum usuário encontrado</p>
+        <DataTable
+          columns={userColumns}
+          data={usersList}
+          searchable={true}
+          searchPlaceholder="Buscar por nome ou ID..."
+          searchKeys={['first_name', 'username', 'id']}
+          pageSize={15}
+          emptyMessage="Nenhum usuário encontrado"
+          actions={(row: any) => (
+            <div className="flex items-center gap-1">
+              <button
+                className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+                onClick={() => setAdminSelectedUser(row)}
+                title="Ver detalhes"
+              >
+                <ChevronRight size={16} className="text-muted-foreground/40" />
+              </button>
             </div>
           )}
-        </div>
+        />
       </div>
     );
   };
@@ -565,61 +438,43 @@ export function AdminDashboard({
   // ── Channels Tab ──
 
   const renderChannelsTab = () => {
-    const visibleChannels = filteredChannels.slice(0, visibleChannelsCount);
+    const channelColumns: Column<any>[] = [
+      { key: 'title', label: 'Canal', render: (_: any, row: any) => (
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center size-8 rounded-lg shrink-0" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
+            <Hash size={16} />
+          </div>
+          <div className="min-w-0">
+            <span className="text-sm font-semibold truncate block">{row.title}</span>
+            <span className="text-[10px] text-muted-foreground">ID: {row.id}</span>
+          </div>
+        </div>
+      )},
+      { key: 'ownerId', label: 'Dono', align: 'center' },
+      { key: 'subscriberCount', label: 'Inscritos', align: 'center', render: (v: any) => (
+        v ? <Badge variant="secondary" className="text-[10px]">{v}</Badge> : <span className="text-[11px] text-muted-foreground">—</span>
+      )},
+    ];
 
     return (
-      <div className="space-y-4">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
-          <Input
-            type="text"
-            placeholder="Buscar canal por título ou ID..."
-            className="pl-9 h-10 rounded-xl"
-            value={channelSearch}
-            onChange={(e) => {
-              setChannelSearch(e.target.value);
-              setVisibleChannelsCount(40);
-            }}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          {visibleChannels.length > 0 ? (
-            <>
-              {visibleChannels.map((c) => (
-                <button
-                  key={c.id}
-                  className="flex items-center w-full text-left gap-3 rounded-xl border border-border p-3 hover:bg-muted/30 transition-colors"
-                  onClick={() => navigateToChannel(c.id)}
-                >
-                  <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
-                    <Hash size={16} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[13px] font-semibold truncate block">{c.title}</span>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">ID: {c.id} • Dono: {c.ownerId}</p>
-                  </div>
-                  <ChevronRight size={16} className="shrink-0 text-muted-foreground/30" />
-                </button>
-              ))}
-              {filteredChannels.length > visibleChannelsCount && (
-                <Button
-                  variant="secondary"
-                  className="w-full mt-2"
-                  onClick={() => setVisibleChannelsCount(prev => prev + 40)}
-                >
-                  Carregar mais canais...
-                </Button>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center py-8 text-muted-foreground rounded-xl border border-border">
-              <Hash size={28} className="opacity-30 mb-2" />
-              <p className="text-[13px] font-medium">Nenhum canal encontrado</p>
-            </div>
-          )}
-        </div>
-      </div>
+      <DataTable
+        columns={channelColumns}
+        data={channelsList}
+        searchable={true}
+        searchPlaceholder="Buscar canal por título ou ID..."
+        searchKeys={['title', 'id']}
+        pageSize={15}
+        emptyMessage="Nenhum canal encontrado"
+        actions={(row: any) => (
+          <button
+            className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
+            onClick={() => navigateToChannel(row.id)}
+            title="Abrir canal"
+          >
+            <ChevronRight size={16} className="text-muted-foreground/40" />
+          </button>
+        )}
+      />
     );
   };
 
