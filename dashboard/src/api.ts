@@ -1,4 +1,4 @@
-import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, AccountStatus, AuthStatus } from './types';
+import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, AccountStatus, AuthStatus, CaptionTemplate, UserCaptionTemplate } from './types';
 
 export interface AuthRequestBody {
     channelID: number;
@@ -387,6 +387,17 @@ export const adminSendPassword = async (sessionId: string, password: string) => 
     return response?.data || { step: 'error', error: 'Erro ao verificar senha' };
 };
 
+
+
+// User Post Templates
+export async function listUserPostTemplates(): Promise<any[]> {
+  return await apiFetch('/api/me/post-templates');
+}
+
+export async function deleteUserPostTemplate(id: string) {
+  return await apiFetch(`/api/me/post-templates/${id}`, { method: 'DELETE' });
+};
+
 export const adminDeleteAccount = async (id: string) => {
     return apiFetch(`/api/admin/accounts/${id}`, { method: 'DELETE' });
 };
@@ -498,6 +509,91 @@ export const fetchEmojiHistory = async (): Promise<string[]> => {
     return response?.ids || [];
 };
 
+/* ===== Custom Captions API ===== */
+
+export const createCustomCaption = async (channelId: number, data: { code: string; caption: string; linkPreview?: boolean }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const updateCustomCaption = async (channelId: number, captionId: string, data: { code: string; caption: string; linkPreview?: boolean }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const deleteCustomCaption = async (channelId: number, captionId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}`, {
+        method: 'DELETE',
+    });
+    return response?.data;
+};
+
+export const createCustomCaptionButton = async (channelId: number, captionId: string, data: { nameButton: string; buttonUrl?: string }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/buttons`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const updateCustomCaptionButton = async (channelId: number, captionId: string, buttonId: string, data: { nameButton: string; buttonUrl?: string }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/buttons/${buttonId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const deleteCustomCaptionButton = async (channelId: number, captionId: string, buttonId: string): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/buttons/${buttonId}`, {
+        method: 'DELETE',
+    });
+};
+
+export const updateCustomCaptionLayout = async (channelId: number, captionId: string, layout: { buttonId: string }[][]): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/layout`, {
+        method: 'PUT',
+        body: JSON.stringify({ layout }),
+    });
+    return response?.data;
+};
+
+/* ===== Caption Template API ===== */
+
+export const listCaptionTemplates = async (channelId: number): Promise<CaptionTemplate[]> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates`, { method: 'GET' });
+    return response?.data || [];
+};
+
+export const saveCaptionTemplate = async (channelId: number, name: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+    return response?.data;
+};
+
+export const getCaptionTemplate = async (channelId: number, templateId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates/${templateId}`, { method: 'GET' });
+    return response?.data;
+};
+
+export const applyCaptionTemplate = async (channelId: number, templateId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates/${templateId}/apply`, { method: 'POST' });
+    return response?.data;
+};
+
+export const deleteCaptionTemplate = async (channelId: number, templateId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates/${templateId}`, { method: 'DELETE' });
+    return response?.data;
+};
+
 /* ===== Scheduler API ===== */
 
 export const fetchMySchedules = async (): Promise<any[]> => {
@@ -542,6 +638,68 @@ export const updateScheduleTime = async (id: string, data: { nextRunAt?: string;
     const response = await apiFetch(`/api/schedule/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+/* ===== User Caption Template API ===== */
+
+export const listUserCaptionTemplates = async (): Promise<UserCaptionTemplate[]> => {
+    const response = await apiFetch('/api/me/templates', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const createUserCaptionTemplate = async (code: string, caption: string): Promise<any> => {
+    const response = await apiFetch('/api/me/templates', {
+        method: 'POST',
+        body: JSON.stringify({ code, caption }),
+    });
+    return response?.data;
+};
+
+export const getUserCaptionTemplate = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${id}`, { method: 'GET' });
+    return response?.data;
+};
+
+export const updateUserCaptionTemplate = async (id: string, code: string, caption: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ code, caption }),
+    });
+    return response?.data;
+};
+
+export const deleteUserCaptionTemplate = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${id}`, { method: 'DELETE' });
+    return response?.data;
+};
+
+export const createUserCaptionTemplateButton = async (templateId: string, nameButton: string, buttonUrl: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/buttons`, {
+        method: 'POST',
+        body: JSON.stringify({ nameButton, buttonUrl }),
+    });
+    return response?.data;
+};
+
+export const updateUserCaptionTemplateButton = async (templateId: string, buttonId: string, nameButton: string, buttonUrl: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/buttons/${buttonId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ nameButton, buttonUrl }),
+    });
+    return response?.data;
+};
+
+export const deleteUserCaptionTemplateButton = async (templateId: string, buttonId: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/buttons/${buttonId}`, { method: 'DELETE' });
+    return response?.data;
+};
+
+export const updateUserCaptionTemplateLayout = async (templateId: string, layout: { buttonId: string }[][]): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/layout`, {
+        method: 'PUT',
+        body: JSON.stringify({ layout }),
     });
     return response?.data;
 };

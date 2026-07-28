@@ -125,6 +125,9 @@ func InitDB() *gorm.DB {
 		&models.PremiumFeature{},
 		&models.Refund{},
 		&models.ScheduledPost{},
+		&models.UserPostTemplate{},
+		&models.UserCaptionTemplate{},
+		&models.UserCaptionTemplateButton{},
 	)
 	if err != nil {
 		panic(err)

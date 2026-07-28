@@ -23,9 +23,10 @@ interface Props {
   onEdit: (buttonId: string, updates: Partial<ButtonType>) => void;
   onMove: (buttonId: string, x: number, y: number) => void;
   onMoveReactions: (y: number) => void;
+  hideReactions?: boolean;
 }
 
-export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, onAdd, onDelete, onEdit, onMove, onMoveReactions }: Props) {
+export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hideReactions, onAdd, onDelete, onEdit, onMove, onMoveReactions }: Props) {
   const [cols, setCols] = useState(() => Math.max(4, buttons.reduce((m, b) => Math.max(m, b.positionX), 0) + 1));
   const [rows, setRows] = useState(() => {
     const maxBtnY = buttons.reduce((m, b) => Math.max(m, b.positionY), -1);
@@ -381,7 +382,7 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, on
             })}
 
             {/* 3. Render Reactions Plate */}
-            {(() => {
+            {!hideReactions && (() => {
               const reactionsList = (reactions || '').split(',').filter(r => r.trim() !== '');
               const isSource = dragBtnId === 'REACTIONS_ROW';
               const plateHeight = '56px';
@@ -408,16 +409,21 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, on
                     justifyContent: 'center',
                     cursor: 'grab',
                     touchAction: 'none',
+                    userSelect: 'none'
                   }}
                 >
-                  <div className="flex items-center justify-center gap-3 w-full h-full text-accent font-bold opacity-70 px-4">
-                    <GripVertical size={16} />
-                    <span className="text-[12px] uppercase tracking-[0.15em] font-black shrink-0">Reações</span>
-                    <div className="flex gap-1.5 items-center min-w-0 flex-1 justify-center">
-                      {reactionsList.length > 0 ? reactionsList.map((r, i) => (
-                        <span key={i} className="text-base bg-card px-2.5 py-1 rounded-md border border-border shadow-sm">{r}</span>
-                      )) : <span className="text-[12px] opacity-40 font-normal italic">Nenhuma configurada</span>}
-                    </div>
+                  <div className="flex flex-col items-center justify-center pointer-events-none">
+                    <GripVertical size={14} className="text-accent/40 mb-1" />
+                    {reactionsList.length === 0 ? (
+                      <span className="text-[11px] font-semibold text-accent/80 tracking-wide uppercase">Bloco de Reações (Vazio)</span>
+                    ) : (
+                      <div className="flex gap-1.5 items-center bg-background/40 px-3 py-1 rounded-full shadow-sm border border-border/50">
+                        {reactionsList.slice(0, 4).map((r, i) => (
+                          <span key={i} className="text-[14px] leading-none drop-shadow-sm">{r}</span>
+                        ))}
+                        {reactionsList.length > 4 && <span className="text-[10px] font-bold text-muted-foreground ml-0.5">+{reactionsList.length - 4}</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               );

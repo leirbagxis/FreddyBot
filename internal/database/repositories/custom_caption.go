@@ -15,6 +15,10 @@ func NewCustomCaptionRepository(db *gorm.DB) *CustomCaptionRepository {
 	return &CustomCaptionRepository{db: db}
 }
 
+func (r *CustomCaptionRepository) WithTransaction(ctx context.Context, fn func(tx *gorm.DB) error) error {
+	return r.db.WithContext(ctx).Transaction(fn)
+}
+
 func (r *CustomCaptionRepository) CreateCustomCaption(ctx context.Context, caption *models.CustomCaption) error {
 	return r.db.WithContext(ctx).Create(caption).Error
 }
@@ -32,6 +36,20 @@ func (r *CustomCaptionRepository) UpdateCustomCaption(ctx context.Context, chann
 		Where("caption_id = ? AND owner_channel_id = ?", captionID, channelID).
 		Updates(updates)
 	return result.RowsAffected, result.Error
+}
+
+func (r *CustomCaptionRepository) DeleteAllByChannel(ctx context.Context, channelID int64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("owner_caption_id IN (SELECT caption_id FROM custom_captions WHERE owner_channel_id = ?)", channelID).
+			Delete(&models.CustomCaptionButton{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_channel_id = ?", channelID).
+			Delete(&models.CustomCaption{}).Error; err != nil {
+			return err
+		}
+		return nil
+	})
 }
 
 func (r *CustomCaptionRepository) DeleteCustomCaption(ctx context.Context, channelID int64, captionID string) (int64, error) {

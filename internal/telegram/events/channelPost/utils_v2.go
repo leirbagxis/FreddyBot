@@ -38,6 +38,7 @@ func GetMessageTypeTelego(post *telego.Message) MessageType {
 var (
 	retryAfterRegex = regexp.MustCompile(`retry after (\d+)`)
 	hashtagRegex    = regexp.MustCompile(`#(\w+)`)
+	prefixRegex     = regexp.MustCompile(`!(\w+)`)
 )
 
 func extractRetryAfter(errStr string) int {
@@ -55,6 +56,18 @@ func extractHashtag(text string) string {
 		return matches[1]
 	}
 	return ""
+}
+
+func extractPrefix(text string) string {
+	matches := prefixRegex.FindStringSubmatch(text)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
+
+func removePrefix(text, prefix string) string {
+	return strings.TrimSpace(strings.Replace(text, "!"+prefix, "", 1))
 }
 
 func removeHashtag(text, hashtag string) string {
@@ -182,6 +195,20 @@ func ExtractDynamicLinks(text string) ([]dbmodels.Button, string) {
 
 	return buttons, strings.TrimSpace(cleanText)
 }
+func convertUserTemplateButtons(buttons []dbmodels.UserCaptionTemplateButton) []dbmodels.Button {
+	btns := make([]dbmodels.Button, len(buttons))
+	for i, b := range buttons {
+		btns[i] = dbmodels.Button{
+			ButtonID:   b.ButtonID,
+			NameButton: b.NameButton,
+			ButtonURL:  b.ButtonURL,
+			PositionX:  b.PositionX,
+			PositionY:  b.PositionY,
+		}
+	}
+	return btns
+}
+
 func convertCustomButtons(cbs []dbmodels.CustomCaptionButton) []dbmodels.Button {
 	btns := make([]dbmodels.Button, len(cbs))
 	for i, cb := range cbs {

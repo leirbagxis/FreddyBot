@@ -9,6 +9,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"gorm.io/gorm"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
@@ -51,6 +52,7 @@ func (s *CustomCaptionService) CreateCustomCaption(ctx context.Context, channelI
 
 func (s *CustomCaptionService) UpdateCustomCaption(ctx context.Context, channelID int64, captionID string, body types.CreateCustomCaptionRequest) (int64, error) {
 	updates := map[string]interface{}{
+		"code":         body.Code,
 		"caption":      body.Caption,
 		"link_preview": body.LinkPreview,
 		"updated_at":   time.Now(),
@@ -69,6 +71,51 @@ func (s *CustomCaptionService) UpdateCustomCaption(ctx context.Context, channelI
 	logger.Bot("✅ Legenda customizada atualizada com sucesso: %s (Canal: %d)", captionID, channelID)
 
 	return rowsAffected, nil
+}
+
+func (s *CustomCaptionService) ReplaceCustomCaptionsForChannel(ctx context.Context, channelID int64, captions []types.CustomCaptionSnapshot) error {
+	if err := s.customCaptionRepo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		if err := tx.Where("owner_caption_id IN (SELECT caption_id FROM custom_captions WHERE owner_channel_id = ?)", channelID).
+			Delete(&models.CustomCaptionButton{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("owner_channel_id = ?", channelID).
+			Delete(&models.CustomCaption{}).Error; err != nil {
+			return err
+		}
+		for _, snap := range captions {
+			captionID := uuid.NewString()
+			caption := &models.CustomCaption{
+				CaptionID:      captionID,
+				Code:           snap.Code,
+				Caption:        snap.Caption,
+				LinkPreview:    snap.LinkPreview,
+				OwnerChannelID: channelID,
+			}
+			if err := tx.Create(caption).Error; err != nil {
+				return err
+			}
+			for i, btn := range snap.Buttons {
+				button := &models.CustomCaptionButton{
+					ButtonID:       uuid.NewString(),
+					NameButton:     btn.NameButton,
+					ButtonURL:      btn.ButtonURL,
+					PositionX:      0,
+					PositionY:      i,
+					OwnerCaptionID: captionID,
+				}
+				if err := tx.Create(button).Error; err != nil {
+					return err
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return errors.Internal(err)
+	}
+
+	s.cache.InvalidateChannel(ctx, channelID)
+	return nil
 }
 
 func (s *CustomCaptionService) DeleteCustomCaption(ctx context.Context, channelID int64, captionID string) error {

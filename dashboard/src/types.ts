@@ -70,7 +70,7 @@ export interface Channel {
   nativeReactionMode: 'fixed' | 'random';
   defaultCaption: Caption;
   buttons: Button[];
-  customCaptions: Caption[];
+  customCaptions: CustomCaption[];
   created_at: string;
   updated_at: string;
 }
@@ -287,6 +287,42 @@ declare global {
       };
     };
   }
+}
+
+export interface CustomCaption {
+  captionId: string;
+  code: string;
+  caption: string;
+  linkPreview: boolean;
+  buttons?: Button[];
+  created_at: string;
+}
+
+export interface CaptionTemplate {
+  id: string;
+  name: string;
+  templateData: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserCaptionTemplate {
+  id: string;
+  userId: number;
+  code: string;
+  caption: string;
+  buttons: ButtonType[];
+  reactionPosition?: number;
+  reactions?: string;
+}
+
+export interface UserPostTemplate {
+  id: string;
+  ownerId: number;
+  name: string;
+  templateData: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ScheduledPost {

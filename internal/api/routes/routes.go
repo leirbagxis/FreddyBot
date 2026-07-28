@@ -31,6 +31,8 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	channelEventsController := admincontroller.NewChannelEventsController(c)
 	accountController := controllers.NewAccountController(c)
 	emojiController := controllers.NewEmojiController(c)
+	captionTemplateController := controllers.NewCaptionTemplateController(c)
+	userCaptionTemplateController := controllers.NewUserCaptionTemplateController(c)
 	adminAccountController := admincontroller.NewAdminAccountController(c)
 	subscriptionController := controllers.NewSubscriptionController(c.SubscriptionService)
 	adminSubscriptionController := admincontroller.NewAdminSubscriptionController(c.SubscriptionService)
@@ -59,6 +61,19 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.POST("/subscription/channels/add", subscriptionController.AddExtraChannel)
 		api.POST("/subscription/channels/add-invoice", subscriptionController.CreateExtraChannelInvoice)
 		api.POST("/subscription/channels/remove", subscriptionController.RemoveExtraChannel)
+
+		// Rotas de Templates de Legenda (nível de usuário)
+		api.GET("/me/templates", userCaptionTemplateController.List)
+		api.POST("/me/templates", userCaptionTemplateController.Create)
+		api.GET("/me/templates/:id", userCaptionTemplateController.Get)
+		api.PUT("/me/templates/:id", userCaptionTemplateController.Update)
+		api.POST("/me/templates/:id/buttons", userCaptionTemplateController.CreateButton)
+		api.PUT("/me/templates/:id/buttons/:buttonId", userCaptionTemplateController.UpdateButton)
+		api.DELETE("/me/templates/:id/buttons/:buttonId", userCaptionTemplateController.DeleteButton)
+		api.PUT("/me/templates/:id/layout", userCaptionTemplateController.UpdateLayout)
+		api.DELETE("/me/templates/:id", userCaptionTemplateController.Delete)
+
+		// Rotas de Configuração do Bot
 
 		// Rotas de Agendamento
 		api.GET("/schedule", schedulerController.GetMySchedules)
@@ -101,6 +116,12 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 			channelRoutes.PUT("/custom-captions/:captionId/buttons/:buttonId", customCaptionController.UpdateCustomCaptionButtonController)
 			channelRoutes.DELETE("/custom-captions/:captionId", customCaptionController.DeleteCustomCaptionController)
 			channelRoutes.DELETE("/custom-captions/:captionId/buttons/:buttonId", customCaptionController.DeleteCustomCaptionButtonController)
+
+			channelRoutes.GET("/caption-templates", captionTemplateController.List)
+			channelRoutes.POST("/caption-templates", captionTemplateController.Save)
+			channelRoutes.GET("/caption-templates/:templateId", captionTemplateController.Get)
+			channelRoutes.POST("/caption-templates/:templateId/apply", captionTemplateController.Apply)
+			channelRoutes.DELETE("/caption-templates/:templateId", captionTemplateController.Delete)
 
 			channelRoutes.GET("/separator/:separatorId", channelController.GetSeparator)
 			channelRoutes.GET("/separator", channelController.GetSeparatorByChannel)

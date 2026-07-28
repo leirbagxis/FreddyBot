@@ -2,7 +2,6 @@ import { useState, useEffect, memo } from 'react';
 import { Package, Pencil, X, Check, Info } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
 import { CaptionPreview } from './CaptionPreview';
-import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 
@@ -48,22 +47,21 @@ export const NewPackCaptionCard = memo(({ caption, messageButtons, stickerButton
   };
 
   return (
-    <Card>
-      <CardContent className="pt-4">
-        <div className="flex items-center gap-3 mb-4">
-          <div className="section-icon" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
-            <Package size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="text-[15px] font-semibold">New Pack Caption</h3>
-            <p className="text-xs mt-0.5 text-muted-foreground">Template para novo pack</p>
-          </div>
-          {!editing && (
-            <Button variant="ghost" size="icon" className="text-accent" onClick={() => setEditing(true)}>
-              <Pencil size={15} />
-            </Button>
-          )}
+    <div className="content-card">
+      <div className="content-card-header">
+        <div className="content-card-icon" style={{ background: 'var(--warning-soft)', color: 'var(--warning)' }}>
+          <Package size={18} />
         </div>
+        <div className="flex-1 min-w-0">
+          <div className="content-card-title">New Pack Caption</div>
+          <div className="content-card-desc">Template para novo pack</div>
+        </div>
+        {!editing && (
+          <Button variant="ghost" size="icon" className="text-accent shrink-0" onClick={() => setEditing(true)}>
+            <Pencil size={15} />
+          </Button>
+        )}
+      </div>
 
         {editing ? (
           <div className="space-y-3">
@@ -163,15 +161,10 @@ export const NewPackCaptionCard = memo(({ caption, messageButtons, stickerButton
             </div>
           </div>
         ) : (
-          <div className="caption-preview-block" onClick={() => setEditing(true)}>
-            {caption ? (
-              <CaptionPreview text={caption} />
-            ) : (
-              <span style={{ opacity: 0.3, fontStyle: 'italic' }}>Sem template definido</span>
-            )}
+          <div className="cursor-pointer" onClick={() => setEditing(true)}>
+            <CaptionPreview text={caption} />
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 });

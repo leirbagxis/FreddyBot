@@ -96,7 +96,9 @@ type AppContainer struct {
 	PremiumFeatureService    *services.PremiumFeatureService
 
 	// ## SCHEDULER ## \\
-	SchedulerService *services.SchedulerService
+	SchedulerService           *services.SchedulerService
+	PostTemplateService        *services.UserPostTemplateService
+	UserCaptionTemplateService *services.UserCaptionTemplateService
 
 	// ## CACHE ## \\
 	CacheService   *cache.Service
@@ -162,6 +164,13 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	scheduledPostRepo := repositories.NewScheduledPostRepository(db)
 	schedulerService := services.NewSchedulerService(scheduledPostRepo, cacheService, telegoClient)
 
+	postTemplateRepo := repositories.NewUserPostTemplateRepository(db)
+	postTemplateService := services.NewUserPostTemplateService(postTemplateRepo)
+
+	// User Caption Template Service
+	userCaptionTemplateRepo := repositories.NewUserCaptionTemplateRepository(db)
+	userCaptionTemplateService := services.NewUserCaptionTemplateService(userCaptionTemplateRepo)
+
 	saverAdapter := &accountSaverAdapter{svc: connectedAccountService}
 	mtprotoAuthService := mtprotoAuth.NewService(redisClient, mtprotoAppID, mtprotoAppHash, saverAdapter)
 
@@ -218,7 +227,9 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		PremiumFeatureService: premiumFeatureService,
 
 		// Scheduler
-		SchedulerService: schedulerService,
+		SchedulerService:           schedulerService,
+		PostTemplateService:        postTemplateService,
+		UserCaptionTemplateService: userCaptionTemplateService,
 
 		CacheService:   cacheService,
 		SessionManager: cache.NewSessionManager(cacheService),

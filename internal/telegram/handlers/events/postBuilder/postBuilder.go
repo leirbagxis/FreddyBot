@@ -14,6 +14,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
+	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -279,6 +280,61 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 
 		state.Reactions = strings.Join(finalReactions, ",")
 		state.Step = ""
+	case "awaiting_template_name":
+		name := strings.TrimSpace(text)
+		if name == "" {
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:    update.Message.Chat.ChatID(),
+				Text:      "❌ O nome do template não pode estar vazio. Envie um nome válido:",
+				ParseMode: telego.ModeHTML,
+				ReplyParameters: &telego.ReplyParameters{
+					MessageID: update.Message.MessageID,
+				},
+			})
+			return nil
+		}
+		var sb strings.Builder
+		if state.Title != "" {
+			sb.WriteString(state.Title + "\n\n")
+		}
+		if state.Body != "" {
+			sb.WriteString(state.Body + "\n\n")
+		}
+		if state.Footer != "" {
+			sb.WriteString(state.Footer)
+		}
+		caption := sb.String()
+
+		tpl, err := c.UserCaptionTemplateService.Create(context.Background(), userID, name, caption, state.Reactions)
+		if err != nil {
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:    update.Message.Chat.ChatID(),
+				Text:      fmt.Sprintf("❌ Erro ao salvar template: %s", err.Error()),
+				ParseMode: telego.ModeHTML,
+			})
+			return nil
+		}
+		for i, btn := range state.Buttons {
+			err = c.UserCaptionTemplateService.CreateButton(context.Background(), &models.UserCaptionTemplateButton{
+				ButtonID:        fmt.Sprintf("btn_%d_%d", time.Now().UnixNano(), i),
+				NameButton:      btn.Text,
+				ButtonURL:       btn.URL,
+				PositionX:       0,
+				PositionY:       i,
+				OwnerTemplateID: tpl.ID,
+			})
+		}
+		
+		state.Step = ""
+		c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
+		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID:    update.Message.Chat.ChatID(),
+			Text:      fmt.Sprintf("✅ Template <b>%s</b> salvo com sucesso!\n\nUse 📋 Templates no menu para carregá-lo depois.", tpl.Code),
+			ParseMode: telego.ModeHTML,
+		})
+		showMenuTelego(ctx, chatID, userID, c, state)
+		return nil
+
 	case "awaiting_button":
 		lines := strings.Split(text, "\n")
 		if len(lines) < 2 {
@@ -413,6 +469,7 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 				{Text: "📥 Importar Canal", CallbackData: "pb-import-channel"},
 			},
 			{
+				{Text: "📋 Templates", CallbackData: "pb-list-templates"},
 				{Text: "👁️ Preview", CallbackData: "pb-preview"},
 			},
 			{
@@ -550,7 +607,10 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			!strings.HasPrefix(data, "pb-sch:") &&
 			!strings.HasPrefix(data, "pb-sch-type:") &&
 			!strings.HasPrefix(data, "pb-sch-confirm:") &&
-			!strings.HasPrefix(data, "pb-sch-edit:") {
+			!strings.HasPrefix(data, "pb-sch-edit:") &&
+			!strings.HasPrefix(data, "pb-save-template:") &&
+			!strings.HasPrefix(data, "pb-load-template:") &&
+			!strings.HasPrefix(data, "pb-del-template:") {
 			_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 				CallbackQueryID: update.CallbackQuery.ID,
 				Text:            "Sessão expirada ou não encontrada.",
@@ -609,6 +669,92 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 				c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 			}
 			showButtonManagerTelego(ctx, chatID, userID, c, state)
+			return nil
+		}
+
+		if strings.HasPrefix(data, "pb-save-template:") {
+			sessionID := strings.TrimPrefix(data, "pb-save-template:")
+			pbState, err := c.CacheService.GetPostBuilderSession(context.Background(), sessionID)
+			if err != nil || pbState == nil {
+				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: telego.ChatID{ID: chatID},
+					Text:   "❌ Sessão do PostBuilder expirada. Salve o post novamente.",
+				})
+				return nil
+			}
+			state = pbState
+			state.Step = "awaiting_template_name"
+			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:      telego.ChatID{ID: chatID},
+				Text:        "💾 Envie o <b>nome</b> para salvar este post como template:",
+				ParseMode:   telego.ModeHTML,
+				ReplyMarkup: promptBackKB(),
+			})
+			if msg != nil {
+				state.PromptMessageID = msg.MessageID
+			}
+			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
+			return nil
+		}
+
+		if strings.HasPrefix(data, "pb-load-template:") {
+			templateID := strings.TrimPrefix(data, "pb-load-template:")
+			tpl, err := c.UserCaptionTemplateService.GetByID(context.Background(), templateID)
+			if err != nil || tpl == nil {
+				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: telego.ChatID{ID: chatID},
+					Text:   "❌ Template não encontrado.",
+				})
+				return nil
+			}
+			if tpl.UserID != userID {
+				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: telego.ChatID{ID: chatID},
+					Text:   "❌ Este template não pertence a você.",
+				})
+				return nil
+			}
+
+			state.Title = ""
+			state.Body = tpl.Caption
+			state.Footer = ""
+			state.Reactions = tpl.Reactions
+
+			state.Buttons = []cache.PostBuilderButton{}
+			for _, btn := range tpl.Buttons {
+				state.Buttons = append(state.Buttons, cache.PostBuilderButton{
+					Text: btn.NameButton,
+					URL:  btn.ButtonURL,
+				})
+			}
+			
+			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
+
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: chatID},
+				Text:      fmt.Sprintf("✅ Template <b>%s</b> carregado! Envie uma nova mídia para começar.", tpl.Code),
+				ParseMode: telego.ModeHTML,
+			})
+			showMenuTelego(ctx, chatID, userID, c, state)
+			return nil
+		}
+
+		if strings.HasPrefix(data, "pb-del-template:") {
+			templateID := strings.TrimPrefix(data, "pb-del-template:")
+			if err := c.UserCaptionTemplateService.Delete(context.Background(), templateID, userID); err != nil {
+				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: telego.ChatID{ID: chatID},
+					Text:   fmt.Sprintf("❌ Erro ao excluir template: %s", err.Error()),
+				})
+				return nil
+			}
+			recordPostBuilderEvent(c, "template_deleted", services.ChannelEventStatusInfo, userID, 0, templateID, map[string]any{"action": "delete_template"}, nil)
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: chatID},
+				Text:      "✅ Template excluído com sucesso!",
+				ParseMode: telego.ModeHTML,
+			})
+			showMenuTelego(ctx, chatID, userID, c, state)
 			return nil
 		}
 
@@ -837,6 +983,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 					{
 						{Text: "📅 Agendar Envio", CallbackData: "pb-schedule:" + id},
 					},
+					{
+						{Text: "💾 Salvar como Template", CallbackData: "pb-save-template:" + id},
+					},
 				},
 			}
 
@@ -848,6 +997,102 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 				ReplyMarkup: kb,
 			})
 			c.CacheService.DeletePostBuilderState(context.Background(), userID)
+		case "pb-list-templates":
+			templates, err := c.UserCaptionTemplateService.List(context.Background(), userID)
+			if err != nil || len(templates) == 0 {
+				text := "📋 <b>Meus Templates</b>\n\nVocê não possui templates salvos ainda.\n\n💡 Salve um post como template no menu do Post Builder."
+				if state.MenuMessageID != 0 {
+					_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+						ChatID:      telego.ChatID{ID: chatID},
+						MessageID:   state.MenuMessageID,
+						Text:        text,
+						ParseMode:   telego.ModeHTML,
+						ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: [][]telego.InlineKeyboardButton{{{Text: "🔙 Voltar ao Menu", CallbackData: "pb-start"}}}},
+					})
+				} else {
+					_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+						ChatID:      telego.ChatID{ID: chatID},
+						Text:        text,
+						ParseMode:   telego.ModeHTML,
+					})
+				}
+				return nil
+			}
+
+			var rows [][]telego.InlineKeyboardButton
+			for _, t := range templates {
+				label := t.Code
+				if len(label) > 30 {
+					label = label[:27] + "..."
+				}
+				rows = append(rows, []telego.InlineKeyboardButton{
+					{Text: "📄 " + label, CallbackData: "pb-load-template:" + t.ID},
+				})
+			}
+			rows = append(rows, []telego.InlineKeyboardButton{
+				{Text: "🗑 Gerenciar Templates", CallbackData: "pb-manage-templates"},
+			})
+			rows = append(rows, []telego.InlineKeyboardButton{
+				{Text: "🔙 Voltar ao Menu", CallbackData: "pb-start"},
+			})
+
+			text := fmt.Sprintf("📋 <b>Meus Templates</b>\n\n%d template(s) salvo(s). Selecione um para carregar:", len(templates))
+			if state.MenuMessageID != 0 {
+				_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+					ChatID:      telego.ChatID{ID: chatID},
+					MessageID:   state.MenuMessageID,
+					Text:        text,
+					ParseMode:   telego.ModeHTML,
+					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: rows},
+				})
+			} else {
+				msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID:      telego.ChatID{ID: chatID},
+					Text:        text,
+					ParseMode:   telego.ModeHTML,
+					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: rows},
+				})
+				if msg != nil {
+					state.MenuMessageID = msg.MessageID
+					c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
+				}
+			}
+
+		case "pb-manage-templates":
+			templates, err := c.UserCaptionTemplateService.List(context.Background(), userID)
+			if err != nil || len(templates) == 0 {
+				_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+					CallbackQueryID: update.CallbackQuery.ID,
+					Text:            "Nenhum template para gerenciar.",
+				})
+				return nil
+			}
+
+			var rows [][]telego.InlineKeyboardButton
+			for _, t := range templates {
+				label := t.Code
+				if len(label) > 25 {
+					label = label[:22] + "..."
+				}
+				rows = append(rows, []telego.InlineKeyboardButton{
+					{Text: "❌ " + label, CallbackData: "pb-del-template:" + t.ID},
+				})
+			}
+			rows = append(rows, []telego.InlineKeyboardButton{
+				{Text: "🔙 Voltar", CallbackData: "pb-list-templates"},
+			})
+
+			text := "🗑 <b>Gerenciar Templates</b>\n\nClique em um template para excluí-lo:"
+			if state.MenuMessageID != 0 {
+				_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+					ChatID:      telego.ChatID{ID: chatID},
+					MessageID:   state.MenuMessageID,
+					Text:        text,
+					ParseMode:   telego.ModeHTML,
+					ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: rows},
+				})
+			}
+
 		case "pb-cancel":
 			c.CacheService.DeletePostBuilderState(context.Background(), userID)
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{

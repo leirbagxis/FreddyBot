@@ -21,8 +21,8 @@ interface HistoryEntry {
 }
 
 const FORMATS = [
-  { key: 'bold', icon: Bold, label: 'Negrito', wrap: ['**', '**'], placeholder: 'negrito' },
-  { key: 'italic', icon: Italic, label: 'Itálico', wrap: ['__', '__'], placeholder: 'itálico' },
+  { key: 'bold', icon: Bold, label: 'Negrito', wrap: ['*', '*'], placeholder: 'negrito' },
+  { key: 'italic', icon: Italic, label: 'Itálico', wrap: ['_', '_'], placeholder: 'itálico' },
   { key: 'underline', icon: Underline, label: 'Sublinhado', wrap: ['<u>', '</u>'], placeholder: 'sublinhado' },
   { key: 'strike', icon: Strikethrough, label: 'Tachado', wrap: ['~~', '~~'], placeholder: 'tachado' },
   { key: 'mono', icon: Code, label: 'Monoespaço', wrap: ['`', '`'], placeholder: 'código' },
@@ -181,8 +181,8 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
 
     let selected = value.substring(start, end);
     // Remove common formatting markers
-    selected = selected.replace(/\*\*(.*?)\*\*/g, '$1');
-    selected = selected.replace(/__(.*?)__/g, '$1');
+    selected = selected.replace(/\*(.*?)\*/g, '$1');
+    selected = selected.replace(/_(.*?)_/g, '$1');
     selected = selected.replace(/~~(.*?)~~/g, '$1');
     selected = selected.replace(/\|\|(.*?)\|\|/g, '$1');
     selected = selected.replace(/`([^`]+)`/g, '$1');
@@ -242,11 +242,11 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
       e.preventDefault();
-      applyFormat('**', '**', 'negrito');
+      applyFormat('*', '*', 'negrito');
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
       e.preventDefault();
-      applyFormat('__', '__', 'itálico');
+      applyFormat('_', '_', 'itálico');
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
       e.preventDefault();
@@ -411,19 +411,6 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
         </div>
       )}
 
-      {/* Footer info */}
-      <div className="rte-footer">
-        <div className="flex items-center gap-1.5">
-          <Type size={11} />
-          <span>{value.length} caracteres</span>
-        </div>
-        <div className="rte-shortcuts">
-          <span>Ctrl+B</span>
-          <span>Ctrl+I</span>
-          <span>Ctrl+U</span>
-          <span>Ctrl+K</span>
-        </div>
-      </div>
     </div>
   );
 }

@@ -252,6 +252,108 @@ h1, h2, h3, h4, h5, h6 {
   flex-direction: column;
 }
 
+/* ===== ACTION CARD (replaces nested Card > CardContent > flex pattern) ===== */
+.action-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: all 0.2s ease, transform 0.15s var(--ease-squish);
+  position: relative;
+  overflow: hidden;
+}
+.action-card:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-soft);
+  box-shadow: var(--shadow-sm);
+}
+.action-card:active {
+  transform: scale(0.985);
+}
+
+.action-card-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 20px;
+  transition: all 0.25s var(--ease-squish);
+}
+.action-card:hover .action-card-icon {
+  transform: scale(1.08) rotate(-2deg);
+}
+
+.action-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.action-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.action-card-desc {
+  font-size: 11px;
+  color: var(--hint);
+  margin-top: 2px;
+  line-height: 1.4;
+}
+
+.action-card-chevron {
+  flex-shrink: 0;
+  color: var(--hint);
+  opacity: 0.25;
+  transition: all 0.2s ease;
+}
+.action-card:hover .action-card-chevron {
+  opacity: 0.5;
+  transform: translateX(2px);
+}
+
+/* ===== SECTION ===== */
+.page-section {
+  margin-bottom: 20px;
+}
+
+.page-section:last-child {
+  margin-bottom: 0;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 0 2px;
+}
+
+.section-heading-line {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.section-heading-text {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--hint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
 /* ===== TOP BAR ===== */
 .top-bar {
   padding: 14px 20px;
@@ -287,11 +389,54 @@ h1, h2, h3, h4, h5, h6 {
 /* ===== MAIN ===== */
 .main-content {
   flex: 1;
-  padding: 10px 4px;
+  padding: 8px 12px;
   padding-bottom: calc(100px + env(safe-area-inset-bottom, 0px));
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
+}
+
+/* ===== CONTENT CARD (config sections — CaptionCard, ReactionsCard, etc.) ===== */
+.content-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.content-card:hover {
+  border-color: var(--accent-soft);
+}
+
+.content-card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.content-card-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.content-card-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.content-card-desc {
+  font-size: 11px;
+  color: var(--hint);
+  margin-top: 1px;
 }
 
 /* ===== BOTTOM NAV ===== */
@@ -310,15 +455,16 @@ h1, h2, h3, h4, h5, h6 {
   border: 1px solid var(--border);
   border-radius: 100px;
   display: flex;
-  padding: 5px 4px;
+  padding: 4px 3px;
+  gap: 1px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.12), var(--shadow-glow);
 }
 .nav-item {
   flex: 1;
   display: flex; flex-direction: column;
   align-items: center; justify-content: center;
-  gap: 2px;
-  padding: 6px 2px;
+  gap: 1px;
+  padding: 5px 2px 4px;
   border: none; background: none;
   border-radius: 100px;
   color: var(--hint);
@@ -326,9 +472,9 @@ h1, h2, h3, h4, h5, h6 {
   letter-spacing: 0.02em;
   cursor: pointer;
   position: relative;
-  transition: all 0.2s var(--ease-squish);
+  transition: all 0.25s var(--ease-squish);
 }
-.nav-item:hover { color: var(--text); }
+.nav-item:hover { color: var(--text-secondary); }
 .nav-item.active { 
   color: var(--accent);
   background: var(--accent-soft);
@@ -338,7 +484,7 @@ h1, h2, h3, h4, h5, h6 {
   border-radius: 50%;
   background: var(--accent);
   position: absolute;
-  top: 5px;
+  top: 4px;
 }
 .nav-item svg { width: 18px; height: 18px; stroke-width: 2; transition: all 0.25s var(--ease-squish); }
 .nav-item.active svg { 

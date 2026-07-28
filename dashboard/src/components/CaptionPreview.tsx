@@ -30,10 +30,10 @@ function mdToHtml(text: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
 
-    // Bold
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    // Italic
-    .replace(/__(.+?)__/g, '<em>$1</em>')
+    // Bold (*text*)
+    .replace(/\*(.+?)\*/g, '<strong>$1</strong>')
+    // Italic (_text_)
+    .replace(/_(.+?)_/g, '<em>$1</em>')
     // Strikethrough
     .replace(/~~(.+?)~~/g, '<s>$1</s>')
     // Spoiler
@@ -96,30 +96,23 @@ export function CaptionPreview({ text }: Props) {
   const segments = useMemo(() => tokenize(text), [text]);
 
   return (
-    <div className="cp-root">
-      <div className="cp-bubble">
-        {segments.length === 0 ? (
-          <span className="cp-placeholder">Prévia aparecerá aqui...</span>
-        ) : (
-          segments.map((seg, i) =>
-            seg.type === 'emoji' ? (
-              <EmojiRenderer key={`e${i}`} emojiId={seg.id} />
-            ) : (
-              <span
-                key={`h${i}`}
-                dangerouslySetInnerHTML={{
-                  __html: mdToHtml(seg.html),
-                }}
-              />
-            ),
-          )
-        )}
-      </div>
-
-      {/* Character count */}
-      <div className="cp-meta">
-        <span>{[...text].length} caractere{[...text].length !== 1 ? 's' : ''}</span>
-      </div>
+    <div className="cp-bubble cursor-pointer hover:border-accent/50 transition-colors">
+      {segments.length === 0 ? (
+        <span className="cp-placeholder">Clique para adicionar legenda...</span>
+      ) : (
+        segments.map((seg, i) =>
+          seg.type === 'emoji' ? (
+            <EmojiRenderer key={`e${i}`} emojiId={seg.id} />
+          ) : (
+            <span
+              key={`h${i}`}
+              dangerouslySetInnerHTML={{
+                __html: mdToHtml(seg.html),
+              }}
+            />
+          ),
+        )
+      )}
     </div>
   );
 }

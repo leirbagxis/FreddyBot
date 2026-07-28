@@ -60,7 +60,8 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 			}
 		}
 
-		// 3. Extract Hashtag
+		// 3. Extract user template prefix (!prefix) or channel custom caption (#hashtag)
+		prefix := extractPrefix(formattedBase)
 		hashtag := extractHashtag(formattedBase)
 		var dbCaption string
 		var finalButtons []dbmodels.Button = pCtx.Channel.Buttons
@@ -70,11 +71,26 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 			finalButtons = []dbmodels.Button{}
 		}
 
-		if hashtag != "" {
+		// 3a. Try user-level template (!prefix) first
+		userTplFound := false
+		if prefix != "" {
+			userTpl, _ := c.UserCaptionTemplateService.GetByUserAndCode(context.Background(), pCtx.Channel.OwnerID, prefix)
+			if userTpl != nil {
+				userTplFound = true
+				formattedBase = removePrefix(formattedBase, prefix)
+				dbCaption = DetectParseMode(userTpl.Caption)
+
+				if len(userTpl.Buttons) > 0 {
+					finalButtons = convertUserTemplateButtons(userTpl.Buttons)
+				}
+			}
+		}
+
+		// 3b. Fallback to channel custom caption (#hashtag)
+		if !userTplFound && hashtag != "" {
 			custom = findCustomCaption(pCtx.Channel, hashtag)
 			if custom != nil {
-				cleanBase := removeHashtag(formattedBase, hashtag)
-				formattedBase = cleanBase
+				formattedBase = removeHashtag(formattedBase, hashtag)
 				dbCaption = DetectParseMode(custom.Caption)
 
 				if len(custom.Buttons) > 0 {
@@ -89,7 +105,7 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 
 		// 4. Fallback to Default
 		useEntities := false
-		if custom == nil && pCtx.Channel.DefaultCaption != nil {
+		if !userTplFound && custom == nil && pCtx.Channel.DefaultCaption != nil {
 			if pCtx.Channel.DefaultCaption.UseEntities && pCtx.Channel.DefaultCaption.Entities != "" {
 				// Verificar se o usuario tem conta conectada para usar entities
 				ownerID := pCtx.Channel.OwnerID
@@ -160,7 +176,7 @@ func StageTransformTelego(c *container.AppContainer) StageTelego {
 		pCtx.FinalButtons = append(finalButtons, pCtx.FinalButtons...)
 
 		if dbCaption != "" {
-			recordChannelPostEvent(c, pCtx, "caption_applied", services.ChannelEventStatusInfo, map[string]any{"custom_caption": custom != nil, "message_type": pCtx.MessageType}, nil)
+			recordChannelPostEvent(c, pCtx, "caption_applied", services.ChannelEventStatusInfo, map[string]any{"custom_caption": custom != nil, "user_template": userTplFound, "message_type": pCtx.MessageType}, nil)
 		}
 
 		if extractedDynLinks && !pCtx.Channel.DLBotReactions {

@@ -1,6 +1,5 @@
 import { useState, useEffect, memo } from 'react';
 import { SmilePlus, X } from 'lucide-react';
-import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
 
@@ -64,17 +63,14 @@ export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) 
     };
 
     return (
-        <Card>
-            <CardContent className="pt-4">
-                <div className="flex items-center gap-3 mb-4">
-                    <div className="section-icon" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                        <SmilePlus size={18} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                        <h3 className="text-[15px] font-semibold truncate">Reações / Votos (Grid)</h3>
-                        <p className="text-xs truncate text-muted-foreground">Adicione até 5 emojis para votação rápida.</p>
-                    </div>
+        <div className="content-card">
+            <div className="content-card-header">
+                <div className="content-card-icon"><SmilePlus size={18} /></div>
+                <div className="min-w-0 flex-1">
+                    <div className="content-card-title">Reações / Votos (Grid)</div>
+                    <div className="content-card-desc">Adicione até 5 emojis para votação rápida.</div>
                 </div>
+            </div>
 
                 <div>
                     <div className="grid grid-cols-5 gap-2 mb-4">
@@ -110,7 +106,6 @@ export const ReactionsCard = memo(({ reactions, onUpdate }: ReactionsCardProps) 
                         {loading ? 'Salvando...' : 'Salvar Reações'}
                     </Button>
                 </div>
-            </CardContent>
-        </Card>
+        </div>
     );
 });

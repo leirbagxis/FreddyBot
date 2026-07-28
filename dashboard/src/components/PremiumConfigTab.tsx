@@ -230,13 +230,9 @@ export function PremiumConfigTab({
                     ) : (
                         <button
                             onClick={() => setEditingCaption(true)}
-                            className="w-full text-left p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-transparent hover:border-border/50"
+                            className="w-full text-left transition-colors"
                         >
-                            {caption ? (
-                                <CaptionPreview text={caption} />
-                            ) : (
-                                <span className="text-xs text-muted-foreground italic">Toque para editar a legenda...</span>
-                            )}
+                            <CaptionPreview text={caption} />
                         </button>
                     )}
                 </CardContent>
