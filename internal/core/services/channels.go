@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
@@ -49,19 +48,23 @@ func (s *ChannelService) GetUserChannels(ctx context.Context, userID int64) ([]m
 
 func (s *ChannelService) GetChannelByID(ctx context.Context, channelID int64) (*models.Channel, error) {
 	// 1. Tenta buscar do cache (L1 ou L2)
-	channel, err := s.cache.GetChannel(ctx, channelID)
-	if err == nil && channel != nil {
-		return channel, nil
+	if s.cache != nil {
+		channel, err := s.cache.GetChannel(ctx, channelID)
+		if err == nil && channel != nil {
+			return channel, nil
+		}
 	}
 
 	// 2. Se não estiver no cache, busca do repositório
-	channel, err = s.channelRepo.GetChannelByID(ctx, channelID)
+	channel, err := s.channelRepo.GetChannelByID(ctx, channelID)
 	if err != nil {
 		return nil, errors.ErrNotFound
 	}
 
 	// 3. Salva no cache para a próxima vez
-	_ = s.cache.SetChannel(ctx, channel)
+	if s.cache != nil {
+		_ = s.cache.SetChannel(ctx, channel)
+	}
 
 	return channel, nil
 }
@@ -73,15 +76,23 @@ func (s *ChannelService) CreateChannel(ctx context.Context, channel *models.Chan
 	return nil
 }
 
-func (s *ChannelService) TransferChannel(ctx context.Context, channelID, oldOwnerID, newOwnerID int64) error {
-	err := s.channelRepo.UpdateOwnerChannel(ctx, channelID, oldOwnerID, newOwnerID)
+func (s *ChannelService) TransferChannel(ctx context.Context, actorID, channelID, newOwnerID int64, isPrivileged bool) (*models.Channel, error) {
+	channel, err := s.channelRepo.GetChannelByIDLight(ctx, channelID)
 	if err != nil {
-		if strings.Contains(err.Error(), "não encontrado") {
-			return errors.ErrNotFound
-		}
-		return errors.Internal(err)
+		return nil, errors.ErrNotFound
 	}
-	return nil
+	if !isPrivileged && channel.OwnerID != actorID {
+		return nil, errors.ErrForbidden
+	}
+
+	err = s.channelRepo.UpdateOwnerChannel(ctx, channelID, channel.OwnerID, newOwnerID)
+	if err != nil {
+		return nil, errors.Internal(err)
+	}
+	if s.cache != nil {
+		_ = s.cache.InvalidateChannel(ctx, channelID)
+	}
+	return channel, nil
 }
 
 func (s *ChannelService) CountUserChannels(ctx context.Context, userID int64) (int64, error) {
@@ -105,27 +116,32 @@ func (s *ChannelService) UpdateChannelBasicInfoAndFirstButton(ctx context.Contex
 }
 
 func (s *ChannelService) UpdateOwnerChannel(ctx context.Context, channelID, oldOwnerID, newOwnerID int64) error {
-	return s.TransferChannel(ctx, channelID, oldOwnerID, newOwnerID)
+	_, err := s.TransferChannel(ctx, oldOwnerID, channelID, newOwnerID, false)
+	return err
 }
 
 func (s *ChannelService) GetChannelByTwoID(ctx context.Context, userID, channelID int64) (*models.Channel, error) {
 	// 1. Tenta buscar do cache
-	channel, err := s.cache.GetChannel(ctx, channelID)
-	if err == nil && channel != nil {
-		// Valida se o dono é o mesmo
-		if channel.OwnerID == userID {
-			return channel, nil
+	if s.cache != nil {
+		channel, err := s.cache.GetChannel(ctx, channelID)
+		if err == nil && channel != nil {
+			// Valida se o dono é o mesmo
+			if channel.OwnerID == userID {
+				return channel, nil
+			}
 		}
 	}
 
 	// 2. Busca do repo se não estiver no cache ou se o dono for diferente (segurança)
-	channel, err = s.channelRepo.GetChannelByTwoID(ctx, userID, channelID)
+	channel, err := s.channelRepo.GetChannelByTwoID(ctx, userID, channelID)
 	if err != nil {
 		return nil, errors.ErrNotFound
 	}
 
 	// 3. Salva no cache
-	_ = s.cache.SetChannel(ctx, channel)
+	if s.cache != nil {
+		_ = s.cache.SetChannel(ctx, channel)
+	}
 
 	return channel, nil
 }

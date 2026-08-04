@@ -106,6 +106,7 @@ func InitDB() *gorm.DB {
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.Subscription{},
+		&models.PaymentIntent{},
 		&models.ServerConfig{},
 		&models.Channel{},
 		&models.ChannelEvent{},

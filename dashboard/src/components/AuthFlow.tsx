@@ -5,13 +5,11 @@ import { Input } from '@/components/ui/input';
 
 interface VerifyCodeResult {
   step: string;
-  hasPassword?: boolean;
   error?: string;
 }
 
 interface AuthFlowProps {
   initialStep?: 'phone' | 'code' | 'password';
-  hasPassword: boolean;
   error?: string;
   onSendPhone: (phone: string) => Promise<void>;
   onVerifyCode: (code: string) => Promise<VerifyCodeResult>;
@@ -53,7 +51,6 @@ function formatPhone(value: string): string {
 
 export function AuthFlow({
   initialStep = 'phone',
-  hasPassword,
   error: serverError,
   onSendPhone,
   onVerifyCode,
@@ -97,7 +94,7 @@ export function AuthFlow({
     try {
       const result = await onVerifyCode(code);
       // Usa o resultado real da API, nao a prop (que pode estar defasada)
-      if (result.step === 'password' || result.hasPassword) {
+      if (result.step === 'password') {
         setStep('password');
       } else if (result.step === 'done') {
         setSuccessMessage('Conta conectada com sucesso!');

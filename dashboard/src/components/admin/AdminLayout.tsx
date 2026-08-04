@@ -2,6 +2,8 @@ import { useState, useCallback, ReactNode } from 'react';
 import { AdminSidebar } from './AdminSidebar';
 import { AdminTopbar } from './AdminTopbar';
 import { AdminTabId } from '../../App';
+import { AdminCrmProvider } from './AdminCrmContext';
+import { Channel, User } from '../../types';
 
 interface AdminLayoutProps {
   activeTab: AdminTabId;
@@ -9,50 +11,68 @@ interface AdminLayoutProps {
   children: ReactNode;
   adminName?: string;
   adminAvatar?: string;
+  users: User[];
+  channels: Channel[];
 }
 
-export function AdminLayout({ activeTab, onTabChange, children, adminName, adminAvatar }: AdminLayoutProps) {
+export function AdminLayout({ activeTab, onTabChange, children, adminName, adminAvatar, users, channels }: AdminLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggleSidebar = useCallback(() => {
-    setMobileOpen(prev => !prev);
+    if (window.matchMedia('(max-width: 960px)').matches) {
+      setMobileOpen(prev => !prev);
+    } else {
+      setSidebarOpen(prev => !prev);
+    }
   }, []);
 
+  const handleTabChange = useCallback((tab: AdminTabId) => {
+    onTabChange(tab);
+    setMobileOpen(false);
+
+    const url = new URL(window.location.href);
+    if (tab === 'overview') url.searchParams.delete('tab');
+    else url.searchParams.set('tab', tab);
+    if (tab !== 'logs') url.searchParams.delete('channelId');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }, [onTabChange]);
+
   return (
-    <div className="admin-layout-v2">
-      {/* Sidebar */}
-      <AdminSidebar
-        activeTab={activeTab}
-        onTabChange={(tab) => {
-          onTabChange(tab);
-          setMobileOpen(false);
-        }}
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen(prev => !prev)}
-        mobileOpen={mobileOpen}
-        onMobileClose={() => setMobileOpen(false)}
-      />
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-          onClick={() => setMobileOpen(false)}
+    <AdminCrmProvider onNavigate={handleTabChange}>
+      <div className="admin-layout-v2">
+        <AdminSidebar
+          activeTab={activeTab}
+          onTabChange={handleTabChange}
+          isOpen={sidebarOpen}
+          onToggle={() => setSidebarOpen(prev => !prev)}
+          mobileOpen={mobileOpen}
         />
-      )}
 
-      {/* Main content */}
-      <div className={`admin-main-content ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
-        <AdminTopbar
-          onMenuToggle={toggleSidebar}
-          adminName={adminName}
-          adminAvatar={adminAvatar}
-        />
-        <main className="admin-page-content">
-          {children}
-        </main>
+        {mobileOpen && (
+          <button
+            type="button"
+            className="admin-mobile-overlay"
+            onClick={() => setMobileOpen(false)}
+            aria-label="Fechar menu administrativo"
+          />
+        )}
+
+        <div className={`admin-main-content ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
+          <AdminTopbar
+            activeTab={activeTab}
+            onMenuToggle={toggleSidebar}
+            onNavigate={handleTabChange}
+            adminName={adminName}
+            adminAvatar={adminAvatar}
+            users={users}
+            channels={channels}
+          />
+          <main className="admin-page-content">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </AdminCrmProvider>
   );
 }

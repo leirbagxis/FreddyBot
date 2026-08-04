@@ -21,17 +21,18 @@ func isTestMode() bool {
 }
 
 var (
-	TelegramBotToken string
-	DatabaseFile     string
-	RedisAddr        string
-	OwnerID          int64
-	SecreteKey       string
-	WebAppURL        string
-	WebhookURL       string
-	AppPort          string
-	AppEnv           string
-	JWTIssuer        string
-	CORSAllowOrigins []string
+	TelegramBotToken      string
+	DatabaseFile          string
+	RedisAddr             string
+	OwnerID               int64
+	SecreteKey            string
+	WebAppURL             string
+	WebhookURL            string
+	TelegramWebhookSecret string
+	AppPort               string
+	AppEnv                string
+	JWTIssuer             string
+	CORSAllowOrigins      []string
 
 	// StarsTestMode define se as invoices usam precos de teste (1 star).
 	// Quando true, ?test=true faz todas as invoices custarem apenas 1 star
@@ -39,8 +40,8 @@ var (
 	StarsTestMode bool
 
 	// MTProto
-	MTProtoAppID    int
-	MTProtoAppHash  string
+	MTProtoAppID   int
+	MTProtoAppHash string
 )
 
 func init() {
@@ -57,8 +58,9 @@ func init() {
 	AppPort = os.Getenv("APP_PORT")
 	SecreteKey = mustGetEnv("SECRET_KEY")
 	WebAppURL = mustGetEnv("WEBAPP_URL")
-	WebhookURL = os.Getenv("WEBHOOK_URL") // opcional
-	AppEnv = os.Getenv("APP_ENV")         // dev ou prod
+	WebhookURL = os.Getenv("WEBHOOK_URL")                        // opcional
+	TelegramWebhookSecret = os.Getenv("TELEGRAM_WEBHOOK_SECRET") // obrigatorio apenas no modo webhook
+	AppEnv = os.Getenv("APP_ENV")                                // dev ou prod
 	StarsTestMode = os.Getenv("STARS_TEST_MODE") == "true"
 	if StarsTestMode {
 		logger.Bot("🧪 Modo teste Stars ATIVADO — invoices com ?test=true custam 1 star")

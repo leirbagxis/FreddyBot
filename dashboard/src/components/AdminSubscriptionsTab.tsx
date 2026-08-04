@@ -116,14 +116,6 @@ export function AdminSubscriptionsTab({ toast }: AdminSubscriptionsTabProps) {
         });
     };
 
-    const toggleSelectAll = () => {
-        if (selected.size === filtered.length) {
-            setSelected(new Set());
-        } else {
-            setSelected(new Set(filtered.map(s => s.userId)));
-        }
-    };
-
     const handleCancel = async () => {
         const ids = Array.from(selected);
         if (ids.length === 0) return;
@@ -190,15 +182,15 @@ export function AdminSubscriptionsTab({ toast }: AdminSubscriptionsTabProps) {
 
     // ── Render ──
     return (
-        <div className="space-y-5">
+        <div className="admin-subscriptions-page space-y-5">
             {/* ── Stats Cards ── */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 {[
                     { label: 'Total', value: stats.total, icon: Crown, color: 'var(--accent)' },
-                    { label: 'Ativas', value: stats.active, icon: CheckCircle, color: '#22c55e' },
-                    { label: 'Cancelando', value: stats.cancelling, icon: Clock, color: '#eab308' },
-                    { label: 'Expiradas', value: stats.expired, icon: XCircle, color: '#ef4444' },
-                    { label: 'Com charge', value: stats.withCharge, icon: DollarSign, color: '#a855f7' },
+                    { label: 'Ativas', value: stats.active, icon: CheckCircle, color: 'var(--success)' },
+                    { label: 'Cancelando', value: stats.cancelling, icon: Clock, color: 'var(--warning)' },
+                    { label: 'Expiradas', value: stats.expired, icon: XCircle, color: 'var(--danger)' },
+                    { label: 'Com charge', value: stats.withCharge, icon: DollarSign, color: '#595956' },
                 ].map(stat => (
                     <Card key={stat.label} className="border-border/50">
                         <CardContent className="flex items-center gap-2.5 py-3 px-3.5">
@@ -467,7 +459,7 @@ export function AdminSubscriptionsTab({ toast }: AdminSubscriptionsTabProps) {
 
             {/* ── Confirm Dialog ── */}
             <Dialog open={confirmOpen} onOpenChange={(open) => { if (!open) { setConfirmOpen(false); setRefundTarget(null); } }}>
-                <DialogContent showCloseButton={false} className="sm:max-w-sm p-5 bg-[var(--bg)]">
+                <DialogContent showCloseButton={false} className="sm:max-w-sm bg-popover p-5">
                     <div className="flex flex-col gap-5">
                         <DialogHeader>
                             <div className="flex items-center justify-center size-10 rounded-xl mx-auto" style={{ background: confirmType === 'cancel' ? 'rgba(234,179,8,0.1)' : 'rgba(59,130,246,0.1)' }}>

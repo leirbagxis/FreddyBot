@@ -151,7 +151,6 @@ export function ContaTelegramTab({ startConnecting }: ContaTelegramTabProps) {
       {flowStep === 'auth' && (
         <AuthFlow
           initialStep={authStatus.step === 'password' ? 'password' : authStatus.step === 'code' ? 'code' : 'phone'}
-          hasPassword={authStatus.hasPassword || false}
           error={authStatus.error}
           onSendPhone={handleSendPhone}
           onVerifyCode={handleVerifyCode}

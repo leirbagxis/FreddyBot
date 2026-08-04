@@ -324,7 +324,7 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 				OwnerTemplateID: tpl.ID,
 			})
 		}
-		
+
 		state.Step = ""
 		c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
@@ -727,7 +727,7 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 					URL:  btn.ButtonURL,
 				})
 			}
-			
+
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
@@ -1011,9 +1011,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 					})
 				} else {
 					_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-						ChatID:      telego.ChatID{ID: chatID},
-						Text:        text,
-						ParseMode:   telego.ModeHTML,
+						ChatID:    telego.ChatID{ID: chatID},
+						Text:      text,
+						ParseMode: telego.ModeHTML,
 					})
 				}
 				return nil
@@ -1659,13 +1659,6 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 	brazilTZ := utils.BrazilTZ()
 	postData := mustMarshal(pbState)
 
-	// Get channel title
-	ch, _ := c.ChannelService.GetChannelByID(context.Background(), channelID)
-	channelTitle := "Canal"
-	if ch != nil {
-		channelTitle = ch.Title
-	}
-
 	switch scheduleState.ScheduleType {
 	case "once":
 		// Parse "DD/MM/AAAA HH:MM"
@@ -1679,7 +1672,7 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 			return
 		}
 
-		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, channelTitle, postData, services.ScheduleOptions{
+		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, postData, services.ScheduleOptions{
 			ScheduleType: "once",
 			ScheduledAt:  &parsedTime,
 		})
@@ -1711,7 +1704,7 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		}
 
 		scheduleTime := parsedTime.Format("15:04")
-		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, channelTitle, postData, services.ScheduleOptions{
+		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, postData, services.ScheduleOptions{
 			ScheduleType: "daily",
 			ScheduleTime: scheduleTime,
 		})
@@ -1762,7 +1755,7 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 			}
 		}
 
-		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, channelTitle, postData, services.ScheduleOptions{
+		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, postData, services.ScheduleOptions{
 			ScheduleType: "weekly",
 			ScheduleTime: scheduleTime,
 			ScheduleDays: days,
@@ -1795,7 +1788,7 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		}
 
 		groupID := fmt.Sprintf("queue_%d_%d", userID, time.Now().Unix())
-		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, channelTitle, postData, services.ScheduleOptions{
+		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, postData, services.ScheduleOptions{
 			ScheduleType:  "queue",
 			QueueGroupID:  groupID,
 			QueuePosition: pos,

@@ -3,7 +3,7 @@ import { Card, CardContent } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import {
-    Crown, Sparkles, Hash, Trash2, Check, Loader2, Plus, X
+    Crown, Sparkles, Hash, Trash2, Check, Loader2, X
 } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
 import { CaptionPreview } from './CaptionPreview';
@@ -66,7 +66,6 @@ export function PremiumConfigTab({
     const [separatorEmojis, setSeparatorEmojis] = useState<{ text: string; id: string }[]>([]);
     const [loadingSep, setLoadingSep] = useState(true);
     const [savingSep, setSavingSep] = useState(false);
-    const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
     const loadSeparator = useCallback(async () => {
         setLoadingSep(true);
@@ -108,7 +107,6 @@ export function PremiumConfigTab({
 
     const addEmojiToSeparator = useCallback((emojiId: string) => {
         setSeparatorEmojis(prev => [...prev, { text: emojiId, id: emojiId }]);
-        setShowEmojiPicker(false);
     }, []);
 
     const removeEmojiFromSeparator = useCallback((idx: number) => {

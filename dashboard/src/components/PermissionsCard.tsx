@@ -2,7 +2,7 @@ import { Permission } from '../types';
 import {
   MessageSquare, Headphones, Video, Image, Smile, Film, Link2, FileText
 } from 'lucide-react';
-import { memo, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Card, CardContent } from './ui/card';
 import { Badge } from './ui/badge';
 import { Switch } from './ui/switch';

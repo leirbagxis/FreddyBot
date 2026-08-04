@@ -54,6 +54,9 @@ func (s *ConnectedAccountService) SaveSession(
 	firstName string,
 	sessionData []byte,
 ) (*models.ConnectedAccount, error) {
+	if len(sessionData) == 0 {
+		return nil, errors.BadRequest("sessão MTProto vazia não pode ser salva")
+	}
 	encrypted, err := s.encryptSession(sessionData)
 	if err != nil {
 		return nil, err
@@ -107,7 +110,7 @@ func (s *ConnectedAccountService) GetSession(ctx context.Context, userID int64) 
 	if err != nil {
 		return nil, nil, err
 	}
-	if account == nil || !account.Enabled {
+	if account == nil || !account.Enabled || account.EncryptedSession == "" {
 		return nil, nil, nil
 	}
 

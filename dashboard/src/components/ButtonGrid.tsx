@@ -444,10 +444,8 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
                 <Button variant="secondary" size="sm" className="flex-1" onClick={() => startEdit(selBtn)}>
                   <Pencil size={12} /> Editar
                 </Button>
-                <Button variant="secondary" size="sm" className="flex-1" asChild>
-                  <a href={selBtn.buttonUrl} target="_blank" rel="noopener noreferrer">
-                    <ExternalLink size={12} /> Abrir
-                  </a>
+                <Button variant="secondary" size="sm" className="flex-1" onClick={() => window.open(selBtn.buttonUrl, '_blank', 'noopener,noreferrer')}>
+                  <ExternalLink size={12} /> Abrir
                 </Button>
                 <Button variant="destructive" size="sm" className="flex-1" onClick={() => setConfirmDeleteId(selBtn.buttonId)}>
                   <Trash2 size={12} /> Excluir

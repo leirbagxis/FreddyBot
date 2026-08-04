@@ -143,9 +143,9 @@ export function AdminConfigTab() {
     );
 
     return (
-        <div className="grid gap-4">
+        <div className="admin-config-page grid gap-5">
             {/* ── Sistema ── */}
-            <Card>
+            <Card className="admin-config-card admin-config-system">
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <Settings size={16} className="text-accent" />
@@ -154,7 +154,7 @@ export function AdminConfigTab() {
                     <CardDescription>Estado do bot e comportamento geral</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                    <div className="admin-config-row flex items-center justify-between gap-4 rounded-lg border border-border p-3">
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium">Manutenção</p>
                             <p className="text-xs text-muted-foreground">
@@ -167,7 +167,7 @@ export function AdminConfigTab() {
                             disabled={saving}
                         />
                     </div>
-                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                    <div className="admin-config-row flex items-center justify-between gap-4 rounded-lg border border-border p-3">
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium">Force Join</p>
                             <p className="text-xs text-muted-foreground">
@@ -184,7 +184,7 @@ export function AdminConfigTab() {
             </Card>
 
             {/* ── Legendas ── */}
-            <Card>
+            <Card className="admin-config-card admin-config-captions">
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <FileText size={16} className="text-accent" />
@@ -193,7 +193,7 @@ export function AdminConfigTab() {
                     <CardDescription>Conteúdo padrão aplicado a canais e packs</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div>
+                    <div className="admin-config-editor">
                         <p className="text-sm font-medium mb-1">Legenda Padrão Global</p>
                         <p className="text-xs text-muted-foreground mb-2">Preenche novos canais vinculados ao bot</p>
                         <RichTextEditor
@@ -202,7 +202,7 @@ export function AdminConfigTab() {
                             placeholder="Ex: @legendasbot [t.me/legendasbot](https://t.me/botusername)"
                         />
                     </div>
-                    <div>
+                    <div className="admin-config-editor">
                         <p className="text-sm font-medium mb-1">Legenda de Novo Pack</p>
                         <p className="text-xs text-muted-foreground mb-2">Valor inicial para mensagem de pack padrão</p>
                         <RichTextEditor
@@ -215,21 +215,21 @@ export function AdminConfigTab() {
             </Card>
 
             {/* ── PostBuilder ── */}
-            <Card>
+            <Card className="admin-config-card admin-config-postbuilder">
                 <CardHeader>
                     <div className="flex items-center gap-2">
                         <Wrench size={16} className="text-accent" />
                         <CardTitle>PostBuilder</CardTitle>
                     </div>
                     <CardDescription>Post permanente usado em consultas inline</CardDescription>
-                    <CardAction>
+                    <CardAction className="admin-config-card-action">
                         <Button variant="ghost" size="sm" onClick={refreshPostBuilderCache} disabled={saving || !config} title="Renovar cache do Redis">
                             <RefreshCw size={14} className={saving ? 'animate-spin' : ''} />
                         </Button>
                     </CardAction>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between gap-4 rounded-lg border border-border p-3">
+                    <div className="admin-config-row flex items-center justify-between gap-4 rounded-lg border border-border p-3">
                         <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium">Postagem fixa</p>
                             <p className="text-xs text-muted-foreground">Post permanente usado no inline com chave fixa</p>
@@ -241,7 +241,7 @@ export function AdminConfigTab() {
                         />
                     </div>
                     {fixedPostEnabled && (
-                        <div className="space-y-3 pl-1">
+                        <div className="admin-config-postbuilder-fields space-y-3 pl-1">
                             <div>
                                 <label className="text-sm font-medium">Chave fixa</label>
                                 <Input
@@ -259,7 +259,7 @@ export function AdminConfigTab() {
                                     onChange={(e) => setFixedPostPayload(e.target.value)}
                                     placeholder='{ "media_type": "photo", "media_file_id": "..." }'
                                     disabled={saving}
-                                    className="mt-1 min-h-[100px] font-mono text-xs"
+                                    className="admin-config-payload mt-1 min-h-[100px] font-mono text-xs"
                                 />
                             </div>
                             <p className="text-xs text-muted-foreground">
@@ -272,11 +272,12 @@ export function AdminConfigTab() {
                         </div>
                     )}
                 </CardContent>
-                <CardFooter className="justify-end gap-2">
+                <CardFooter className="admin-config-footer justify-end gap-2">
                     <Button
                         variant="default"
                         onClick={() => !saving && handleSave()}
                         disabled={saving}
+                        className="admin-config-save-button"
                     >
                         <Save size={15} className="mr-1.5" />
                         {saving ? 'Salvando...' : 'Salvar'}

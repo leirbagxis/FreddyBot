@@ -10,13 +10,12 @@ interface SidebarItem {
   id: AdminTabId;
   label: string;
   icon: ReactNode;
-  badge?: string | number;
   section?: string;
 }
 
 const SIDEBAR_ITEMS: SidebarItem[] = [
   { id: 'overview', label: 'Visão Geral', icon: <LayoutDashboard size={18} />, section: 'Principal' },
-  { id: 'users', label: 'Usuários', icon: <Users size={18} />, badge: '2.4k', section: 'Principal' },
+  { id: 'users', label: 'Usuários', icon: <Users size={18} />, section: 'Principal' },
   { id: 'channels', label: 'Canais', icon: <Hash size={18} />, section: 'Principal' },
   { id: 'notice', label: 'Broadcast', icon: <MessageSquare size={18} />, section: 'Operações' },
   { id: 'audit', label: 'Auditoria', icon: <Zap size={18} />, section: 'Operações' },
@@ -33,7 +32,6 @@ interface AdminSidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   mobileOpen: boolean;
-  onMobileClose?: () => void;
 }
 
 export const AdminSidebar = memo(function AdminSidebar({
@@ -49,51 +47,44 @@ export const AdminSidebar = memo(function AdminSidebar({
 
   return (
     <aside className={`admin-sidebar ${isOpen ? 'open' : 'collapsed'} ${mobileOpen ? 'mobile-open' : ''}`}>
-      {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <Zap size={20} />
-        </div>
         {isOpen && (
-          <div className="sidebar-logo-text">
-            <span className="sidebar-logo-name">FreddyBot</span>
-            <span className="sidebar-logo-sub">Admin Panel</span>
-          </div>
+          <span className="sidebar-logo-name">FreddyBot</span>
         )}
+        {!isOpen && <span className="sidebar-logo-mark">F</span>}
       </div>
 
-      {/* Navigation */}
       <nav className="sidebar-nav">
         {Object.entries(sections).map(([sectionName, items]) => (
           <div key={sectionName} className="sidebar-section">
-            {isOpen && (
+            {isOpen && sectionName !== 'Principal' && (
               <div className="sidebar-section-label">{sectionName}</div>
             )}
             {items.map((item) => (
               <button
+                type="button"
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
                 className={`sidebar-nav-item ${activeTab === item.id ? 'active' : ''}`}
                 title={!isOpen ? item.label : undefined}
+                aria-current={activeTab === item.id ? 'page' : undefined}
               >
                 <span className="sidebar-nav-icon">{item.icon}</span>
                 {isOpen && (
-                  <>
-                    <span className="sidebar-nav-label">{item.label}</span>
-                    {item.badge && (
-                      <span className="sidebar-nav-badge">{item.badge}</span>
-                    )}
-                  </>
+                  <span className="sidebar-nav-label">{item.label}</span>
                 )}
-                {activeTab === item.id && <span className="sidebar-active-indicator" />}
               </button>
             ))}
           </div>
         ))}
       </nav>
 
-      {/* Collapse toggle */}
-      <button className="sidebar-collapse-btn" onClick={onToggle}>
+      <button
+        type="button"
+        className="sidebar-collapse-btn"
+        onClick={onToggle}
+        aria-label={isOpen ? 'Recolher menu' : 'Expandir menu'}
+      >
         {isOpen ? <ChevronLeft size={16} /> : <ChevronRight size={16} />}
       </button>
     </aside>

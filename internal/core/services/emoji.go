@@ -18,9 +18,9 @@ import (
 // ── Emoji Service ──
 
 type EmojiService struct {
-	repo      *repositories.EmojiRepository
-	bot       *telego.Bot
-	client    *http.Client
+	repo       *repositories.EmojiRepository
+	bot        *telego.Bot
+	client     *http.Client
 	downloadMu sync.Map // map[string]*sync.Mutex — um mutex por emojiID
 }
 
@@ -234,10 +234,16 @@ func (s *EmojiService) downloadFile(ctx context.Context, filePath string) ([]byt
 		return nil, fmt.Errorf("HTTP %d ao baixar arquivo", resp.StatusCode)
 	}
 
-	limited := io.LimitReader(resp.Body, maxEmojiSize)
+	if resp.ContentLength > maxEmojiSize {
+		return nil, fmt.Errorf("arquivo de emoji excede %d bytes", maxEmojiSize)
+	}
+	limited := io.LimitReader(resp.Body, maxEmojiSize+1)
 	data, err := io.ReadAll(limited)
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(data)) > maxEmojiSize {
+		return nil, fmt.Errorf("arquivo de emoji excede %d bytes", maxEmojiSize)
 	}
 
 	return data, nil

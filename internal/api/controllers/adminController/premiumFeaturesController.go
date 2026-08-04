@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
-	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
@@ -49,8 +48,14 @@ func (ctrl *PremiumFeaturesController) UpdateFeature(c *gin.Context) {
 		return
 	}
 
-	feature := &models.PremiumFeature{
-		Key: key,
+	feature, err := ctrl.container.PremiumFeatureService.GetFeature(c.Request.Context(), key)
+	if err != nil {
+		_ = c.Error(err)
+		return
+	}
+	if feature == nil {
+		_ = c.Error(errors.ErrNotFound)
+		return
 	}
 
 	if req.Name != "" {
@@ -63,6 +68,10 @@ func (ctrl *PremiumFeaturesController) UpdateFeature(c *gin.Context) {
 		feature.Enabled = *req.Enabled
 	}
 	if req.Price != nil {
+		if *req.Price < 0 {
+			c.Error(errors.BadRequest("Preço não pode ser negativo"))
+			return
+		}
 		feature.Price = *req.Price
 	}
 

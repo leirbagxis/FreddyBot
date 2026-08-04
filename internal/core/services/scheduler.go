@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	apperrors "github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 )
@@ -28,18 +30,21 @@ type ScheduleOptions struct {
 }
 
 type SchedulerService struct {
-	repo        *repositories.ScheduledPostRepository
+	repo         *repositories.ScheduledPostRepository
+	channelRepo  *repositories.ChannelRepository
 	cacheService *cache.Service
-	bot         *telego.Bot
+	bot          *telego.Bot
 }
 
 func NewSchedulerService(
 	repo *repositories.ScheduledPostRepository,
+	channelRepo *repositories.ChannelRepository,
 	cacheService *cache.Service,
 	bot *telego.Bot,
 ) *SchedulerService {
 	return &SchedulerService{
 		repo:         repo,
+		channelRepo:  channelRepo,
 		cacheService: cacheService,
 		bot:          bot,
 	}
@@ -65,9 +70,13 @@ func (s *SchedulerService) Start(ctx context.Context) {
 
 func (s *SchedulerService) processDuePosts() {
 	ctx := context.Background()
-	posts, err := s.repo.GetDuePosts(ctx, time.Now())
+	now := time.Now()
+	if err := s.repo.RecoverStaleClaims(ctx, now.Add(-5*time.Minute)); err != nil {
+		logger.Error("SCHEDULER", "Erro ao recuperar posts interrompidos: %v", err)
+	}
+	posts, err := s.repo.ClaimDuePosts(ctx, now)
 	if err != nil {
-		logger.Error("SCHEDULER", "Erro ao buscar posts pendentes: %v", err)
+		logger.Error("SCHEDULER", "Erro ao reivindicar posts pendentes: %v", err)
 		return
 	}
 
@@ -353,20 +362,42 @@ func (s *SchedulerService) resetQueue(ctx context.Context, queueGroupID string, 
 }
 
 func parseHHMM(s string) (int, int) {
-	parts := strings.Split(s, ":")
-	if len(parts) != 2 {
+	hour, min, err := validateScheduleTime(s)
+	if err != nil {
 		return 12, 0
 	}
-	hour := 0
-	min := 0
-	fmt.Sscanf(parts[0], "%d", &hour)
-	fmt.Sscanf(parts[1], "%d", &min)
 	return hour, min
+}
+
+func validateScheduleTime(s string) (int, int, error) {
+	parts := strings.Split(s, ":")
+	if len(parts) != 2 || len(parts[0]) != 2 || len(parts[1]) != 2 {
+		return 0, 0, fmt.Errorf("horário inválido, use HH:MM")
+	}
+	hour, err := strconv.Atoi(parts[0])
+	if err != nil || hour < 0 || hour > 23 {
+		return 0, 0, fmt.Errorf("hora inválida, use HH:MM")
+	}
+	min, err := strconv.Atoi(parts[1])
+	if err != nil || min < 0 || min > 59 {
+		return 0, 0, fmt.Errorf("minuto inválido, use HH:MM")
+	}
+	return hour, min, nil
 }
 
 // CRUD methods
 
-func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, channelID int64, channelTitle, postData string, opts ScheduleOptions) (*models.ScheduledPost, error) {
+func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, channelID int64, postData string, opts ScheduleOptions) (*models.ScheduledPost, error) {
+	channel, err := s.channelRepo.GetChannelByIDLight(ctx, channelID)
+	if err != nil || channel.OwnerID != ownerID {
+		return nil, apperrors.ErrForbidden
+	}
+	if opts.ScheduleType == "daily" || opts.ScheduleType == "weekly" {
+		if _, _, err := validateScheduleTime(opts.ScheduleTime); err != nil {
+			return nil, apperrors.BadRequest(err.Error())
+		}
+	}
+
 	limit, _ := s.repo.CountByOwner(ctx, ownerID)
 	if limit >= 50 {
 		return nil, fmt.Errorf("limite de 50 agendamentos ativos atingido")
@@ -395,23 +426,23 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 	}
 
 	post := &models.ScheduledPost{
-		ID:             id,
-		OwnerID:        ownerID,
-		ChannelID:      channelID,
-		ChannelTitle:   channelTitle,
-		PostData:       postData,
-		ScheduleType:   opts.ScheduleType,
-		ScheduleTime:   opts.ScheduleTime,
-		ScheduledAt:    opts.ScheduledAt,
-		ScheduleDays:   scheduleDaysStr,
-		NextRunAt:      nextRunAt,
-		RepeatUntil:    opts.RepeatUntil,
-		QueueGroupID:   opts.QueueGroupID,
-		QueuePosition:  opts.QueuePosition,
-		LoopQueue:      opts.LoopQueue,
-		PinMessage:     opts.PinMessage,
-		Status:         "pending",
-		SentCount:      0,
+		ID:            id,
+		OwnerID:       ownerID,
+		ChannelID:     channelID,
+		ChannelTitle:  channel.Title,
+		PostData:      postData,
+		ScheduleType:  opts.ScheduleType,
+		ScheduleTime:  opts.ScheduleTime,
+		ScheduledAt:   opts.ScheduledAt,
+		ScheduleDays:  scheduleDaysStr,
+		NextRunAt:     nextRunAt,
+		RepeatUntil:   opts.RepeatUntil,
+		QueueGroupID:  opts.QueueGroupID,
+		QueuePosition: opts.QueuePosition,
+		LoopQueue:     opts.LoopQueue,
+		PinMessage:    opts.PinMessage,
+		Status:        "pending",
+		SentCount:     0,
 	}
 
 	if err := s.repo.Create(ctx, post); err != nil {
@@ -468,13 +499,36 @@ func (s *SchedulerService) DeleteScheduledPost(ctx context.Context, id string, o
 	return s.repo.Delete(ctx, id)
 }
 
-func (s *SchedulerService) UpdateScheduleTime(ctx context.Context, id string, ownerID int64, nextRunAt time.Time, scheduleTime string) error {
+func (s *SchedulerService) UpdateScheduleTime(ctx context.Context, id string, ownerID int64, nextRunAt *time.Time, scheduleTime string) error {
 	post, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return err
 	}
 	if post.OwnerID != ownerID {
 		return fmt.Errorf("não autorizado")
+	}
+	if scheduleTime != "" {
+		if _, _, err := validateScheduleTime(scheduleTime); err != nil {
+			return apperrors.BadRequest(err.Error())
+		}
+		if nextRunAt == nil {
+			switch post.ScheduleType {
+			case "daily":
+				hour, min := parseHHMM(scheduleTime)
+				now := time.Now().In(utils.BrazilTZ())
+				next := time.Date(now.Year(), now.Month(), now.Day(), hour, min, 0, 0, utils.BrazilTZ()).UTC()
+				if !next.After(time.Now().UTC()) {
+					next = next.AddDate(0, 0, 1)
+				}
+				nextRunAt = &next
+			case "weekly":
+				copyPost := *post
+				copyPost.ScheduleTime = scheduleTime
+				if next := s.calculateNextWeekly(&copyPost); next != nil {
+					nextRunAt = next
+				}
+			}
+		}
 	}
 	return s.repo.UpdateScheduleTime(ctx, id, nextRunAt, scheduleTime)
 }

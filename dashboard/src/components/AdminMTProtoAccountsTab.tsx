@@ -13,7 +13,7 @@ import { Button } from './ui/button';
 import { Switch } from './ui/switch';
 import { Input } from './ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from './ui/card';
-import { UserCheck, UserX, Trash2, Phone, Key, Lock, CheckCircle, XCircle, Loader2, Plus, ChevronRight, Clock, Database, Activity } from 'lucide-react';
+import { UserCheck, UserX, Trash2, Phone, Key, Lock, CheckCircle, Loader2, Plus, ChevronRight, Clock, Database } from 'lucide-react';
 
 type AuthPhase = 'idle' | 'phone' | 'code' | 'password' | 'done';
 
@@ -26,7 +26,6 @@ export function AdminMTProtoAccountsTab() {
   const [authPhone, setAuthPhone] = useState('');
   const [authCode, setAuthCode] = useState('');
   const [authPassword, setAuthPassword] = useState('');
-  const [authHasPassword, setAuthHasPassword] = useState(false);
   const [authLoading, setAuthLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const toast = useToast();
@@ -53,7 +52,6 @@ export function AdminMTProtoAccountsTab() {
     setAuthCode('');
     setAuthPassword('');
     setAuthError('');
-    setAuthHasPassword(false);
   };
 
   const handleCancelAuth = () => {
@@ -97,7 +95,6 @@ export function AdminMTProtoAccountsTab() {
       if (result.step === 'error') {
         setAuthError(result.error || 'Código inválido');
       } else if (result.step === 'password') {
-        setAuthHasPassword(true);
         setAuthPhase('password');
       } else if (result.step === 'done') {
         setAuthPhase('done');
@@ -194,7 +191,7 @@ export function AdminMTProtoAccountsTab() {
   }
 
   return (
-    <div className="grid gap-4">
+    <div className="admin-accounts-page grid gap-5">
 
       <Card>
         <CardHeader>

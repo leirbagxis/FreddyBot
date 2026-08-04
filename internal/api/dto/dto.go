@@ -12,6 +12,12 @@ type UserDTO struct {
 	Channels      []ChannelDTO `json:"channels,omitempty"`
 }
 
+type UserLookupDTO struct {
+	ID        int64  `json:"id"`
+	FirstName string `json:"first_name"`
+	Username  string `json:"username"`
+}
+
 type ChannelDTO struct {
 	ID                     int64              `json:"id"`
 	Title                  string             `json:"title"`

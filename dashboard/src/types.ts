@@ -195,9 +195,10 @@ export interface SubscriptionStatus {
 
 /* ===== Connected Account (MTProto) ===== */
 export interface AccountStatus {
-  status: 'connected' | 'disconnected';
-  telegramId?: number;
-  username?: string;
+	status: 'connected' | 'disconnected';
+	telegramId?: number;
+	username?: string;
+	firstName?: string;
   avatarUrl?: string;
   connectedAt?: string;
   lastUsedAt?: string;
@@ -311,7 +312,7 @@ export interface UserCaptionTemplate {
   userId: number;
   code: string;
   caption: string;
-  buttons: ButtonType[];
+	buttons: Button[];
   reactionPosition?: number;
   reactions?: string;
 }

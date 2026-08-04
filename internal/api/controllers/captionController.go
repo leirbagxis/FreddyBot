@@ -2,8 +2,13 @@ package controllers
 
 import (
 	"context"
+	"fmt"
+	"io"
+	"mime"
 	"net/http"
+	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
@@ -11,6 +16,8 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/mymmrac/telego"
 )
+
+const maxChannelPhotoBytes = 10 << 20
 
 type CaptionController struct {
 	container *container.AppContainer
@@ -199,7 +206,30 @@ func (c *CaptionController) UpdateNativeReactionsEnabledController(ctx *gin.Cont
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Reações nativas "+map[bool]string{true: "ativadas", false: "desativadas"}[req.Enabled]))
 }
 
-// GetChannelPhotoController busca a foto do canal via Telegram Bot API e redireciona.
+func downloadTelegramFile(ctx context.Context, client *http.Client, downloadURL string, maxBytes int64) ([]byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, downloadURL, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("telegram returned HTTP %d", resp.StatusCode)
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("telegram file exceeds %d bytes", maxBytes)
+	}
+	return data, nil
+}
+
+// GetChannelPhotoController busca a foto do canal no servidor sem expor a URL de download do Telegram.
 func (c *CaptionController) GetChannelPhotoController(ctx *gin.Context) {
 	channelIdStr := ctx.Param("channelId")
 	channelId, err := strconv.ParseInt(channelIdStr, 10, 64)
@@ -231,6 +261,16 @@ func (c *CaptionController) GetChannelPhotoController(ctx *gin.Context) {
 		return
 	}
 
-	downloadURL := bot.FileDownloadURL(file.FilePath)
-	ctx.Redirect(http.StatusFound, downloadURL)
+	data, err := downloadTelegramFile(ctx.Request.Context(), &http.Client{Timeout: 15 * time.Second}, bot.FileDownloadURL(file.FilePath), maxChannelPhotoBytes)
+	if err != nil {
+		ctx.Error(errors.New(http.StatusBadGateway, "Não foi possível baixar a foto"))
+		return
+	}
+
+	contentType := mime.TypeByExtension(filepath.Ext(file.FilePath))
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+	ctx.Header("Cache-Control", "private, max-age=3600")
+	ctx.Data(http.StatusOK, contentType, data)
 }

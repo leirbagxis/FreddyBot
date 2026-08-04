@@ -1,11 +1,12 @@
-import { Dispatch, SetStateAction, useState } from 'react';
+import { Dispatch, SetStateAction, useEffect, useMemo, useState } from 'react';
 import {
     Users, Hash, Globe, MousePointerClick,
     Trash2, Link2, MessageSquare, Plus, Image as ImageIcon,
-    Send, Eye
+    Send, Eye, Radio, ShieldAlert
 } from 'lucide-react';
 import { RichTextEditor } from './RichTextEditor';
 import { NoticeButton, NoticeTarget } from '../api';
+import { Channel, User } from '../types';
 import { ConfirmModal } from './ConfirmModal';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
@@ -28,6 +29,8 @@ interface AdminNoticeTabProps {
     removeNoticeButton: (index: number) => void;
     handleSendNotice: () => void;
     isSendingNotice: boolean;
+    users: User[];
+    channels: Channel[];
 }
 
 const targets: { id: NoticeTarget; label: string; icon: React.ReactNode; desc: string }[] = [
@@ -39,6 +42,15 @@ const targets: { id: NoticeTarget; label: string; icon: React.ReactNode; desc: s
     { id: 'channel_ids', label: 'IDs Canais', icon: <Hash size={16} />, desc: 'Lista personalizada' },
 ];
 
+function escapeHtml(value: string): string {
+    return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 export function AdminNoticeTab({
     noticeMessage, setNoticeMessage,
     noticeImageUrl, setNoticeImageUrl,
@@ -46,15 +58,32 @@ export function AdminNoticeTab({
     noticeTargetId, setNoticeTargetId,
     noticeButtons, handleAddNoticeButton,
     updateNoticeButton, removeNoticeButton,
-    handleSendNotice, isSendingNotice
+    handleSendNotice, isSendingNotice, users, channels
 }: AdminNoticeTabProps) {
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+    const [imageUnavailable, setImageUnavailable] = useState(false);
+
+    useEffect(() => setImageUnavailable(false), [noticeImageUrl]);
+
+    const targetIds = useMemo(() => noticeTargetId
+        .split(/[\s,;]+/)
+        .map((value) => Number.parseInt(value.trim(), 10))
+        .filter((value) => Number.isFinite(value) && value !== 0), [noticeTargetId]);
+
+    const recipientCount = useMemo(() => {
+        if (noticeTarget === 'all') return new Set([...users.map((user) => user.id), ...channels.map((channel) => channel.id)]).size;
+        if (noticeTarget === 'users') return users.length;
+        if (noticeTarget === 'channels') return channels.length;
+        if (noticeTarget === 'single') return targetIds.length ? 1 : 0;
+        return new Set(targetIds).size;
+    }, [channels, noticeTarget, targetIds, users]);
 
     const maxChars = noticeImageUrl.trim() ? 1024 : 4096;
     const isOverLimit = noticeMessage.length > maxChars;
     const hasEmptyButtons = noticeButtons.some(b => !b.text.trim() || !b.value.trim());
     const specificTarget = noticeTarget === 'single' || noticeTarget === 'user_ids' || noticeTarget === 'channel_ids';
-    const isReady = noticeMessage.trim().length > 0 && !isOverLimit && !hasEmptyButtons && (!specificTarget || noticeTargetId.trim().length > 5);
+    const isReady = noticeMessage.trim().length > 0 && !isOverLimit && !hasEmptyButtons && (!specificTarget || recipientCount > 0);
+    const selectedTarget = targets.find((item) => item.id === noticeTarget) || targets[0];
 
     const renderPreview = () => {
         let previewUrl = noticeImageUrl;
@@ -64,7 +93,7 @@ export function AdminNoticeTab({
 
         const headerHtml = noticeTarget === 'single' || noticeTarget === 'user_ids' ? '<b>MENSAGEM DO SUPORTE</b><br/><br/>' : '';
 
-        let htmlContent = noticeMessage
+        let htmlContent = escapeHtml(noticeMessage)
             .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
             .replace(/__(.*?)__/g, '<i>$1</i>')
             .replace(/~~(.*?)~~/g, '<s>$1</s>')
@@ -74,9 +103,10 @@ export function AdminNoticeTab({
 
         return (
             <div className="bg-muted/30 shadow-sm p-3 rounded-2xl rounded-bl-sm max-w-[320px] w-full mx-auto text-[14px] text-foreground leading-relaxed">
-                {noticeImageUrl && (
-                    <img src={previewUrl} alt="Preview" className="w-full rounded-xl mb-2 object-contain max-h-[350px] bg-background" onError={(e) => (e.currentTarget.style.display = 'none')} />
+                {noticeImageUrl && !imageUnavailable && (
+                    <img src={previewUrl} alt="Prévia da mídia do broadcast" className="w-full rounded-xl mb-2 object-contain max-h-[350px] bg-background" onError={() => setImageUnavailable(true)} />
                 )}
+                {noticeImageUrl && imageUnavailable && <p className="broadcast-preview-media-error">A imagem não pôde ser carregada na prévia.</p>}
                 <div dangerouslySetInnerHTML={{ __html: headerHtml + (htmlContent || '<span class="text-muted-foreground/50 font-medium">Sua mensagem aparecerá aqui...</span>') }} className="mb-2 break-words" />
                 {noticeButtons.length > 0 && (
                     <div className="flex flex-col gap-1.5 mt-3 pt-2 border-t border-border">
@@ -92,181 +122,92 @@ export function AdminNoticeTab({
     };
 
     return (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {/* ─── Form ─── */}
-            <div className="space-y-4">
-                {/* Image URL */}
-                <div className="rounded-xl border border-border p-4 space-y-2">
-                    <label className="text-[12px] font-semibold text-muted-foreground flex items-center gap-1.5">
-                        <ImageIcon size={14} /> URL da Imagem / GIF <Badge variant="secondary" className="text-[9px]">Opcional</Badge>
-                    </label>
-                    <Input
-                        placeholder="https://exemplo.com/imagem.jpg"
-                        value={noticeImageUrl}
-                        onChange={(e) => setNoticeImageUrl(e.target.value)}
-                        className="h-10 rounded-xl"
-                    />
-                </div>
-
-                {/* Message */}
-                <div className="rounded-xl border border-border p-4 space-y-2">
-                    <div className="flex items-center justify-between">
-                        <label className="text-[12px] font-semibold text-muted-foreground">Mensagem <span className="text-muted-foreground/50">(Markdown)</span></label>
-                        <span className={`text-[11px] font-medium ${isOverLimit ? 'text-destructive' : 'text-muted-foreground'}`}>
-                            {noticeMessage.length} / {maxChars}
-                        </span>
+        <div className="admin-notice-page broadcast-workspace">
+            <section className="broadcast-composer" aria-label="Composição do broadcast">
+                <header className="broadcast-intro">
+                    <div>
+                        <span>Comunicação</span>
+                        <h2>Novo broadcast</h2>
+                        <p>Defina o público, escreva a mensagem e revise antes de iniciar o envio.</p>
                     </div>
-                    <RichTextEditor
-                        value={noticeMessage}
-                        onChange={setNoticeMessage}
-                        placeholder="Digite o conteúdo da mensagem..."
-                        rows={6}
-                    />
-                </div>
+                    <Radio size={19} aria-hidden="true" />
+                </header>
 
-                {/* Target */}
-                <div className="rounded-xl border border-border p-4 space-y-3">
-                    <label className="text-[12px] font-semibold text-muted-foreground">Público-Alvo</label>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                <section className="broadcast-section" aria-labelledby="broadcast-audience-title">
+                    <div className="broadcast-section-heading">
+                        <div><span>01</span><h3 id="broadcast-audience-title">Alcance</h3></div>
+                        <strong>{recipientCount.toLocaleString('pt-BR')} destinatário{recipientCount === 1 ? '' : 's'}</strong>
+                    </div>
+                    <div className="broadcast-targets" role="radiogroup" aria-label="Público-alvo">
                         {targets.map((item) => (
-                            <button
-                                key={item.id}
-                                onClick={() => setNoticeTarget(item.id)}
-                                className={`flex flex-col items-center gap-1 p-2.5 rounded-xl border text-center transition-all ${
-                                    noticeTarget === item.id
-                                        ? 'border-accent bg-accent/10 text-accent'
-                                        : 'border-border text-muted-foreground hover:border-muted-foreground/30'
-                                }`}
-                            >
-                                <span className={noticeTarget === item.id ? 'text-accent' : 'text-muted-foreground/60'}>
-                                    {item.icon}
-                                </span>
-                                <span className="text-[11px] font-semibold leading-tight">{item.label}</span>
+                            <button type="button" key={item.id} onClick={() => setNoticeTarget(item.id)} role="radio" aria-checked={noticeTarget === item.id} className={noticeTarget === item.id ? 'is-selected' : ''}>
+                                {item.icon}<span><b>{item.label}</b><small>{item.desc}</small></span>
                             </button>
                         ))}
                     </div>
-
                     {specificTarget && (
-                        <div className="space-y-1.5 pt-1">
-                            <label className="text-[11px] font-semibold text-muted-foreground">
-                                {noticeTarget === 'channel_ids' ? 'IDs dos Canais' : noticeTarget === 'user_ids' ? 'IDs dos Usuários' : 'ID do Usuário'}
-                            </label>
-                            <Textarea
-                                placeholder={noticeTarget === 'channel_ids' ? 'Ex: -1001234567890, -1009876543210' : 'Ex: 12345678, 987654321'}
-                                value={noticeTargetId}
-                                onChange={(e) => setNoticeTargetId(e.target.value)}
-                                rows={noticeTarget === 'single' ? 1 : 3}
-                                className="rounded-xl resize-none"
-                            />
-                            <p className="text-[11px] text-muted-foreground">
-                                {noticeTarget === 'channel_ids' ? 'Canais específicos não recebem título de suporte.' : 'Separe IDs por vírgula, espaço ou quebra de linha.'}
-                            </p>
+                        <div className="broadcast-id-field">
+                            <label htmlFor="broadcast-target-ids">{noticeTarget === 'channel_ids' ? 'IDs dos canais' : noticeTarget === 'user_ids' ? 'IDs dos usuários' : 'ID do usuário'}</label>
+                            <Textarea id="broadcast-target-ids" placeholder={noticeTarget === 'channel_ids' ? 'Ex.: -1001234567890, -1009876543210' : 'Ex.: 12345678, 987654321'} value={noticeTargetId} onChange={(event) => setNoticeTargetId(event.target.value)} rows={noticeTarget === 'single' ? 1 : 3} className="resize-none" />
+                            <p className={noticeTargetId.trim() && recipientCount === 0 ? 'is-invalid' : ''}>{recipientCount ? `${recipientCount} ID${recipientCount === 1 ? '' : 's'} válido${recipientCount === 1 ? '' : 's'} para este envio.` : 'Separe IDs por vírgula, espaço ou quebra de linha.'}</p>
                         </div>
                     )}
-                </div>
+                </section>
 
-                {/* Buttons */}
-                <div className="rounded-xl border border-border p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <label className="text-[12px] font-semibold text-muted-foreground flex items-center gap-1.5">
-                                <MousePointerClick size={14} /> Botões Inline
-                            </label>
-                            <p className="text-[11px] text-muted-foreground/60 mt-0.5">{noticeButtons.length}/5 adicionados</p>
-                        </div>
-                        <button
-                            onClick={handleAddNoticeButton}
-                            disabled={noticeButtons.length >= 5}
-                            className="flex items-center justify-center w-8 h-8 rounded-full bg-accent/10 text-accent hover:bg-accent/20 transition-all disabled:opacity-30"
-                            title="Adicionar Botão"
-                        >
-                            <Plus size={18} />
-                        </button>
+                <section className="broadcast-section" aria-labelledby="broadcast-message-title">
+                    <div className="broadcast-section-heading">
+                        <div><span>02</span><h3 id="broadcast-message-title">Mensagem</h3></div>
+                        <strong className={isOverLimit ? 'is-invalid' : ''}>{noticeMessage.length} / {maxChars}</strong>
                     </div>
+                    <RichTextEditor value={noticeMessage} onChange={setNoticeMessage} placeholder="Escreva a mensagem que será enviada..." rows={7} />
+                    <p className="broadcast-help">Use Markdown para destaque. Com imagem, o Telegram limita a legenda a {maxChars.toLocaleString('pt-BR')} caracteres.</p>
+                </section>
 
-                    <div className="space-y-2">
-                        {noticeButtons.map((btn, idx) => (
-                            <div key={idx} className="rounded-xl border border-border overflow-hidden">
-                                <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-muted/20 gap-2">
-                                    <div className="flex items-center gap-2 flex-1">
-                                        {btn.type === 'url' ? <Link2 size={14} className="text-muted-foreground" /> : <MessageSquare size={14} className="text-muted-foreground" />}
-                                        <Select value={btn.type} onValueChange={(v) => updateNoticeButton(idx, 'type', v)}>
-                                            <SelectTrigger className="bg-transparent text-[12px] font-medium h-auto p-0 border-0 shadow-none gap-1">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="url">Link Externo</SelectItem>
-                                                <SelectItem value="callback">Callback</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <button
-                                        onClick={() => removeNoticeButton(idx)}
-                                        className="text-destructive/50 hover:text-destructive hover:bg-destructive/10 p-1 rounded-lg transition-colors"
-                                    >
-                                        <Trash2 size={14} />
-                                    </button>
+                <section className="broadcast-section broadcast-media" aria-labelledby="broadcast-media-title">
+                    <div className="broadcast-section-heading">
+                        <div><span>03</span><h3 id="broadcast-media-title">Mídia</h3></div>
+                        <Badge variant="secondary">Opcional</Badge>
+                    </div>
+                    <label className="broadcast-media-input"><ImageIcon size={16} aria-hidden="true" /><span>URL da imagem ou GIF</span><Input placeholder="https://exemplo.com/imagem.jpg" value={noticeImageUrl} onChange={(event) => setNoticeImageUrl(event.target.value)} /></label>
+                </section>
+
+                <section className="broadcast-section" aria-labelledby="broadcast-buttons-title">
+                    <div className="broadcast-section-heading">
+                        <div><span>04</span><h3 id="broadcast-buttons-title">Botões</h3></div>
+                        <button type="button" className="broadcast-add-button" onClick={handleAddNoticeButton} disabled={noticeButtons.length >= 5}><Plus size={15} /> Adicionar</button>
+                    </div>
+                    {noticeButtons.length ? <div className="broadcast-buttons-list">
+                        {noticeButtons.map((btn, index) => (
+                            <div className="broadcast-button-row" key={index}>
+                                <div className="broadcast-button-row-top">
+                                    {btn.type === 'url' ? <Link2 size={15} aria-hidden="true" /> : <MessageSquare size={15} aria-hidden="true" />}
+                                    <Select value={btn.type} onValueChange={(value) => updateNoticeButton(index, 'type', value ?? '')}>
+                                        <SelectTrigger aria-label={`Tipo do botão ${index + 1}`}><SelectValue /></SelectTrigger>
+                                        <SelectContent><SelectItem value="url">Link externo</SelectItem><SelectItem value="callback">Callback</SelectItem></SelectContent>
+                                    </Select>
+                                    <button type="button" onClick={() => removeNoticeButton(index)} aria-label={`Remover botão ${index + 1}`}><Trash2 size={15} /></button>
                                 </div>
-                                <div className="p-3 flex flex-col sm:flex-row gap-2">
-                                    <Input
-                                        placeholder="Nome (Ex: Entrar)"
-                                        className="flex-1 h-9 rounded-lg"
-                                        value={btn.text}
-                                        onChange={(e) => updateNoticeButton(idx, 'text', e.target.value)}
-                                        maxLength={30}
-                                    />
-                                    <Input
-                                        placeholder={btn.type === 'url' ? 'https://...' : 'Comando'}
-                                        className="flex-[1.5] h-9 rounded-lg"
-                                        value={btn.value}
-                                        onChange={(e) => updateNoticeButton(idx, 'value', e.target.value)}
-                                        maxLength={100}
-                                    />
-                                </div>
+                                <div><Input placeholder="Texto do botão" value={btn.text} onChange={(event) => updateNoticeButton(index, 'text', event.target.value)} maxLength={30} /><Input placeholder={btn.type === 'url' ? 'https://...' : 'Comando'} value={btn.value} onChange={(event) => updateNoticeButton(index, 'value', event.target.value)} maxLength={100} /></div>
                             </div>
                         ))}
-                    </div>
-                </div>
+                    </div> : <p className="broadcast-empty-buttons">Nenhum botão adicionado. Use botões apenas quando houver uma ação clara.</p>}
+                </section>
 
-                {/* Send button */}
-                <Button
-                    variant="default"
-                    className="w-full h-12 font-bold shadow-lg shadow-accent/20"
-                    onClick={() => setIsConfirmOpen(true)}
-                    disabled={isSendingNotice || !isReady}
-                >
-                    {isSendingNotice ? 'Enviando...' : <><Send size={18} /> Revisar &amp; Disparar</>}
-                </Button>
-            </div>
-
-            {/* ─── Preview ─── */}
-            <div className="rounded-xl border border-border p-4 flex flex-col min-h-[300px]">
-                <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-[13px] font-bold flex items-center gap-2">
-                        <Eye size={16} className="text-accent" /> Pré-visualização
-                    </h3>
-                    <Badge variant="secondary" className="text-[9px] tracking-wide uppercase">Telegram View</Badge>
+                <div className="broadcast-submit-row">
+                    {!isReady && <p><ShieldAlert size={15} aria-hidden="true" /> Complete a mensagem e revise o público antes de continuar.</p>}
+                    <Button variant="default" onClick={() => setIsConfirmOpen(true)} disabled={isSendingNotice || !isReady}>{isSendingNotice ? 'Iniciando envio...' : <><Send size={16} /> Revisar e iniciar</>}</Button>
                 </div>
-                <div className="flex-1 bg-muted/20 border border-border rounded-2xl p-4 flex items-center justify-center min-h-[280px]">
-                    {renderPreview()}
-                </div>
-            </div>
+            </section>
 
-            <ConfirmModal
-                open={isConfirmOpen}
-                onClose={() => setIsConfirmOpen(false)}
-                onConfirm={handleSendNotice}
-                title="Confirmar Disparo em Massa"
-                message={`Você está prestes a enviar uma mensagem para ${
-                    noticeTarget === 'all' ? 'todos os usuários e canais cadastrados' :
-                    noticeTarget === 'channels' ? 'todos os canais cadastrados' :
-                    noticeTarget === 'users' ? 'todos os usuários do bot' :
-                    noticeTarget === 'channel_ids' ? 'os canais informados' :
-                    'os usuários informados'
-                }. Tem certeza?`}
-                confirmText="Sim, Disparar Agora"
-                danger={true}
-            />
+            <aside className="broadcast-preview-panel" aria-label="Resumo e pré-visualização">
+                <header><div><span>Resumo do envio</span><h2>{selectedTarget.label}</h2></div><Eye size={18} aria-hidden="true" /></header>
+                <dl className="broadcast-summary"><div><dt>Alcance estimado</dt><dd>{recipientCount.toLocaleString('pt-BR')}</dd></div><div><dt>Formato</dt><dd>{noticeImageUrl ? 'Imagem + legenda' : 'Mensagem'}</dd></div><div><dt>Botões</dt><dd>{noticeButtons.length}</dd></div></dl>
+                <p className="broadcast-disclaimer">A estimativa usa a base carregada agora. O servidor confirma apenas o início do processamento, não a entrega individual.</p>
+                <div className="broadcast-preview-heading"><span>Prévia no Telegram</span><Badge variant="secondary">Ao vivo</Badge></div>
+                <div className="broadcast-preview-stage">{renderPreview()}</div>
+            </aside>
+
+            <ConfirmModal open={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleSendNotice} title="Iniciar broadcast?" message={`Você iniciará um envio para aproximadamente ${recipientCount.toLocaleString('pt-BR')} destinatário${recipientCount === 1 ? '' : 's'} em “${selectedTarget.label}”. O processamento seguirá em segundo plano.`} confirmText="Iniciar envio" danger />
         </div>
     );
 }

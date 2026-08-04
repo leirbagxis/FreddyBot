@@ -77,7 +77,7 @@ func (r *ConnectedAccountRepository) UpdateLastUsed(ctx context.Context, id stri
 func (r *ConnectedAccountRepository) HasActiveAccount(ctx context.Context, userID int64) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&models.ConnectedAccount{}).
-		Where("user_id = ? AND enabled = ?", userID, true).
+		Where("user_id = ? AND enabled = ? AND encrypted_session <> ?", userID, true, "").
 		Count(&count).Error
 	if err != nil {
 		return false, errors.Internal(err)

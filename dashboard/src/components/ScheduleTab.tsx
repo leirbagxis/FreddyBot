@@ -47,7 +47,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
       const all = await fetchMySchedules();
       setSchedules(all.filter((s: ScheduledPost) => s.channelId === channelId));
     } catch {
-      toast.showToast('Erro ao carregar agendamentos', 'error');
+      toast('Erro ao carregar agendamentos', 'error');
     } finally {
       setLoading(false);
     }
@@ -60,9 +60,9 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
       setSchedules(prev =>
         prev.map(s => (s.id === schedule.id ? { ...s, status: newStatus } : s))
       );
-      toast.showToast(newStatus === 'paused' ? 'Agendamento pausado' : 'Agendamento retomado', 'success');
+      toast(newStatus === 'paused' ? 'Agendamento pausado' : 'Agendamento retomado', 'success');
     } catch {
-      toast.showToast('Erro ao atualizar agendamento', 'error');
+      toast('Erro ao atualizar agendamento', 'error');
     }
   };
 
@@ -70,9 +70,9 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
     try {
       await deleteSchedule(schedule.id);
       setSchedules(prev => prev.filter(s => s.id !== schedule.id));
-      toast.showToast('Agendamento removido', 'success');
+      toast('Agendamento removido', 'success');
     } catch {
-      toast.showToast('Erro ao remover agendamento', 'error');
+      toast('Erro ao remover agendamento', 'error');
     }
   };
 
@@ -83,9 +83,9 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
       setSchedules(prev =>
         prev.map(s => (s.id === schedule.id ? { ...s, pinMessage: newPin } : s))
       );
-      toast.showToast(newPin ? 'Mensagem será fixada no canal' : 'Mensagem não será mais fixada', 'success');
+      toast(newPin ? 'Mensagem será fixada no canal' : 'Mensagem não será mais fixada', 'success');
     } catch {
-      toast.showToast('Erro ao alterar fixação', 'error');
+      toast('Erro ao alterar fixação', 'error');
     }
   };
 
@@ -107,7 +107,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
   const handleSaveEdit = async () => {
     if (!editingSchedule) return;
     if (!editDate || !editTime) {
-      toast.showToast('Preencha data e horário', 'error');
+      toast('Preencha data e horário', 'error');
       return;
     }
 
@@ -133,10 +133,10 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
         })
       );
       
-      toast.showToast('Agendamento atualizado com sucesso', 'success');
+      toast('Agendamento atualizado com sucesso', 'success');
       closeEditModal();
     } catch {
-      toast.showToast('Erro ao atualizar agendamento', 'error');
+      toast('Erro ao atualizar agendamento', 'error');
     } finally {
       setSaving(false);
     }

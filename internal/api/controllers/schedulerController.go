@@ -9,7 +9,6 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
-	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
 
@@ -106,24 +105,21 @@ func (ctrl *SchedulerController) EditSchedule(ctx *gin.Context) {
 		return
 	}
 
-	brazilTZ := utils.BrazilTZ()
-	var nextRunAt time.Time
+	var nextRunAt *time.Time
 	if req.NextRunAt != "" {
 		t, err := time.Parse(time.RFC3339, req.NextRunAt)
 		if err != nil {
 			ctx.Error(errors.BadRequest("Formato de data inválido (use ISO 8601)"))
 			return
 		}
-		nextRunAt = t.In(brazilTZ)
-	} else {
-		nextRunAt = time.Now().In(brazilTZ)
+		nextRunAt = &t
 	}
 
 	// Update next run time if provided
 	if req.NextRunAt != "" || req.ScheduleTime != "" {
 		err := ctrl.container.SchedulerService.UpdateScheduleTime(ctx, id, userID, nextRunAt, req.ScheduleTime)
 		if err != nil {
-			ctx.Error(errors.Internal(err))
+			ctx.Error(err)
 			return
 		}
 	}
@@ -159,12 +155,6 @@ func (ctrl *SchedulerController) CreateSchedule(ctx *gin.Context) {
 		return
 	}
 
-	channel, err := ctrl.container.ChannelService.GetChannelByID(ctx, req.ChannelID)
-	if err != nil {
-		ctx.Error(errors.BadRequest("Canal não encontrado"))
-		return
-	}
-
 	postDataBytes, _ := json.Marshal(session)
 	postData := string(postDataBytes)
 
@@ -195,10 +185,10 @@ func (ctrl *SchedulerController) CreateSchedule(ctx *gin.Context) {
 	}
 
 	schedule, err := ctrl.container.SchedulerService.CreateScheduledPost(
-		ctx, userID, req.ChannelID, channel.Title, postData, opts,
+		ctx, userID, req.ChannelID, postData, opts,
 	)
 	if err != nil {
-		ctx.Error(errors.Internal(err))
+		ctx.Error(err)
 		return
 	}
 

@@ -4,7 +4,7 @@ import { createCustomCaption, updateCustomCaption, deleteCustomCaption } from '.
 import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Plus, Pencil, Trash2, Hash, Link, Text, X, Check, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, Hash, Link, X, Check, Loader2 } from 'lucide-react';
 
 interface CustomCaptionsCardProps {
   channelId: number;

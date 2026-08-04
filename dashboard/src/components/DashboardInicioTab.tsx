@@ -14,7 +14,6 @@ import { PerfLine } from './WaveDivider';
 
 interface DashboardInicioTabProps {
     channel: Channel;
-    displayName: string;
     getGreeting: () => string;
     getGreetingIcon: () => React.ReactNode;
     handleDisconnect: () => void;
@@ -23,13 +22,12 @@ interface DashboardInicioTabProps {
     isDisconnecting: boolean;
     confirmDisconnect: () => void;
     showDisconnectSuccess: boolean;
-    setShowDisconnectSuccess: (open: boolean) => void;
 }
 
 export const DashboardInicioTab = memo(({
-    channel, displayName, getGreeting, getGreetingIcon,
+    channel, getGreeting, getGreetingIcon,
     handleDisconnect, showDisconnect, setShowDisconnect, isDisconnecting, confirmDisconnect,
-    showDisconnectSuccess, setShowDisconnectSuccess,
+    showDisconnectSuccess,
 }: DashboardInicioTabProps) => {
     const [transferInput, setTransferInput] = useState('');
     const [isTransferring, setIsTransferring] = useState(false);
@@ -90,10 +88,9 @@ export const DashboardInicioTab = memo(({
 
     const confirmTransfer = async () => {
         try {
-            if (!channel?.ownerId) throw new Error("Owner ID not found");
             if (!transferNewOwnerId) throw new Error("New owner ID not found");
 
-            await transferChannel(channel.ownerId, transferNewOwnerId, channel.id);
+            await transferChannel(transferNewOwnerId, channel.id);
             setShowTransferSuccess(true);
             setTransferInput('');
             setShowTransferConfirm(false);

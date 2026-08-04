@@ -54,10 +54,10 @@ func (s *adminAuthState) setSession(data []byte) {
 
 // AdminAccountService gerencia o ciclo de vida das contas MTProto de admin.
 type AdminAccountService struct {
-	repo      *repositories.AdminAccountRepository
-	redis     *redis.Client
-	appID     int
-	appHash   string
+	repo    *repositories.AdminAccountRepository
+	redis   *redis.Client
+	appID   int
+	appHash string
 }
 
 // NewAdminAccountService cria um novo servico de contas admin.
@@ -153,6 +153,9 @@ type AdminAuthStep struct {
 // StartAuth inicia o fluxo de autenticacao para uma nova conta admin.
 func (s *AdminAccountService) StartAuth(ctx context.Context, label string, phoneNumber string) (*AdminAuthStep, error) {
 	logger.Bot("📱 Iniciando auth MTProto admin: label=%s phone=%s", label, phoneNumber)
+	if !s.isConfigured() {
+		return &AdminAuthStep{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 
 	if len(phoneNumber) < 8 || len(phoneNumber) > 20 {
 		return &AdminAuthStep{Step: "error", Error: "Número de telefone inválido"}, nil
@@ -161,7 +164,7 @@ func (s *AdminAccountService) StartAuth(ctx context.Context, label string, phone
 	sessionID := generateSessionID()
 	var phoneCodeHash string
 
-	if s.isConfigured() {
+	{
 		var authSessionData []byte
 		var err error
 
@@ -182,18 +185,6 @@ func (s *AdminAccountService) StartAuth(ctx context.Context, label string, phone
 		if err := s.saveState(ctx, state); err != nil {
 			return &AdminAuthStep{Step: "error", Error: "Erro interno ao salvar estado"}, nil
 		}
-	} else {
-		// Modo simulado (stub)
-		logger.Bot("📱 [STUB] Simulando envio de codigo admin para %s", phoneNumber)
-		state := &adminAuthState{
-			SessionID:     sessionID,
-			Label:         label,
-			PhoneNumber:   phoneNumber,
-			PhoneCodeHash: "stub_phone_code_hash_admin",
-		}
-		if err := s.saveState(ctx, state); err != nil {
-			return &AdminAuthStep{Step: "error", Error: "Erro interno ao salvar estado"}, nil
-		}
 	}
 
 	return &AdminAuthStep{Step: "code", SessionID: sessionID}, nil
@@ -202,6 +193,9 @@ func (s *AdminAccountService) StartAuth(ctx context.Context, label string, phone
 // VerifyCode verifica o codigo SMS durante o fluxo de autenticacao admin.
 func (s *AdminAccountService) VerifyCode(ctx context.Context, sessionID string, code string) (*AdminAuthStep, error) {
 	logger.Bot("🔐 Verificando codigo MTProto admin (session=%s)", sessionID)
+	if !s.isConfigured() {
+		return &AdminAuthStep{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 
 	state, err := s.loadState(ctx, sessionID)
 	if err != nil {
@@ -209,25 +203,20 @@ func (s *AdminAccountService) VerifyCode(ctx context.Context, sessionID string, 
 	}
 
 	var (
-		tgUserID    int64
-		username    string
-		firstName   string
+		tgUserID     int64
+		username     string
+		firstName    string
 		needPassword bool
 		sessionData  []byte
 	)
 
-	if s.isConfigured() {
+	{
 		initData, _ := state.sessionBytes()
 		sessionData, tgUserID, username, firstName, needPassword, err = s.verifyCode(ctx, state.PhoneNumber, code, state.PhoneCodeHash, initData)
 		if err != nil {
 			logger.Error("ADMIN_ACCOUNT", "Erro ao verificar codigo: %v", err)
 			return &AdminAuthStep{Step: "error", Error: "Código inválido ou expirado"}, nil
 		}
-	} else {
-		logger.Bot("🔐 [STUB] Simulando verificacao de codigo admin (session=%s)", sessionID)
-		tgUserID = 10000
-		username = "stub_admin"
-		firstName = "Admin Stub"
 	}
 
 	if needPassword {
@@ -253,6 +242,9 @@ func (s *AdminAccountService) VerifyCode(ctx context.Context, sessionID string, 
 // VerifyPassword verifica a senha 2FA durante o fluxo de autenticacao admin.
 func (s *AdminAccountService) VerifyPassword(ctx context.Context, sessionID string, password string) (*AdminAuthStep, error) {
 	logger.Bot("🔐 Verificando senha 2FA MTProto admin (session=%s)", sessionID)
+	if !s.isConfigured() {
+		return &AdminAuthStep{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 
 	state, err := s.loadState(ctx, sessionID)
 	if err != nil {
@@ -266,18 +258,13 @@ func (s *AdminAccountService) VerifyPassword(ctx context.Context, sessionID stri
 		sessionData []byte
 	)
 
-	if s.isConfigured() {
+	{
 		initData, _ := state.sessionBytes()
 		sessionData, tgUserID, username, firstName, err = s.verifyPassword(ctx, password, initData)
 		if err != nil {
 			logger.Error("ADMIN_ACCOUNT", "Erro ao verificar senha: %v", err)
 			return &AdminAuthStep{Step: "error", Error: "Senha inválida"}, nil
 		}
-	} else {
-		logger.Bot("🔐 [STUB] Simulando verificacao de senha admin (session=%s)", sessionID)
-		tgUserID = 10000
-		username = "stub_admin"
-		firstName = "Admin Stub"
 	}
 
 	account, err := s.createAccount(ctx, state.Label, state.PhoneNumber, tgUserID, username, firstName, sessionData)
@@ -293,6 +280,9 @@ func (s *AdminAccountService) VerifyPassword(ctx context.Context, sessionID stri
 
 // GetAuthStatus retorna o status atual da autenticacao para uma sessao.
 func (s *AdminAccountService) GetAuthStatus(ctx context.Context, sessionID string) (*AdminAuthStep, error) {
+	if !s.isConfigured() {
+		return &AdminAuthStep{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 	state, err := s.loadState(ctx, sessionID)
 	if err != nil {
 		return &AdminAuthStep{Step: "done", SessionID: sessionID}, nil
@@ -478,13 +468,15 @@ func (s *AdminAccountService) GetAdminSession(ctx context.Context) ([]byte, stri
 	}
 
 	for _, acc := range accounts {
-		if acc.Enabled && acc.Status == "connected" {
+		if acc.Enabled && acc.Status == "connected" && acc.EncryptedSession != "" {
 			sessionData, err := s.decryptSession(acc.EncryptedSession)
 			if err != nil {
 				logger.Error("ADMIN_ACCOUNT", "Erro ao descriptografar sessao da conta %s: %v", acc.ID, err)
 				continue
 			}
-			return sessionData, acc.ID, nil
+			if len(sessionData) > 0 {
+				return sessionData, acc.ID, nil
+			}
 		}
 	}
 
@@ -493,6 +485,9 @@ func (s *AdminAccountService) GetAdminSession(ctx context.Context) ([]byte, stri
 
 // createAccount salva uma nova conta admin no banco.
 func (s *AdminAccountService) createAccount(ctx context.Context, label, phoneNumber string, tgUserID int64, username, firstName string, sessionData []byte) (*models.AdminMTProtoAccount, error) {
+	if len(sessionData) == 0 {
+		return nil, errors.BadRequest("sessão MTProto vazia não pode ser salva")
+	}
 	encrypted, err := s.encryptSession(sessionData)
 	if err != nil {
 		return nil, err

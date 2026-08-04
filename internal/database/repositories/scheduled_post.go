@@ -48,6 +48,39 @@ func (r *ScheduledPostRepository) GetDuePosts(ctx context.Context, now time.Time
 	return posts, err
 }
 
+// ClaimDuePosts troca pending por processing com uma atualizacao condicional.
+// A comparacao de status no WHERE torna a operacao segura entre processos.
+func (r *ScheduledPostRepository) ClaimDuePosts(ctx context.Context, now time.Time) ([]models.ScheduledPost, error) {
+	candidates, err := r.GetDuePosts(ctx, now)
+	if err != nil {
+		return nil, err
+	}
+
+	claimed := make([]models.ScheduledPost, 0, len(candidates))
+	for _, post := range candidates {
+		result := r.db.WithContext(ctx).Model(&models.ScheduledPost{}).
+			Where("id = ? AND status = ?", post.ID, "pending").
+			Updates(map[string]interface{}{"status": "processing", "processing_at": now})
+		if result.Error != nil {
+			return nil, result.Error
+		}
+		if result.RowsAffected == 1 {
+			post.Status = "processing"
+			post.ProcessingAt = &now
+			claimed = append(claimed, post)
+		}
+	}
+	return claimed, nil
+}
+
+// RecoverStaleClaims devolve ao queue tarefas cujo worker morreu antes de
+// concluir o envio. O timeout e deliberadamente maior que uma tentativa normal.
+func (r *ScheduledPostRepository) RecoverStaleClaims(ctx context.Context, before time.Time) error {
+	return r.db.WithContext(ctx).Model(&models.ScheduledPost{}).
+		Where("status = ? AND processing_at < ?", "processing", before).
+		Updates(map[string]interface{}{"status": "pending", "processing_at": nil}).Error
+}
+
 func (r *ScheduledPostRepository) GetQueueGroup(ctx context.Context, queueGroupID string) ([]models.ScheduledPost, error) {
 	var posts []models.ScheduledPost
 	err := r.db.WithContext(ctx).
@@ -61,7 +94,7 @@ func (r *ScheduledPostRepository) UpdateStatus(ctx context.Context, id string, s
 	return r.db.WithContext(ctx).
 		Model(&models.ScheduledPost{}).
 		Where("id = ?", id).
-		Update("status", status).Error
+		Updates(map[string]interface{}{"status": status, "processing_at": nil}).Error
 }
 
 func (r *ScheduledPostRepository) UpdateNextRunAt(ctx context.Context, id string, nextRunAt time.Time) error {
@@ -76,9 +109,10 @@ func (r *ScheduledPostRepository) MarkSent(ctx context.Context, id string, sentA
 		Model(&models.ScheduledPost{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status":     "sent",
-			"sent_at":    sentAt,
-			"sent_count": gorm.Expr("sent_count + 1"),
+			"status":        "sent",
+			"sent_at":       sentAt,
+			"sent_count":    gorm.Expr("sent_count + 1"),
+			"processing_at": nil,
 		}).Error
 }
 
@@ -87,9 +121,10 @@ func (r *ScheduledPostRepository) UpdateError(ctx context.Context, id string, la
 		Model(&models.ScheduledPost{}).
 		Where("id = ?", id).
 		Updates(map[string]interface{}{
-			"status":      "failed",
-			"last_error":  lastError,
-			"retry_count": retryCount,
+			"status":        "failed",
+			"last_error":    lastError,
+			"retry_count":   retryCount,
+			"processing_at": nil,
 		}).Error
 }
 
@@ -99,12 +134,16 @@ func (r *ScheduledPostRepository) Delete(ctx context.Context, id string) error {
 		Delete(&models.ScheduledPost{}).Error
 }
 
-func (r *ScheduledPostRepository) UpdateScheduleTime(ctx context.Context, id string, nextRunAt time.Time, scheduleTime string) error {
-	updates := map[string]interface{}{
-		"next_run_at": nextRunAt,
+func (r *ScheduledPostRepository) UpdateScheduleTime(ctx context.Context, id string, nextRunAt *time.Time, scheduleTime string) error {
+	updates := map[string]interface{}{}
+	if nextRunAt != nil {
+		updates["next_run_at"] = *nextRunAt
 	}
 	if scheduleTime != "" {
 		updates["schedule_time"] = scheduleTime
+	}
+	if len(updates) == 0 {
+		return nil
 	}
 	return r.db.WithContext(ctx).
 		Model(&models.ScheduledPost{}).

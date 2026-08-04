@@ -50,6 +50,17 @@ func ToUserDTO(u *models.User) UserDTO {
 	return dto
 }
 
+func ToUserLookupDTO(u *models.User) UserLookupDTO {
+	if u == nil {
+		return UserLookupDTO{}
+	}
+	return UserLookupDTO{
+		ID:        u.UserId,
+		FirstName: u.FirstName,
+		Username:  u.Username,
+	}
+}
+
 func ToChannelDTO(c *models.Channel) ChannelDTO {
 	if c == nil {
 		return ChannelDTO{}

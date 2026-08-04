@@ -26,7 +26,7 @@ const statusConfig: Record<string, { label: string; color: string; bg: string }>
 };
 
 function eventLabel(value: string): string {
-  return value.replaceAll('_', ' ');
+	return value.split('_').join(' ');
 }
 
 function formatDate(value: string): string {
@@ -95,7 +95,7 @@ export function AdminLogsTab({ navigateToChannel, initialChannelId = '' }: Admin
   };
 
   return (
-    <div className="space-y-4">
+    <div className="admin-logs-page space-y-5">
       {/* Filter bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         <div className="relative">
@@ -116,7 +116,7 @@ export function AdminLogsTab({ navigateToChannel, initialChannelId = '' }: Admin
             onChange={e => updateFilter('channelId', e.target.value)}
           />
         </div>
-        <Select value={filters.source || ''} onValueChange={v => updateFilter('source', v)}>
+		<Select value={filters.source || ''} onValueChange={v => updateFilter('source', v ?? '')}>
           <SelectTrigger className="w-full h-10 rounded-xl">
             <SelectValue placeholder="Todas origens" />
           </SelectTrigger>
@@ -126,7 +126,7 @@ export function AdminLogsTab({ navigateToChannel, initialChannelId = '' }: Admin
             <SelectItem value="post_builder">PostBuilder</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={filters.status || ''} onValueChange={v => updateFilter('status', v)}>
+		<Select value={filters.status || ''} onValueChange={v => updateFilter('status', v ?? '')}>
           <SelectTrigger className="w-full h-10 rounded-xl">
             <SelectValue placeholder="Todos status" />
           </SelectTrigger>

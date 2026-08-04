@@ -88,9 +88,9 @@ export function AdminPremiumFeaturesTab({ toast }: AdminPremiumFeaturesTabProps)
     }
 
     return (
-        <div className="space-y-4">
+        <div className="admin-features-page space-y-5">
             {/* Header */}
-            <Card className="animate-stagger-in" style={{ animationDelay: '0s' }}>
+            <Card className="admin-feature-intro">
                 <CardContent className="pt-4">
                     <div className="flex items-center gap-3 mb-1">
                         <div className="flex items-center justify-center size-10 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)' }}>
@@ -110,7 +110,7 @@ export function AdminPremiumFeaturesTab({ toast }: AdminPremiumFeaturesTabProps)
             {features.map((feature, idx) => (
                 <Card
                     key={feature.key}
-                    className={`animate-stagger-in transition-all ${!feature.enabled ? 'opacity-70' : ''}`}
+                    className={`admin-feature-row transition-colors ${!feature.enabled ? 'opacity-70' : ''}`}
                     style={{ animationDelay: `${0.05 + idx * 0.04}s` }}
                 >
                     <CardContent className="pt-4">

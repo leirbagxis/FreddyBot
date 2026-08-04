@@ -14,6 +14,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
+	"gorm.io/gorm"
 )
 
 // ── Constantes ──
@@ -27,30 +28,35 @@ const (
 
 	// InvoiceExtraPayloadPrefix e o prefixo para invoices de canais extras.
 	InvoiceExtraPayloadPrefix = "premium_extra:"
+
+	maxPremiumChannels = 100
 )
 
 // ── SubscriptionService ──
 
 // SubscriptionService gerencia o ciclo de vida das assinaturas premium.
 type SubscriptionService struct {
-	subRepo    *repositories.SubscriptionRepository
-	userRepo   *repositories.UserRepository
-	bot        *telego.Bot
-	featureSvc *PremiumFeatureService
+	subRepo           *repositories.SubscriptionRepository
+	paymentIntentRepo *repositories.PaymentIntentRepository
+	userRepo          *repositories.UserRepository
+	bot               *telego.Bot
+	featureSvc        *PremiumFeatureService
 }
 
 // NewSubscriptionService cria um novo servico de assinaturas.
 func NewSubscriptionService(
 	subRepo *repositories.SubscriptionRepository,
+	paymentIntentRepo *repositories.PaymentIntentRepository,
 	userRepo *repositories.UserRepository,
 	bot *telego.Bot,
 	featureSvc *PremiumFeatureService,
 ) *SubscriptionService {
 	return &SubscriptionService{
-		subRepo:    subRepo,
-		userRepo:   userRepo,
-		bot:        bot,
-		featureSvc: featureSvc,
+		subRepo:           subRepo,
+		paymentIntentRepo: paymentIntentRepo,
+		userRepo:          userRepo,
+		bot:               bot,
+		featureSvc:        featureSvc,
 	}
 }
 
@@ -65,14 +71,14 @@ type InvoiceResult struct {
 
 // SubscriptionStatusDTO e o DTO retornado para o frontend.
 type SubscriptionStatusDTO struct {
-	HasSubscription        bool                    `json:"hasSubscription"`
-	Subscription           *models.Subscription    `json:"subscription,omitempty"`
-	Features               *models.UserFeatures    `json:"features,omitempty"`
-	BasePrice              int                     `json:"basePrice"`
-	ExtraChannelPrice      int                     `json:"extraChannelPrice"`
-	StarsTestMode          bool                    `json:"starsTestMode"`
-	PremiumEnabled         bool                    `json:"premiumEnabled"`
-	ConnectedAccountEnabled bool                   `json:"connectedAccountEnabled"`
+	HasSubscription         bool                 `json:"hasSubscription"`
+	Subscription            *models.Subscription `json:"subscription,omitempty"`
+	Features                *models.UserFeatures `json:"features,omitempty"`
+	BasePrice               int                  `json:"basePrice"`
+	ExtraChannelPrice       int                  `json:"extraChannelPrice"`
+	StarsTestMode           bool                 `json:"starsTestMode"`
+	PremiumEnabled          bool                 `json:"premiumEnabled"`
+	ConnectedAccountEnabled bool                 `json:"connectedAccountEnabled"`
 }
 
 // ── Metodos Publicos ──
@@ -93,7 +99,7 @@ func (s *SubscriptionService) GetStatus(ctx context.Context, userID int64) (*Sub
 	extraPrice, _ := s.featureSvc.GetExtraChannelPrice(ctx)
 
 	dto := &SubscriptionStatusDTO{
-		HasSubscription:         sub != nil && sub.Status == models.SubscriptionActive,
+		HasSubscription:         isSubscriptionActive(sub, time.Now()),
 		Subscription:            sub,
 		Features:                features,
 		BasePrice:               basePrice,
@@ -101,10 +107,6 @@ func (s *SubscriptionService) GetStatus(ctx context.Context, userID int64) (*Sub
 		StarsTestMode:           config.StarsTestMode,
 		PremiumEnabled:          s.featureSvc.IsPremiumEnabled(ctx),
 		ConnectedAccountEnabled: s.featureSvc.IsFeatureEnabled(ctx, "connected_account"),
-	}
-
-	if dto.Subscription != nil && dto.Subscription.Status != models.SubscriptionActive {
-		dto.HasSubscription = false
 	}
 
 	logger.Bot("📋 GetStatus userID=%d: starsTestMode=%v hasSubscription=%v", userID, dto.StarsTestMode, dto.HasSubscription)
@@ -118,12 +120,15 @@ func (s *SubscriptionService) GetStatus(ctx context.Context, userID int64) (*Sub
 // Se testMode=true e AppEnv for "dev", ativa a assinatura direto sem cobrar Stars.
 // channelCount e o numero de canais que o usuario quer incluir no premium.
 func (s *SubscriptionService) CreateInvoice(ctx context.Context, userID int64, testMode bool, channelCount int) (*InvoiceResult, error) {
+	if channelCount < 1 || channelCount > maxPremiumChannels {
+		return nil, errors.BadRequest("quantidade de canais premium inválida")
+	}
 	// Verificar se ja existe assinatura ativa
 	existing, err := s.subRepo.FindByUserID(ctx, userID)
 	if err != nil {
 		return nil, errors.Internal(err)
 	}
-	if existing != nil && existing.Status == models.SubscriptionActive {
+	if isSubscriptionActive(existing, time.Now()) {
 		return nil, errors.ErrConflict
 	}
 
@@ -144,8 +149,6 @@ func (s *SubscriptionService) CreateInvoice(ctx context.Context, userID int64, t
 
 	totalStars := basePrice + extraChannels*extraPrice
 
-	payload := fmt.Sprintf("%s%d", InvoicePayloadPrefix, userID)
-
 	logger.Bot("💰 CreateInvoice: userID=%d testMode=%v StarsTestMode=%v channels=%d extraChannels=%d total=%d",
 		userID, testMode, config.StarsTestMode, channelCount, extraChannels, totalStars)
 
@@ -154,6 +157,10 @@ func (s *SubscriptionService) CreateInvoice(ctx context.Context, userID int64, t
 		originalTotal := totalStars
 		totalStars = 1
 		logger.Bot("🧪 Modo teste: preco ajustado para 1 star (original era %d)", originalTotal)
+	}
+	payload, err := s.createPaymentIntent(ctx, userID, models.PaymentIntentSubscription, extraChannels, totalStars)
+	if err != nil {
+		return nil, errors.Internal(err)
 	}
 
 	// ── Criar invoice link ──
@@ -183,8 +190,41 @@ func (s *SubscriptionService) CreateInvoice(ctx context.Context, userID int64, t
 	}, nil
 }
 
+func (s *SubscriptionService) createPaymentIntent(ctx context.Context, userID int64, intentType string, extraChannels, amountStars int) (string, error) {
+	if amountStars <= 0 || extraChannels < 0 {
+		return "", fmt.Errorf("invalid payment intent amount or channels")
+	}
+	id := uuid.New().String()
+	payload := InvoicePayloadPrefix + id
+	if intentType == models.PaymentIntentExtraChannel {
+		payload = InvoiceExtraPayloadPrefix + id
+	}
+	intent := &models.PaymentIntent{
+		ID:            id,
+		Payload:       payload,
+		UserID:        userID,
+		Type:          intentType,
+		ExtraChannels: extraChannels,
+		AmountStars:   amountStars,
+		Status:        models.PaymentIntentPending,
+		ExpiresAt:     time.Now().Add(30 * time.Minute),
+	}
+	if err := s.paymentIntentRepo.Create(ctx, intent); err != nil {
+		return "", err
+	}
+	return payload, nil
+}
+
+func isSubscriptionActive(sub *models.Subscription, now time.Time) bool {
+	return sub != nil && sub.Status == models.SubscriptionActive && now.Before(sub.CurrentPeriodEnd)
+}
+
 // activateSubscription ativa ou renova uma assinatura (usado tanto no pagamento real quanto no teste).
 func (s *SubscriptionService) activateSubscription(ctx context.Context, userID int64, existing *models.Subscription, chargeID string, totalStars int, extraChannels int) error {
+	return s.activateSubscriptionWithRepo(ctx, s.subRepo, userID, existing, chargeID, totalStars, extraChannels)
+}
+
+func (s *SubscriptionService) activateSubscriptionWithRepo(ctx context.Context, repo *repositories.SubscriptionRepository, userID int64, existing *models.Subscription, chargeID string, totalStars int, extraChannels int) error {
 	now := time.Now()
 	periodEnd := now.AddDate(0, 0, SubscriptionPeriodDays)
 
@@ -197,7 +237,7 @@ func (s *SubscriptionService) activateSubscription(ctx context.Context, userID i
 		existing.UpdatedAt = now
 		existing.ExtraChannels = extraChannels
 
-		if err := s.subRepo.Update(ctx, existing); err != nil {
+		if err := repo.Update(ctx, existing); err != nil {
 			return errors.Internal(err)
 		}
 		logger.Bot("🔄 Assinatura renovada: user=%d ate %s extraChannels=%d", userID, periodEnd.Format("2006-01-02"), extraChannels)
@@ -213,15 +253,10 @@ func (s *SubscriptionService) activateSubscription(ctx context.Context, userID i
 			TelegramPaymentID:  chargeID,
 		}
 
-		if err := s.subRepo.Create(ctx, sub); err != nil {
+		if err := repo.Create(ctx, sub); err != nil {
 			return errors.Internal(err)
 		}
 		logger.Bot("🎉 Nova assinatura: user=%d ate %s extraChannels=%d", userID, periodEnd.Format("2006-01-02"), extraChannels)
-	}
-
-	// Sincronizar features
-	if err := s.SyncFeatures(ctx, userID); err != nil {
-		logger.Error("SUBSCRIPTION", "Erro ao sincronizar features para %d: %v", userID, err)
 	}
 
 	return nil
@@ -235,22 +270,10 @@ func (s *SubscriptionService) HandlePreCheckout(ctx context.Context, query *tele
 
 	logger.Bot("💳 PreCheckoutQuery: user=%d payload=%s amount=%d", userID, payload, query.TotalAmount)
 
-	// Validar payload: aceitar tanto premium_sub: quanto premium_extra:
-	var targetUserID int64
-	validPayload := false
-
-	if strings.HasPrefix(payload, InvoicePayloadPrefix) {
-		// Payload de assinatura: premium_sub:<userID>
-		if _, err := fmt.Sscanf(payload, InvoicePayloadPrefix+"%d", &targetUserID); err == nil && targetUserID == userID {
-			validPayload = true
-		}
-	} else if strings.HasPrefix(payload, InvoiceExtraPayloadPrefix) {
-		// Payload de canal extra: premium_extra:<userID>
-		if _, err := fmt.Sscanf(payload, InvoiceExtraPayloadPrefix+"%d", &targetUserID); err == nil && targetUserID == userID {
-			validPayload = true
-		}
+	validPayload, err := s.paymentIntentRepo.IsPendingForPayment(ctx, payload, userID, query.TotalAmount, time.Now())
+	if err != nil {
+		return errors.Internal(err)
 	}
-
 	if !validPayload {
 		logger.Warn("SUBSCRIPTION", "Payload invalido: user=%d payload=%s", userID, payload)
 		return s.bot.AnswerPreCheckoutQuery(ctx, &telego.AnswerPreCheckoutQueryParams{
@@ -275,30 +298,30 @@ func (s *SubscriptionService) HandlePayment(ctx context.Context, userID int64, p
 	logger.Bot("💰 SuccessfulPayment: user=%d charge=%s payload=%s amount=%d",
 		userID, chargeID, payload, payment.TotalAmount)
 
-	// Verificar se ja processamos este payment (idempotencia)
-	existing, err := s.subRepo.FindByUserID(ctx, userID)
+	processed, err := s.paymentIntentRepo.Process(ctx, payload, userID, payment.TotalAmount, chargeID, func(tx *gorm.DB, intent *models.PaymentIntent) error {
+		repo := s.subRepo.WithTx(tx)
+		existing, err := repo.FindByUserID(ctx, userID)
+		if err != nil {
+			return err
+		}
+		switch intent.Type {
+		case models.PaymentIntentSubscription:
+			return s.activateSubscriptionWithRepo(ctx, repo, userID, existing, chargeID, payment.TotalAmount, intent.ExtraChannels)
+		case models.PaymentIntentExtraChannel:
+			return s.addExtraChannelWithChargeWithRepo(ctx, repo, userID, chargeID)
+		default:
+			return repositories.ErrInvalidPaymentIntent
+		}
+	})
 	if err != nil {
-		return errors.Internal(err)
+		return errors.BadRequest("pagamento inválido ou expirado")
 	}
-
-	if existing != nil && existing.TelegramPaymentID == chargeID {
-		logger.Bot("⏭️ Payment ja processado: charge=%s", chargeID)
-		return nil
+	if processed {
+		if err := s.SyncFeatures(ctx, userID); err != nil {
+			logger.Error("SUBSCRIPTION", "Erro ao sincronizar features apos pagamento: %v", err)
+		}
 	}
-
-	// Roteamento por tipo de payload
-	if strings.HasPrefix(payload, InvoiceExtraPayloadPrefix) {
-		// Pagamento de canal extra: incrementar contador e salvar charge ID
-		logger.Bot("➕ Processando pagamento de canal extra: user=%d charge=%s", userID, chargeID)
-		return s.addExtraChannelWithCharge(ctx, userID, chargeID)
-	}
-
-	// Pagamento de assinatura: fluxo normal
-	extraChannels := 0
-	if existing != nil {
-		extraChannels = existing.ExtraChannels
-	}
-	return s.activateSubscription(ctx, userID, existing, chargeID, payment.TotalAmount, extraChannels)
+	return nil
 }
 
 // AdminListSubscriptions retorna todas as assinaturas para o painel admin.
@@ -314,7 +337,7 @@ func (s *SubscriptionService) AdminCancelSubscription(ctx context.Context, userI
 	if err != nil {
 		return errors.Internal(err)
 	}
-	if sub == nil || sub.Status != models.SubscriptionActive {
+	if !isSubscriptionActive(sub, time.Now()) {
 		return errors.ErrNotFound
 	}
 
@@ -463,7 +486,7 @@ func (s *SubscriptionService) Cancel(ctx context.Context, userID int64) error {
 	if err != nil {
 		return errors.Internal(err)
 	}
-	if sub == nil || sub.Status != models.SubscriptionActive {
+	if !isSubscriptionActive(sub, time.Now()) {
 		return errors.ErrNotFound
 	}
 
@@ -487,14 +510,12 @@ func (s *SubscriptionService) CreateExtraChannelInvoice(ctx context.Context, use
 	if err != nil {
 		return nil, errors.Internal(err)
 	}
-	if sub == nil || sub.Status != models.SubscriptionActive {
+	if !isSubscriptionActive(sub, time.Now()) {
 		return nil, errors.ErrNotFound
 	}
 
 	extraPrice, _ := s.featureSvc.GetExtraChannelPrice(ctx)
 	totalStars := extraPrice
-
-	payload := fmt.Sprintf("%s%d", InvoiceExtraPayloadPrefix, userID)
 
 	logger.Bot("💰 CreateExtraChannelInvoice: userID=%d testMode=%v StarsTestMode=%v price=%d",
 		userID, testMode, config.StarsTestMode, totalStars)
@@ -503,6 +524,10 @@ func (s *SubscriptionService) CreateExtraChannelInvoice(ctx context.Context, use
 	if testMode && config.StarsTestMode {
 		totalStars = 1
 		logger.Bot("🧪 Modo teste: preco ajustado para 1 star (original era %d)", extraPrice)
+	}
+	payload, err := s.createPaymentIntent(ctx, userID, models.PaymentIntentExtraChannel, 1, totalStars)
+	if err != nil {
+		return nil, errors.Internal(err)
 	}
 
 	params := &telego.CreateInvoiceLinkParams{
@@ -537,7 +562,7 @@ func (s *SubscriptionService) AddExtraChannel(ctx context.Context, userID int64)
 	if err != nil {
 		return errors.Internal(err)
 	}
-	if sub == nil || sub.Status != models.SubscriptionActive {
+	if !isSubscriptionActive(sub, time.Now()) {
 		return errors.ErrNotFound
 	}
 
@@ -558,11 +583,15 @@ func (s *SubscriptionService) AddExtraChannel(ctx context.Context, userID int64)
 
 // addExtraChannelWithCharge adiciona um canal extra e salva o charge ID para reembolso futuro.
 func (s *SubscriptionService) addExtraChannelWithCharge(ctx context.Context, userID int64, chargeID string) error {
-	sub, err := s.subRepo.FindByUserID(ctx, userID)
+	return s.addExtraChannelWithChargeWithRepo(ctx, s.subRepo, userID, chargeID)
+}
+
+func (s *SubscriptionService) addExtraChannelWithChargeWithRepo(ctx context.Context, repo *repositories.SubscriptionRepository, userID int64, chargeID string) error {
+	sub, err := repo.FindByUserID(ctx, userID)
 	if err != nil {
 		return errors.Internal(err)
 	}
-	if sub == nil || sub.Status != models.SubscriptionActive {
+	if !isSubscriptionActive(sub, time.Now()) {
 		return errors.ErrNotFound
 	}
 
@@ -576,12 +605,8 @@ func (s *SubscriptionService) addExtraChannelWithCharge(ctx context.Context, use
 		sub.ExtraChannelPayments = sub.ExtraChannelPayments + "," + chargeID
 	}
 
-	if err := s.subRepo.Update(ctx, sub); err != nil {
+	if err := repo.Update(ctx, sub); err != nil {
 		return errors.Internal(err)
-	}
-
-	if err := s.SyncFeatures(ctx, userID); err != nil {
-		logger.Error("SUBSCRIPTION", "Erro ao sincronizar features apos add canal: %v", err)
 	}
 
 	logger.Bot("➕ Canal extra adicionado com charge: user=%d total=%d charge=%s", userID, sub.ExtraChannels, chargeID)
@@ -594,7 +619,7 @@ func (s *SubscriptionService) RemoveExtraChannel(ctx context.Context, userID int
 	if err != nil {
 		return errors.Internal(err)
 	}
-	if sub == nil || sub.Status != models.SubscriptionActive || sub.ExtraChannels <= 0 {
+	if !isSubscriptionActive(sub, time.Now()) || sub.ExtraChannels <= 0 {
 		return errors.ErrNotFound
 	}
 
@@ -620,6 +645,36 @@ func (s *SubscriptionService) RemoveExtraChannel(ctx context.Context, userID int
 
 	logger.Bot("➖ Canal extra removido: user=%d total=%d", userID, sub.ExtraChannels)
 	return nil
+}
+
+// StartMaintenance mantem a persistencia e as features alinhadas ao horario
+// real da assinatura. Deve ser chamado apenas pelo container compartilhado.
+func (s *SubscriptionService) StartMaintenance(ctx context.Context) {
+	if err := s.ExpireSubscriptions(ctx); err != nil {
+		logger.Error("SUBSCRIPTION", "Erro na expiração inicial: %v", err)
+	}
+	if err := s.SendRenewalInvoices(ctx); err != nil {
+		logger.Error("SUBSCRIPTION", "Erro nos lembretes iniciais: %v", err)
+	}
+
+	expirationTicker := time.NewTicker(time.Hour)
+	defer expirationTicker.Stop()
+	renewalTicker := time.NewTicker(24 * time.Hour)
+	defer renewalTicker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-expirationTicker.C:
+			if err := s.ExpireSubscriptions(ctx); err != nil {
+				logger.Error("SUBSCRIPTION", "Erro ao expirar assinaturas: %v", err)
+			}
+		case <-renewalTicker.C:
+			if err := s.SendRenewalInvoices(ctx); err != nil {
+				logger.Error("SUBSCRIPTION", "Erro ao enviar lembretes: %v", err)
+			}
+		}
+	}
 }
 
 // ── Gerenciamento de Features ──
@@ -698,7 +753,14 @@ func (s *SubscriptionService) UserHasFeature(ctx context.Context, userID int64, 
 		return false
 	}
 
-	// 2. Verificar se o usuario tem a feature na assinatura
+	// 2. A fonte de verdade para acesso e a assinatura e sua data de vencimento;
+	// o JSON do usuario e apenas uma projeção que pode aguardar o proximo job.
+	sub, err := s.subRepo.FindByUserID(ctx, userID)
+	if err != nil || !isSubscriptionActive(sub, time.Now()) {
+		return false
+	}
+
+	// 3. Verificar se o usuario tem a feature na projeção da assinatura.
 	features, err := s.GetUserFeatures(ctx, userID)
 	if err != nil {
 		return false
@@ -758,7 +820,11 @@ func (s *SubscriptionService) SendRenewalInvoices(ctx context.Context) error {
 		basePrice, _ := s.featureSvc.CalculateBasePrice(ctx)
 		extraPrice, _ := s.featureSvc.GetExtraChannelPrice(ctx)
 		totalStars := basePrice + sub.ExtraChannels*extraPrice
-		payload := fmt.Sprintf("%s%d", InvoicePayloadPrefix, sub.UserID)
+		payload, err := s.createPaymentIntent(ctx, sub.UserID, models.PaymentIntentSubscription, sub.ExtraChannels, totalStars)
+		if err != nil {
+			logger.Error("SUBSCRIPTION", "Erro ao criar intent de renovacao para %d: %v", sub.UserID, err)
+			continue
+		}
 
 		params := &telego.SendInvoiceParams{
 			ChatID:        telego.ChatID{ID: sub.UserID},
@@ -772,7 +838,7 @@ func (s *SubscriptionService) SendRenewalInvoices(ctx context.Context) error {
 			},
 		}
 
-		_, err := s.bot.SendInvoice(ctx, params)
+		_, err = s.bot.SendInvoice(ctx, params)
 		if err != nil {
 			logger.Error("SUBSCRIPTION", "Erro ao enviar invoice de renovacao para %d: %v", sub.UserID, err)
 			continue

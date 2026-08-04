@@ -1,7 +1,6 @@
 package types
 
 type TransferChannelRequest struct {
-	OldOwnerID int64 `json:"oldOwnerId"`
-	NewOwnerID int64 `json:"newOwnerId"`
-	ChannelID  int64 `json:"channelId"`
+	NewOwnerID int64 `json:"newOwnerId" binding:"required"`
+	ChannelID  int64 `json:"channelId" binding:"required"`
 }

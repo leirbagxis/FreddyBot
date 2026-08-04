@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/dto"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
@@ -15,6 +14,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
 )
 
 type UserController struct {
@@ -57,26 +57,24 @@ func (c *UserController) GetUserInfo(ctx *gin.Context) {
 
 	userID, _ := strconv.ParseInt(userParams, 10, 64)
 	if userID == 0 {
-		user, err := c.container.UserService.GetUserByUsername(context.Background(), userParams)
+		user, err := c.container.UserService.GetUserByUsername(ctx, userParams)
 		if err != nil {
 			ctx.Error(err)
 			return
 		}
 
-		ctx.JSON(http.StatusOK, types.NewSuccessResponse(dto.ToUserDTO(user)))
+		ctx.JSON(http.StatusOK, types.NewSuccessResponse(dto.ToUserLookupDTO(user)))
 		return
 
 	}
 
-	user, err := c.container.TelegoBot.GetChat(context.Background(), &telego.GetChatParams{
-		ChatID: telego.ChatID{ID: userID},
-	})
+	user, err := c.container.UserService.GetUserByID(ctx, userID)
 	if err != nil {
-		ctx.Error(errors.BadRequest("Usuario nao encontrado"))
+		ctx.Error(errors.ErrNotFound)
 		return
 	}
 
-	ctx.JSON(http.StatusOK, types.NewSuccessResponse(user))
+	ctx.JSON(http.StatusOK, types.NewSuccessResponse(dto.ToUserLookupDTO(user)))
 }
 
 func (c *UserController) TransferChannelController(ctx *gin.Context) {
@@ -86,13 +84,15 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 		return
 	}
 
-	channel, err := c.container.ChannelService.GetChannelByID(ctx, body.ChannelID)
-	if err != nil {
-		ctx.Error(err)
+	actorID := auth.GetUserID(ctx)
+	roleValue, _ := ctx.Get("role")
+	role, _ := roleValue.(auth.Role)
+	if actorID == 0 {
+		ctx.Error(errors.ErrUnauthorized)
 		return
 	}
 
-	if body.NewOwnerID == body.OldOwnerID {
+	if body.NewOwnerID == actorID {
 		ctx.Error(errors.BadRequest("O novo dono precisa ser diferente de voce."))
 		return
 	}
@@ -142,7 +142,13 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 		return
 	}
 
-	err = c.container.ChannelService.TransferChannel(ctx, body.ChannelID, body.OldOwnerID, body.NewOwnerID)
+	channel, err := c.container.ChannelService.TransferChannel(
+		ctx,
+		actorID,
+		body.ChannelID,
+		body.NewOwnerID,
+		role == auth.RoleAdmin || role == auth.RoleOwner,
+	)
 	if err != nil {
 		ctx.Error(err)
 		return
@@ -161,7 +167,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 
 	textOld, buttonOld := parser.GetMessageTelego("success-old-paccess-message", data)
 	paramsOld := &telego.SendMessageParams{
-		ChatID:    telego.ChatID{ID: body.OldOwnerID},
+		ChatID:    telego.ChatID{ID: channel.OwnerID},
 		Text:      textOld,
 		ParseMode: telego.ModeHTML,
 	}
@@ -181,7 +187,7 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	}
 	_, _ = c.container.TelegoBot.SendMessage(context.Background(), paramsNew)
 
-	_, err = c.container.CacheService.DeleteAllUserSessionsBySuffix(ctx, body.OldOwnerID)
+	_, err = c.container.CacheService.DeleteAllUserSessionsBySuffix(ctx, channel.OwnerID)
 	if err != nil {
 		logger.Error("API", "Erro ao excluir all sessions: %v", err)
 	}

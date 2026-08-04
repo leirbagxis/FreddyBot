@@ -146,6 +146,9 @@ func extractUser(authResult *tg.AuthAuthorization) (telegramID int64, username s
 // SendCode inicia o fluxo de autenticacao enviando o codigo para o telefone.
 func (s *Service) SendCode(ctx context.Context, userID int64, phoneNumber string) (*Status, error) {
 	logger.Bot("📱 Enviando codigo MTProto para telefone do usuario %d", userID)
+	if !s.isConfigured() {
+		return &Status{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 
 	if len(phoneNumber) < 8 || len(phoneNumber) > 20 {
 		return &Status{Step: "error", Error: "Número de telefone inválido"}, nil
@@ -154,7 +157,7 @@ func (s *Service) SendCode(ctx context.Context, userID int64, phoneNumber string
 	var phoneCodeHash string
 	var authSessionData []byte
 
-	if s.isConfigured() {
+	{
 		var err error
 		authSessionData, err = s.withAuth(ctx, nil, func(ctx context.Context, api *tg.Client, authClient *auth.Client) error {
 			sentCode, err := authClient.SendCode(ctx, phoneNumber, auth.SendCodeOptions{})
@@ -174,10 +177,6 @@ func (s *Service) SendCode(ctx context.Context, userID int64, phoneNumber string
 			logger.Error("MTPROTO", "Erro ao enviar codigo para user %d: %v", userID, err)
 			return &Status{Step: "error", Error: "Erro ao enviar código. Verifique as credenciais MTProto e o número de telefone."}, nil
 		}
-	} else {
-		// Modo simulado (stub) — avanca o fluxo sem MTProto real
-		logger.Bot("📱 [STUB] Simulando envio de codigo para %s", phoneNumber)
-		phoneCodeHash = "stub_phone_code_hash"
 	}
 
 	state := &AuthState{
@@ -196,6 +195,9 @@ func (s *Service) SendCode(ctx context.Context, userID int64, phoneNumber string
 // VerifyCode verifica o codigo SMS enviado para o telefone.
 func (s *Service) VerifyCode(ctx context.Context, userID int64, code string) (*Status, error) {
 	logger.Bot("🔐 Verificando codigo MTProto para usuario %d", userID)
+	if !s.isConfigured() {
+		return &Status{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 
 	state, err := s.loadState(ctx, userID)
 	if err != nil {
@@ -203,14 +205,14 @@ func (s *Service) VerifyCode(ctx context.Context, userID int64, code string) (*S
 	}
 
 	var (
-		tgUserID    int64
-		username    string
-		firstName   string
+		tgUserID     int64
+		username     string
+		firstName    string
 		needPassword bool
 		sessionData  []byte
 	)
 
-	if s.isConfigured() {
+	{
 		initData, _ := state.sessionBytes()
 		sessionData, err = s.withAuth(ctx, initData, func(ctx context.Context, api *tg.Client, authClient *auth.Client) error {
 			authResult, signInErr := authClient.SignIn(ctx, state.PhoneNumber, code, state.PhoneCodeHash)
@@ -229,10 +231,6 @@ func (s *Service) VerifyCode(ctx context.Context, userID int64, code string) (*S
 			logger.Error("MTPROTO", "Erro ao verificar codigo para user %d: %v", userID, err)
 			return &Status{Step: "error", Error: "Código inválido ou expirado"}, nil
 		}
-	} else {
-		logger.Bot("🔐 [STUB] Simulando verificacao de codigo para user %d", userID)
-		tgUserID = int64(userID) + 10000
-		username = "stub_user"
 	}
 
 	if needPassword {
@@ -256,6 +254,9 @@ func (s *Service) VerifyCode(ctx context.Context, userID int64, code string) (*S
 // VerifyPassword verifica a senha 2FA.
 func (s *Service) VerifyPassword(ctx context.Context, userID int64, password string) (*Status, error) {
 	logger.Bot("🔐 Verificando senha 2FA para usuario %d", userID)
+	if !s.isConfigured() {
+		return &Status{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 
 	state, err := s.loadState(ctx, userID)
 	if err != nil {
@@ -270,7 +271,7 @@ func (s *Service) VerifyPassword(ctx context.Context, userID int64, password str
 		sessionData []byte
 	)
 
-	if s.isConfigured() {
+	{
 		initData, _ := state.sessionBytes()
 		sessionData, err = s.withAuth(ctx, initData, func(ctx context.Context, api *tg.Client, authClient *auth.Client) error {
 			authResult, passErr := authClient.Password(ctx, password)
@@ -285,10 +286,6 @@ func (s *Service) VerifyPassword(ctx context.Context, userID int64, password str
 			logger.Error("MTPROTO", "Erro ao verificar senha para user %d: %v", userID, err)
 			return &Status{Step: "error", Error: "Senha inválida"}, nil
 		}
-	} else {
-		logger.Bot("🔐 [STUB] Simulando verificacao de senha para user %d", userID)
-		tgUserID = int64(userID) + 10000
-		username = "stub_user"
 	}
 
 	if err := s.connectedAccounts.SaveSession(ctx, userID, tgUserID, username, firstName, sessionData); err != nil {
@@ -303,6 +300,9 @@ func (s *Service) VerifyPassword(ctx context.Context, userID int64, password str
 
 // GetStatus retorna o status atual da autenticacao.
 func (s *Service) GetStatus(ctx context.Context, userID int64) (*Status, error) {
+	if !s.isConfigured() {
+		return &Status{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
+	}
 	state, err := s.loadState(ctx, userID)
 	if err != nil {
 		return &Status{Step: "phone"}, nil

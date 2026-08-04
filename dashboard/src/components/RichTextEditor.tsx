@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect } from 'react';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Terminal,
   EyeOff, Link2, List, Quote, Undo2, Redo2, Copy, Eraser,
-  AlignLeft, Type, ChevronDown
+  AlignLeft, ChevronDown
 } from 'lucide-react';
 import { Button } from './ui/button';
 import { EmojiRenderer } from './EmojiRenderer';

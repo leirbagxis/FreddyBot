@@ -15,6 +15,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	r.Use(middleware.ErrorHandler())
 
 	api := r.Group("/api")
+	api.Use(middleware.BodyLimit(middleware.MaxAPIRequestBodyBytes))
 
 	// Controladores
 	authController := controllers.NewAuthController(c)
@@ -58,7 +59,6 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.GET("/subscription", subscriptionController.GetSubscription)
 		api.POST("/subscription/create", subscriptionController.CreateInvoice)
 		api.POST("/subscription/cancel", subscriptionController.Cancel)
-		api.POST("/subscription/channels/add", subscriptionController.AddExtraChannel)
 		api.POST("/subscription/channels/add-invoice", subscriptionController.CreateExtraChannelInvoice)
 		api.POST("/subscription/channels/remove", subscriptionController.RemoveExtraChannel)
 
@@ -83,14 +83,12 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.DELETE("/schedule/:id", schedulerController.DeleteSchedule)
 		api.PATCH("/schedule/:id", schedulerController.EditSchedule)
 
-		// Rota pública da foto do canal (sem auth, porque <img> não manda header)
-		api.GET("/channel/:channelId/photo", captionController.GetChannelPhotoController)
-
 		// Rotas específicas de Canal (Com verificação de autorização)
 		channelRoutes := api.Group("/channel/:channelId")
 		channelRoutes.Use(auth.AuthorizeChannel(c))
 		{
 			channelRoutes.GET("", channelController.GetChannelByIDController)
+			channelRoutes.GET("/photo", captionController.GetChannelPhotoController)
 			channelRoutes.DELETE("", channelController.DisconectChannel)
 			channelRoutes.PUT("/caption", captionController.UpdateDefaultCaptionController)
 			channelRoutes.PUT("/newpackcaption", captionController.UpdateNewPackCaptionController)

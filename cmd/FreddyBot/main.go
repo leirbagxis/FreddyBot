@@ -6,6 +6,7 @@ import (
 	"os/signal"
 
 	"github.com/leirbagxis/FreddyBot/internal/api"
+	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database"
 	"github.com/leirbagxis/FreddyBot/internal/telegram"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -20,10 +21,21 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
-	webhookHandler, tb := telegram.StartBot(db)
+	webhookHandler, _, app, err := telegram.StartBot(db)
+	if err != nil {
+		logger.Error("APP", "Erro ao iniciar bot: %v", err)
+		return
+	}
+	defer func() {
+		if err := cache.CloseRedis(); err != nil {
+			logger.Error("APP", "Erro ao fechar Redis: %v", err)
+		}
+	}()
+
+	app.StartBackground(ctx)
 
 	go func() {
-		if err := api.StartApi(db, webhookHandler, tb); err != nil {
+		if err := api.StartApi(ctx, app, webhookHandler); err != nil {
 			logger.Error("APP", "Erro ao iniciar API: %v", err)
 			stop()
 		}

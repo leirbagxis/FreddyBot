@@ -1,4 +1,4 @@
-import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, AccountStatus, AuthStatus, CaptionTemplate, UserCaptionTemplate } from './types';
+import { DashboardData, Button, Permission, Channel, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, AccountStatus, AuthStatus, CaptionTemplate, UserCaptionTemplate } from './types';
 
 export interface AuthRequestBody {
     channelID: number;
@@ -13,6 +13,15 @@ export interface AuthRequestBody {
     };
 }
 
+export class ApiError extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+    }
+}
+
 const apiFetch = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, {
         ...options,
@@ -25,7 +34,7 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
 
     if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        throw new Error(errBody || `API Error (${response.status})`);
+        throw new ApiError(errBody || `API Error (${response.status})`, response.status);
     }
 
     if (response.status !== 204) {
@@ -49,15 +58,17 @@ export const login = async (initData: string, userID: number) => {
 };
 
 export const fetchDashboardData = async (channelId: string): Promise<DashboardData> => {
-    return apiFetch(`/api/channel/${channelId}`, {
+    const response = await apiFetch(`/api/channel/${channelId}`, {
         method: 'GET',
     });
+    return response?.data;
 };
 
-export const fetchUserChannels = async (): Promise<ChannelsResponse> => {
-    return apiFetch(`/api/me/channels`, {
+export const fetchUserChannels = async (): Promise<Channel[]> => {
+    const response = await apiFetch(`/api/me/channels`, {
         method: 'GET',
     });
+    return response?.data || [];
 };
 
 export const fetchAdminDashboard = async (): Promise<AdminDashboardData> => {
@@ -208,11 +219,11 @@ export const updateLayoutButtons = async (channelId: number, layout: any[][]) =>
     });
 };
 
-export const transferChannel = async (oldOwnerId: number, newOwnerId: number, channelId: number) => {
-    return apiFetch(`/api/channel/transfer`, {
-        method: 'POST',
-        body: JSON.stringify({ oldOwnerId, newOwnerId, channelId }),
-    });
+export const transferChannel = async (newOwnerId: number, channelId: number) => {
+	return apiFetch(`/api/channel/transfer`, {
+		method: 'POST',
+		body: JSON.stringify({ newOwnerId, channelId }),
+	});
 };
 
 export const fetchUserInfo = async (usernameOrId: string) => {
@@ -409,7 +420,7 @@ export const fetchSubscriptionStatus = async (): Promise<any> => {
 };
 
 /** Cria uma invoice link para pagamento via WebApp.openInvoice().
- *  test: se true, ativa direto sem cobrar Stars (requer STARS_TEST_MODE=true no backend)
+ *  test: se true, usa 1 Star no ambiente com STARS_TEST_MODE=true.
  *  channels: numero de canais a incluir no premium (para calculo de preco) */
 export const createSubscriptionInvoice = async (test?: boolean, channels?: number): Promise<any> => {
     const params = new URLSearchParams();
@@ -421,10 +432,6 @@ export const createSubscriptionInvoice = async (test?: boolean, channels?: numbe
 
 export const cancelSubscription = async (): Promise<any> => {
     return apiFetch('/api/subscription/cancel', { method: 'POST' });
-};
-
-export const addExtraChannel = async (): Promise<any> => {
-    return apiFetch('/api/subscription/channels/add', { method: 'POST' });
 };
 
 export const createExtraChannelInvoice = async (test?: boolean): Promise<any> => {

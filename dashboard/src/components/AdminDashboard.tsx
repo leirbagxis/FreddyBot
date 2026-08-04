@@ -8,14 +8,16 @@ import { AdminMTProtoAccountsTab } from './AdminMTProtoAccountsTab';
 import { AdminPremiumFeaturesTab } from './AdminPremiumFeaturesTab';
 import { AdminSubscriptionsTab } from './AdminSubscriptionsTab';
 import { NoticeButton, NoticeTarget, updateUserAdmin, updateUserBlacklist } from '../api';
-import { Users, Hash, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare, Radio, BarChart3, Crown, Ban, Mail, TrendingUp } from 'lucide-react';
+import { Hash, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare } from 'lucide-react';
 import { useToast } from './Toast';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
-import { Card, CardContent } from './ui/card';
-import { MetricCard } from './admin/MetricCard';
 import { DataTable, Column } from './admin/DataTable';
 import { StatusBadge } from './admin/StatusBadge';
+import { OperationsOverview } from './admin/OperationsOverview';
+import { AdminPageHeader } from './admin/AdminPageHeader';
+import { useAdminCrmControls } from './admin/AdminCrmContext';
+import { filterAndSortChannels, filterAndSortUsers } from './admin/crmSelectors';
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
@@ -48,18 +50,6 @@ interface AdminDashboardProps {
   toast: (message: string, type: 'success' | 'error' | 'info') => void;
 }
 
-// ───── Helpers ─────
-
-function formatNum(n: number): string {
-  if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
-  return String(n);
-}
-
-
-
-
-
 // ───── Main Component ─────
 
 export function AdminDashboard({
@@ -82,6 +72,7 @@ export function AdminDashboard({
   initialLogsChannelId
 }: AdminDashboardProps) {
   const toast = useToast();
+  const { searchQuery, sortBy, filterBy, setFilterBy, navigateToTab } = useAdminCrmControls();
 
   const [localActiveTab, setLocalActiveTab] = useState(activeTab);
   const [isPending, startTransition] = useTransition();
@@ -100,31 +91,14 @@ export function AdminDashboard({
 
   const usersList = localUsers;
   const channelsList = adminData.channels || [];
-
-  // ── Analytics ──
-  const analytics = useMemo(() => {
-    const totalUsers = usersList.length;
-    const totalChannels = channelsList.length;
-    const admins = usersList.filter(u => u.is_admin).length;
-    const blacklisted = usersList.filter(u => u.is_blacklisted).length;
-    const withChannels = usersList.filter(u => (u.channels?.length || 0) > 0).length;
-    const avgChannels = totalUsers > 0 ? (totalChannels / totalUsers) : 0;
-
-    // Channel distribution
-    const dist: Record<string, number> = { 0: 0, 1: 0, 2: 0, 3: 0, '4+': 0 };
-    usersList.forEach(u => {
-      const c = u.channels?.length || 0;
-      if (c >= 4) dist['4+']++;
-      else dist[c] = (dist[c] || 0) + 1;
-    });
-
-    // Top users by channel count
-    const topUsers = [...usersList]
-      .sort((a, b) => (b.channels?.length || 0) - (a.channels?.length || 0))
-      .slice(0, 5);
-
-    return { totalUsers, totalChannels, admins, blacklisted, withChannels, avgChannels, dist, topUsers };
-  }, [usersList, channelsList]);
+  const visibleUsers = useMemo(
+    () => filterAndSortUsers(usersList, searchQuery, filterBy, sortBy),
+    [filterBy, searchQuery, sortBy, usersList],
+  );
+  const visibleChannels = useMemo(
+    () => filterAndSortChannels(channelsList, searchQuery, sortBy),
+    [channelsList, searchQuery, sortBy],
+  );
 
   const adminSelectedUser = useMemo(() =>
     selectedUserId ? usersList.find(u => u.id === selectedUserId) : null,
@@ -162,139 +136,25 @@ export function AdminDashboard({
 
   // ── Overview Tab ──
 
-  const renderOverviewTab = () => {
-    const { totalUsers, totalChannels, admins, blacklisted, withChannels, avgChannels, dist, topUsers } = analytics;
-    const activeRate = totalUsers > 0 ? Math.round((withChannels / totalUsers) * 100) : 0;
-
-    const distributionColors: Record<string, string> = {
-      '0': 'var(--hint)',
-      '1': 'var(--accent)',
-      '2': 'var(--success)',
-      '3': 'var(--warning)',
-      '4+': 'var(--danger)',
-    };
-
-    const topUserColumns: Column<any>[] = [
-      { key: 'rank', label: '#', width: '48px', render: (_: any, row: any) => (
-        <span className="text-[11px] font-bold text-muted-foreground">{row.rank}</span>
-      )},
-      { key: 'initial', label: '', width: '36px', render: (_: any, row: any) => (
-        <div className="flex items-center justify-center size-7 rounded-full text-[11px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-          {row.name.charAt(0).toUpperCase()}
-        </div>
-      )},
-      { key: 'name', label: 'Nome', render: (_: any, row: any) => (
-        <span className="text-[13px] font-semibold">{row.name}</span>
-      )},
-      { key: 'channels', label: 'Canais', align: 'right', render: (_: any, row: any) => (
-        <Badge variant="secondary" className="text-[10px] font-mono">
-          {row.channels} {row.channels === 1 ? 'canal' : 'canais'}
-        </Badge>
-      )},
-    ];
-
-    const topUserData = topUsers.map((u, i) => ({
-      rank: i + 1,
-      initial: u.first_name?.charAt(0) || '?',
-      name: u.first_name || 'Sem nome',
-      channels: u.channels?.length || 0,
-      id: u.id,
-    }));
-
-    return (
-      <div className="space-y-5">
-        {/* Metric Grid */}
-        <div className="admin-metrics-grid">
-          <MetricCard
-            title="Usuários"
-            value={formatNum(totalUsers)}
-            changeLabel={`${withChannels} ativos (${activeRate}%)`}
-            icon={<Users size={18} />}
-            iconColor="var(--accent)"
-          />
-          <MetricCard
-            title="Canais"
-            value={formatNum(totalChannels)}
-            changeLabel={`${avgChannels.toFixed(1)} por usuário`}
-            icon={<Hash size={18} />}
-            iconColor="var(--success)"
-          />
-          <MetricCard
-            title="Admins"
-            value={admins}
-            changeLabel={totalUsers > 0 ? `${((admins / totalUsers) * 100).toFixed(1)}%` : '—'}
-            icon={<Crown size={18} />}
-            iconColor="var(--warning)"
-          />
-          <MetricCard
-            title="Blacklist"
-            value={blacklisted}
-            changeLabel={totalUsers > 0 ? `${((blacklisted / totalUsers) * 100).toFixed(1)}%` : '—'}
-            icon={<Ban size={18} />}
-            iconColor="var(--danger)"
-          />
-        </div>
-
-        {/* Distribution + Top Users */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <BarChart3 size={16} className="text-accent" />
-                <h3 className="text-sm font-bold">Distribuição de Canais</h3>
-              </div>
-              <div className="space-y-2">
-                {Object.entries(dist).map(([key, count]) => {
-                  const pct = totalUsers > 0 ? (count / totalUsers) * 100 : 0;
-                  return (
-                    <div key={key} className="flex items-center gap-3">
-                      <span className="text-xs font-medium text-muted-foreground w-12 shrink-0 text-right">{key === '4+' ? '4+' : key}</span>
-                      <div className="flex-1 h-5 rounded-md bg-muted/30 overflow-hidden">
-                        <div
-                          className="h-full rounded-md transition-all duration-700"
-                          style={{ width: `${pct}%`, background: distributionColors[key] || 'var(--accent)' }}
-                        />
-                      </div>
-                      <span className="text-sm font-bold w-8 text-right">{count}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-4">
-                <TrendingUp size={16} className="text-accent" />
-                <h3 className="text-sm font-bold">Top 5 — Mais Canais</h3>
-              </div>
-              <DataTable
-                columns={topUserColumns}
-                data={topUserData}
-                searchable={false}
-                pageSize={5}
-                emptyMessage="Nenhum usuário com canais"
-              />
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" size="sm" onClick={() => window.location.href = '/admin/dash?tab=users'}>
-            <Users size={14} /> Gerenciar Usuários
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => window.location.href = '/admin/dash?tab=channels'}>
-            <Hash size={14} /> Ver Canais
-          </Button>
-          <Button variant="secondary" size="sm" onClick={() => window.location.href = '/admin/dash?tab=notice'}>
-            <Mail size={14} /> Enviar Broadcast
-          </Button>
-        </div>
-      </div>
-    );
-  };
+  const renderOverviewTab = () => (
+    <div className="admin-overview-page">
+      <OperationsOverview
+        users={usersList}
+        channels={channelsList}
+        onOpenUser={(id) => {
+          onOpenUserDetail(id);
+          navigateToTab('users');
+        }}
+        onViewUsers={() => navigateToTab('users')}
+        onReviewAlert={(kind) => {
+          if (kind === 'blacklisted') setFilterBy('blacklisted');
+          if (kind === 'without-channels') setFilterBy('without-channels');
+          if (kind === 'new-users') setFilterBy('all');
+          navigateToTab('users');
+        }}
+      />
+    </div>
+  );
 
   // ── User Detail ──
 
@@ -328,7 +188,15 @@ export function AdminDashboard({
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            <Button variant="default" size="sm" className="w-full" onClick={() => onMessageUser(adminSelectedUser.id)}>
+            <Button
+              variant="default"
+              size="sm"
+              className="w-full"
+              onClick={() => {
+                onMessageUser(adminSelectedUser.id);
+                navigateToTab('notice');
+              }}
+            >
               <MessageSquare size={16} />
               Mensagem de Suporte
             </Button>
@@ -413,10 +281,8 @@ export function AdminDashboard({
       <div className="space-y-4">
         <DataTable
           columns={userColumns}
-          data={usersList}
-          searchable={true}
-          searchPlaceholder="Buscar por nome ou ID..."
-          searchKeys={['first_name', 'username', 'id']}
+          data={visibleUsers}
+          searchable={false}
           pageSize={15}
           emptyMessage="Nenhum usuário encontrado"
           actions={(row: any) => (
@@ -459,10 +325,8 @@ export function AdminDashboard({
     return (
       <DataTable
         columns={channelColumns}
-        data={channelsList}
-        searchable={true}
-        searchPlaceholder="Buscar canal por título ou ID..."
-        searchKeys={['title', 'id']}
+        data={visibleChannels}
+        searchable={false}
         pageSize={15}
         emptyMessage="Nenhum canal encontrado"
         actions={(row: any) => (
@@ -498,6 +362,8 @@ export function AdminDashboard({
           removeNoticeButton={removeNoticeButton}
           handleSendNotice={handleSendNotice}
           isSendingNotice={isSendingNotice}
+          users={usersList}
+          channels={channelsList}
         />
       </div>
     );
@@ -505,33 +371,28 @@ export function AdminDashboard({
 
   // ── Render ──
 
-  return (
-    <div className={`space-y-4 ${isPending ? 'opacity-60 pointer-events-none' : ''}`} style={{ transition: 'opacity 0.2s ease' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between animate-stagger-in" style={{ animationDelay: '0s' }}>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center size-10 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-            <Radio size={20} />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold">Painel Administrativo</h1>
-            <p className="text-xs text-muted-foreground">
-              {localActiveTab === 'overview' && 'Métricas e visão geral do sistema'}
-              {localActiveTab === 'users' && 'Gerencie todos os usuários da plataforma'}
-              {localActiveTab === 'channels' && 'Todos os canais cadastrados'}
-              {localActiveTab === 'notice' && 'Envie mensagens globais para usuários'}
-              {localActiveTab === 'audit' && 'Auditoria de bots nos canais'}
-              {localActiveTab === 'logs' && 'Histórico de eventos do sistema'}
-              {localActiveTab === 'config' && 'Configurações globais do servidor'}
-              {localActiveTab === 'accounts' && 'Contas Telegram para edição de postagens'}
-              {localActiveTab === 'premium-features' && 'Gerencie as features premium do sistema'}
-              {localActiveTab === 'subscriptions' && 'Gerencie assinaturas de todos os usuários'}
-            </p>
-          </div>
-        </div>
-      </div>
+  const tabCopy: Record<typeof localActiveTab, { title: string; description: string }> = {
+    overview: { title: 'Visão geral', description: 'Acompanhamento operacional da base' },
+    users: { title: 'Usuários', description: 'Gerencie usuários, acessos e canais vinculados' },
+    channels: { title: 'Canais', description: 'Todos os canais conectados ao FreddyBot' },
+    notice: { title: 'Broadcast', description: 'Envie comunicações para usuários e canais' },
+    audit: { title: 'Auditoria', description: 'Verifique a presença e o estado do bot nos canais' },
+    logs: { title: 'Logs', description: 'Investigue o histórico operacional do sistema' },
+    config: { title: 'Configurações', description: 'Defina o comportamento global do FreddyBot' },
+    accounts: { title: 'Contas MTProto', description: 'Gerencie contas usadas na edição de postagens' },
+    'premium-features': { title: 'Features premium', description: 'Controle recursos e preços premium' },
+    subscriptions: { title: 'Assinaturas', description: 'Gerencie assinaturas e pagamentos dos usuários' },
+  };
 
-      <div className="h-px bg-border/50" />
+  return (
+    <div className={`admin-crm-page ${localActiveTab === 'overview' ? 'is-overview' : ''} ${isPending ? 'is-pending' : ''}`}>
+      {localActiveTab !== 'overview' && (
+        <AdminPageHeader
+          eyebrow="Painel administrativo"
+          title={tabCopy[localActiveTab].title}
+          description={tabCopy[localActiveTab].description}
+        />
+      )}
 
       {localActiveTab === 'overview' && renderOverviewTab()}
       {localActiveTab === 'users' && !adminSelectedUser && renderUsersTab()}
@@ -541,7 +402,10 @@ export function AdminDashboard({
         <div className="space-y-4">
           <AdminAuditTab
             navigateToChannel={navigateToChannel}
-            onOpenUser={onOpenUserDetail}
+            onOpenUser={(id) => {
+              onOpenUserDetail(id);
+              navigateToTab('users');
+            }}
             results={auditResults}
             setResults={setAuditResults}
             loading={auditLoading}

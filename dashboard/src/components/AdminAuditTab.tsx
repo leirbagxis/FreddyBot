@@ -47,7 +47,7 @@ export function AdminAuditTab({ navigateToChannel, onOpenUser, results, setResul
     };
 
     return (
-        <div className="space-y-4">
+        <div className="admin-audit-page space-y-5">
             {/* Audit CTA Card */}
             <Card>
                 <CardContent className="flex flex-col items-center text-center py-8">

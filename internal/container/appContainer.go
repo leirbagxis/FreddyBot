@@ -3,6 +3,7 @@ package container
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/leirbagxis/FreddyBot/internal/cache"
@@ -92,8 +93,8 @@ type AppContainer struct {
 	ExecutorFactory         *executor.ExecutorFactory
 
 	// ## SUBSCRIPTION / PREMIUM ## \\
-	SubscriptionService      *services.SubscriptionService
-	PremiumFeatureService    *services.PremiumFeatureService
+	SubscriptionService   *services.SubscriptionService
+	PremiumFeatureService *services.PremiumFeatureService
 
 	// ## SCHEDULER ## \\
 	SchedulerService           *services.SchedulerService
@@ -103,6 +104,8 @@ type AppContainer struct {
 	// ## CACHE ## \\
 	CacheService   *cache.Service
 	SessionManager *cache.SessionManager
+
+	startOnce sync.Once
 }
 
 func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
@@ -158,11 +161,12 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 
 	// Subscription Service
 	subscriptionRepo := repositories.NewSubscriptionRepository(db)
-	subscriptionService := services.NewSubscriptionService(subscriptionRepo, userRepo, telegoClient, premiumFeatureService)
+	paymentIntentRepo := repositories.NewPaymentIntentRepository(db)
+	subscriptionService := services.NewSubscriptionService(subscriptionRepo, paymentIntentRepo, userRepo, telegoClient, premiumFeatureService)
 
 	// Scheduler Service
 	scheduledPostRepo := repositories.NewScheduledPostRepository(db)
-	schedulerService := services.NewSchedulerService(scheduledPostRepo, cacheService, telegoClient)
+	schedulerService := services.NewSchedulerService(scheduledPostRepo, channelRepo, cacheService, telegoClient)
 
 	postTemplateRepo := repositories.NewUserPostTemplateRepository(db)
 	postTemplateService := services.NewUserPostTemplateService(postTemplateRepo)
@@ -235,11 +239,20 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		SessionManager: cache.NewSessionManager(cacheService),
 	}
 
-	container.syncFixedPostBuilderSession(context.Background())
-	go container.ChannelEventService.CleanupOld(context.Background(), services.ChannelEventRetentionDays)
-	container.startBroadcastWorkers(5)
-	go container.SchedulerService.Start(context.Background())
 	return container
+}
+
+// StartBackground inicia os workers que devem existir uma unica vez por processo.
+// O container e compartilhado pela API e pelo bot para que dois schedulers nao
+// processem a mesma postagem.
+func (c *AppContainer) StartBackground(ctx context.Context) {
+	c.startOnce.Do(func() {
+		c.syncFixedPostBuilderSession(ctx)
+		go c.ChannelEventService.CleanupOld(ctx, services.ChannelEventRetentionDays)
+		c.startBroadcastWorkers(5)
+		go c.SchedulerService.Start(ctx)
+		go c.SubscriptionService.StartMaintenance(ctx)
+	})
 }
 
 // HasPremiumAccess verifica se o usuario tem acesso a recursos premium,

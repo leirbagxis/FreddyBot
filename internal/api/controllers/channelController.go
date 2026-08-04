@@ -287,9 +287,18 @@ func (c *ChannelController) GetSeparator(ctx *gin.Context) {
 		}
 	}
 
-	content, err := io.ReadAll(resp.Body)
+	const maxStickerBytes int64 = 10 << 20
+	if resp.ContentLength > maxStickerBytes {
+		ctx.Error(errors.New(http.StatusRequestEntityTooLarge, "Sticker muito grande"))
+		return
+	}
+	content, err := io.ReadAll(io.LimitReader(resp.Body, maxStickerBytes+1))
 	if err != nil {
 		ctx.Error(errors.Internal(err))
+		return
+	}
+	if int64(len(content)) > maxStickerBytes {
+		ctx.Error(errors.New(http.StatusRequestEntityTooLarge, "Sticker muito grande"))
 		return
 	}
 

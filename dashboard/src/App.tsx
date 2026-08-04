@@ -5,7 +5,7 @@ import {
   updateMessagePermission, updateButtonsPermission,
   createButton, deleteButton, updateButton, updateLayoutButtons,
   updateDefaultCaption, updateNewPackCaption, updateReactions, 
-  updateReactionPosition, updateDynamicLinks, transferChannel, fetchUserInfo,
+  updateReactionPosition, updateDynamicLinks,
   sendAdminNotice, NoticeButton, NoticeRequest, NoticeTarget, disconnectChannel, fetchAuditCheckBot,
   fetchSubscriptionStatus, fetchAccountStatus
 } from './api';
@@ -18,7 +18,6 @@ import { DashboardInicioTab } from './components/DashboardInicioTab';
 import { ContaTelegramTab } from './components/ContaTelegramTab';
 import { PremiumTab } from './components/PremiumTab';
 import { NativeReactionsCard } from './components/NativeReactionsCard';
-import { ConnectedAccountCard } from './components/ConnectedAccountCard';
 import { UserTemplatesManager } from './components/UserTemplatesManager';
 import { PerfLine } from './components/WaveDivider';
 import { PremiumConfigTab } from './components/PremiumConfigTab';
@@ -32,14 +31,14 @@ import { Button as ShadButton } from './components/ui/button';
 import { Switch } from './components/ui/switch';
 import { Badge } from './components/ui/badge';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog, DialogContent,
 } from './components/ui/dialog';
 import {
-  Users, Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
+  Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
-  AlertTriangle, ChevronRight, MessageSquare, Menu, ArrowLeft, Zap, Settings, FileClock, UserCheck, X,
-  CloudMoon, Sunrise, Headphones, Video, Image, FileText, MonitorPlay, Fingerprint, GripVertical, Ban, ToggleLeft, ToggleRight, LayoutTemplate, Smile, Film, SlidersHorizontal, Smartphone,
-  Crown, Star, Calendar
+  AlertTriangle, ChevronRight, ArrowLeft, Zap, UserCheck,
+  CloudMoon, Sunrise, Headphones, Video, Image, FileText, Smile, Film, SlidersHorizontal,
+  Crown, Calendar
 } from 'lucide-react';
 
 const BASE_TABS: Tab[] = [
@@ -118,8 +117,8 @@ const DashboardContent = memo(function DashboardContent() {
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [hasMtprotoAccount, setHasMtprotoAccount] = useState(false);
-  const [premiumEnabled, setPremiumEnabled] = useState(true);
-  const [connectedAccountEnabled, setConnectedAccountEnabled] = useState(true);
+  const [premiumEnabled, setPremiumEnabled] = useState(false);
+  const [connectedAccountEnabled, setConnectedAccountEnabled] = useState(false);
 
   // Travar scroll do body quando o modal estiver aberto (funciona no iOS tambem)
   useEffect(() => {
@@ -157,8 +156,11 @@ const DashboardContent = memo(function DashboardContent() {
     }
   }, []);
 
-  // Check premium access for channel-level tabs
+  // Check premium access for channel-level tabs.
+  // Só roda após autenticar (authState === 'authenticated') e é fail-closed:
+  // se a busca falhar, as features ficam ocultas em vez de vazar.
   useEffect(() => {
+    if (authState !== 'authenticated') return;
     let cancelled = false;
 
     Promise.all([
@@ -170,8 +172,8 @@ const DashboardContent = memo(function DashboardContent() {
       const s = subRes?.data;
       const active = s?.hasSubscription && s?.subscription?.status === 'active';
       const account = accStatus?.status === 'connected';
-      const pEnabled = s?.premiumEnabled !== false; // default true se não vier
-      const caEnabled = s?.connectedAccountEnabled !== false; // default true se não vier
+      const pEnabled = s?.premiumEnabled === true; // fail-closed
+      const caEnabled = s?.connectedAccountEnabled === true; // fail-closed
 
       setHasSubscription(active);
       setHasMtprotoAccount(account);
@@ -180,7 +182,7 @@ const DashboardContent = memo(function DashboardContent() {
       setConnectedAccountEnabled(caEnabled);
     });
     return () => { cancelled = true; };
-  }, []);
+  }, [authState]);
 
   const channelId = getChannelIdFromUrl();
   const isAdmin = isAdminDashRoute();
@@ -259,19 +261,35 @@ const DashboardContent = memo(function DashboardContent() {
         const authRes = await login(initData, userID);
         if (!authRes.success) throw new Error(authRes.message || 'Falha no login');
 
-        if (authRes.isBlacklisted) {
+        if (authRes.data?.isBlacklisted) {
           handleBlacklist();
           return;
         }
 
         setAuthState('authenticated');
 
+        // Re-loga uma única vez e refaz a chamada em caso de sessão expirada/401
+        // (mantém autenticação cookie-only).
+        const retryOn401 = async <T,>(fn: () => Promise<T>): Promise<T> => {
+          try {
+            return await fn();
+          } catch (e: any) {
+            if (e?.status !== 401) throw e;
+            const tg = window.Telegram?.WebApp;
+            const reInit = tg?.initData || '';
+            const reUser = tg?.initDataUnsafe?.user?.id || 0;
+            const re = await login(reInit, reUser);
+            if (!re.success) throw e;
+            return await fn();
+          }
+        };
+
         if (isAdminDashRoute()) {
-          const response = await fetchAdminDashboard();
+          const response = await retryOn401(() => fetchAdminDashboard());
           setAdminData(response);
         } else if (isChannelsRoute()) {
-          const response = await fetchUserChannels();
-          const channelsData = Array.isArray(response?.data) ? response.data : (response?.data?.channels || response?.channels || []);
+          const response = await retryOn401(() => fetchUserChannels());
+          const channelsData = Array.isArray(response) ? response : [];
           setData({
             channel: null as any,
             user: {
@@ -287,8 +305,8 @@ const DashboardContent = memo(function DashboardContent() {
             }
           });
         } else if (channelId) {
-          const response = await fetchDashboardData(channelId);
-          const dashRes = response?.data || response;
+          const response = await retryOn401(() => fetchDashboardData(channelId));
+          const dashRes = response;
           
           if (dashRes.user?.is_blacklisted) {
             handleBlacklist();
@@ -739,7 +757,7 @@ const DashboardContent = memo(function DashboardContent() {
       };
 
       await sendAdminNotice(initData, payload);
-      toast('Mensagem enviada com sucesso!', 'success');
+      toast('Broadcast iniciado. O envio será processado em segundo plano.', 'success');
       setNoticeMessage('');
       setNoticeImageUrl('');
       setNoticeTargetId('');
@@ -880,7 +898,7 @@ const DashboardContent = memo(function DashboardContent() {
   }
 
   const user = data?.user;
-  const displayName = tgUser?.first_name || user?.firstName || user?.first_name || 'Administrador';
+  const displayName = tgUser?.first_name || user?.first_name || 'Administrador';
   const initials = displayName[0]?.toUpperCase() || '?';
 
   if (!isAdmin && showTemplatesModal) {
@@ -907,6 +925,8 @@ const DashboardContent = memo(function DashboardContent() {
         onTabChange={(id) => setAdminActiveTab(id)}
         adminName={displayName}
         adminAvatar={tgUser?.photo_url}
+        users={adminData.users || []}
+        channels={adminData.channels || []}
       >
         <MemoizedAdminDashboard
           adminData={adminData}
@@ -1033,9 +1053,11 @@ const DashboardContent = memo(function DashboardContent() {
                     </div>
                   )}
 
-                  <div className="animate-stagger-in">
-                    <PremiumTab toast={toast} channels={user?.channels || undefined} />
-                  </div>
+                  {premiumEnabled && (
+                    <div className="animate-stagger-in">
+                      <PremiumTab toast={toast} channels={user?.channels || undefined} />
+                    </div>
+                  )}
 
                   <div className="action-card animate-stagger-in" onClick={() => setShowTemplatesModal(true)}>
                     <div className="action-card-icon">
@@ -1059,7 +1081,7 @@ const DashboardContent = memo(function DashboardContent() {
                 )}
 
                 {user?.channels && user?.channels.length > 0 && isChannels ? (
-                  user?.channels.map((c: Channel, idx: number) => (
+                  user?.channels.map((c: Channel) => (
                     <div
                       key={c.id}
                       className="action-card animate-stagger-in"
@@ -1115,7 +1137,6 @@ const DashboardContent = memo(function DashboardContent() {
             <div className="tab-content-wrapper">
               <DashboardInicioTab
                 channel={channel}
-                displayName={displayName}
                 getGreeting={getGreeting}
                 getGreetingIcon={getGreetingIcon}
                 handleDisconnect={handleDisconnect}
@@ -1124,7 +1145,6 @@ const DashboardContent = memo(function DashboardContent() {
                 isDisconnecting={isDisconnecting}
                 confirmDisconnect={confirmDisconnect}
                 showDisconnectSuccess={showDisconnectSuccess}
-                setShowDisconnectSuccess={setShowDisconnectSuccess}
               />
             </div>
           )}
@@ -1293,7 +1313,7 @@ const DashboardContent = memo(function DashboardContent() {
                     { key: 'sticker', label: 'Sticker', desc: 'Figurinhas', icon: <Smile size={16} /> },
                     { key: 'gif', label: 'GIF', desc: 'Animações', icon: <Film size={16} /> },
                     { key: 'linkPreview', label: 'Link Preview', desc: 'Visualização de links', icon: <Link2 size={16} /> },
-                  ] as const).map((type, idx) => {
+                  ] as const).map((type) => {
                     const msgOn = !!channel.defaultCaption?.messagePermission?.[type.key as keyof typeof channel.defaultCaption.messagePermission];
                     const btnOn = !!channel.defaultCaption?.buttonsPermission?.[type.key as keyof typeof channel.defaultCaption.buttonsPermission];
                     return (

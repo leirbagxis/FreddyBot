@@ -14,12 +14,12 @@ import (
 var errMockSave = fmt.Errorf("mock save error")
 
 type mockAccountSaver struct {
-	savedUserID       int64
-	savedTelegramID   int64
-	savedUsername     string
-	savedFirstName    string
-	saveCallCount     int
-	failSave          bool
+	savedUserID     int64
+	savedTelegramID int64
+	savedUsername   string
+	savedFirstName  string
+	saveCallCount   int
+	failSave        bool
 }
 
 func (m *mockAccountSaver) SaveSession(ctx context.Context, userID int64, telegramUserID int64, username string, firstName string, sessionData []byte) error {
@@ -47,8 +47,7 @@ func setupAuthTest(t *testing.T) (*miniredis.Miniredis, *auth.Service, *mockAcco
 	})
 
 	saver := &mockAccountSaver{}
-	// appID=0 e appHash="" fazem isConfigured() retornar false,
-	// entao o servico nao tenta conectar MTProto real nos testes unitarios.
+	// appID=0 e appHash="" simulam uma instalacao sem credenciais MTProto.
 	svc := auth.NewService(redisClient, 0, "", saver)
 
 	t.Cleanup(func() {
@@ -68,7 +67,7 @@ func saveState(t *testing.T, mr *miniredis.Miniredis, userID int64, phoneNumber 
 	mr.SetTTL(key, 5*time.Minute)
 }
 
-func TestAuthService_SendCode_Stub(t *testing.T) {
+func TestAuthService_SendCodeWithoutConfigurationFailsClosed(t *testing.T) {
 	mr, svc, _ := setupAuthTest(t)
 	defer mr.Close()
 	ctx := context.Background()
@@ -77,17 +76,15 @@ func TestAuthService_SendCode_Stub(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendCode() error = %v", err)
 	}
-	// Sem MTProto, o servico usa stub e retorna "code"
-	if status.Step != "code" {
-		t.Errorf("Step = %q, want %q", status.Step, "code")
+	if status.Step != "error" {
+		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
-	if status.Error != "" {
-		t.Errorf("Error = %q, want empty", status.Error)
+	if status.Error == "" {
+		t.Fatal("expected a configuration error")
 	}
 
-	// Deve salvar estado no Redis (stub tambem salva)
-	if !mr.Exists("mtproto_auth:100") {
-		t.Error("Auth state should exist in Redis after SendCode stub")
+	if mr.Exists("mtproto_auth:100") {
+		t.Error("auth state must not be created without a real MTProto session")
 	}
 }
 
@@ -101,8 +98,8 @@ func TestAuthService_SendCode_PhoneTooLong(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SendCode() for long phone error = %v", err)
 	}
-	if status.Step != "error" {
-		t.Errorf("Step = %q, want %q for invalid phone", status.Step, "error")
+	if status.Step != "error" || status.Error == "" {
+		t.Errorf("expected a fail-closed error, got %+v", status)
 	}
 }
 
@@ -119,44 +116,33 @@ func TestAuthService_VerifyCode_NoState(t *testing.T) {
 	if status.Step != "error" {
 		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
-	if status.Error != "Sessão expirada. Inicie a conexão novamente." {
-		t.Errorf("Error = %q, want expiration message", status.Error)
+	if status.Error == "" {
+		t.Error("expected configuration error")
 	}
 }
 
-func TestAuthService_FullFlow_NoPassword(t *testing.T) {
+func TestAuthService_VerifyCodeWithoutConfigurationDoesNotSaveSession(t *testing.T) {
 	mr, svc, saver := setupAuthTest(t)
 	defer mr.Close()
 	ctx := context.Background()
 
-	// Simular que SendCode foi chamado (criar estado no Redis)
+	// Um estado antigo nunca pode habilitar uma conta quando MTProto esta indisponivel.
 	saveState(t, mr, 300, "+5511999999999")
 
-	// VerifyCode com o estado existente — stub retorna "done" e salva sessao
 	status, err := svc.VerifyCode(ctx, 300, "12345")
 	if err != nil {
 		t.Fatalf("VerifyCode() error = %v", err)
 	}
-	if status.Step != "done" {
-		t.Errorf("Step = %q, want %q", status.Step, "done")
+	if status.Step != "error" {
+		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
 
-	// O saver deve ter sido chamado (stub salva sessao)
-	if saver.saveCallCount != 1 {
-		t.Errorf("saveCallCount = %d, want 1", saver.saveCallCount)
-	}
-	if saver.savedUserID != 300 {
-		t.Errorf("savedUserID = %d, want 300", saver.savedUserID)
-	}
-	if saver.savedTelegramID == 0 {
-		t.Error("savedTelegramID should not be 0")
-	}
-	if saver.savedUsername != "stub_user" {
-		t.Errorf("savedUsername = %q, want 'stub_user'", saver.savedUsername)
+	if saver.saveCallCount != 0 {
+		t.Errorf("saveCallCount = %d, want 0", saver.saveCallCount)
 	}
 }
 
-func TestAuthService_PasswordFlow(t *testing.T) {
+func TestAuthService_VerifyPasswordWithoutConfigurationDoesNotSaveSession(t *testing.T) {
 	mr, svc, saver := setupAuthTest(t)
 	defer mr.Close()
 	ctx := context.Background()
@@ -167,21 +153,16 @@ func TestAuthService_PasswordFlow(t *testing.T) {
 	mr.Set(key, val)
 	mr.SetTTL(key, 5*time.Minute)
 
-	// VerifyPassword com 2FA — stub retorna "done" e salva sessao
 	status, err := svc.VerifyPassword(ctx, 400, "minha_senha")
 	if err != nil {
 		t.Fatalf("VerifyPassword() error = %v", err)
 	}
-	if status.Step != "done" {
-		t.Errorf("Step = %q, want %q", status.Step, "done")
+	if status.Step != "error" {
+		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
 
-	// O saver deve ter sido chamado (stub salva sessao)
-	if saver.saveCallCount != 1 {
-		t.Errorf("saveCallCount = %d, want 1", saver.saveCallCount)
-	}
-	if saver.savedUserID != 400 {
-		t.Errorf("savedUserID = %d, want 400", saver.savedUserID)
+	if saver.saveCallCount != 0 {
+		t.Errorf("saveCallCount = %d, want 0", saver.saveCallCount)
 	}
 }
 
@@ -197,8 +178,8 @@ func TestAuthService_VerifyPassword_NoState(t *testing.T) {
 	if status.Step != "error" {
 		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
-	if status.Error != "Sessão expirada. Inicie a conexão novamente." {
-		t.Errorf("Error = %q, want expiration message", status.Error)
+	if status.Error == "" {
+		t.Error("expected configuration error")
 	}
 }
 
@@ -211,8 +192,8 @@ func TestAuthService_GetStatus_NoState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetStatus() error = %v", err)
 	}
-	if status.Step != "phone" {
-		t.Errorf("Step = %q, want %q", status.Step, "phone")
+	if status.Step != "error" {
+		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
 }
 
@@ -238,16 +219,16 @@ func TestAuthService_StateExpiration(t *testing.T) {
 	if status.Step != "error" {
 		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
-	if status.Error != "Sessão expirada. Inicie a conexão novamente." {
-		t.Errorf("Error = %q, want expiration message", status.Error)
+	if status.Error == "" {
+		t.Error("expected configuration error")
 	}
 
-	// GetStatus deve retornar "phone" quando nao ha estado
+	// GetStatus tambem falha fechado sem credenciais.
 	status, err = svc.GetStatus(ctx, 700)
 	if err != nil {
 		t.Fatalf("GetStatus() error = %v", err)
 	}
-	if status.Step != "phone" {
-		t.Errorf("Step = %q, want %q", status.Step, "phone")
+	if status.Step != "error" {
+		t.Errorf("Step = %q, want %q", status.Step, "error")
 	}
 }

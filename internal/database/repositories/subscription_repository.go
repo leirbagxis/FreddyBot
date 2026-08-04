@@ -19,6 +19,11 @@ func NewSubscriptionRepository(db *gorm.DB) *SubscriptionRepository {
 	return &SubscriptionRepository{db: db}
 }
 
+// WithTx devolve um repositorio preso a uma transacao do chamador.
+func (r *SubscriptionRepository) WithTx(tx *gorm.DB) *SubscriptionRepository {
+	return &SubscriptionRepository{db: tx}
+}
+
 // FindByUserID busca a assinatura de um usuario.
 // Retorna (nil, nil) se nao existir.
 func (r *SubscriptionRepository) FindByUserID(ctx context.Context, userID int64) (*models.Subscription, error) {

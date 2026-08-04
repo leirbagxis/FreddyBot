@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { UserCaptionTemplate, UserPostTemplate } from '../types';
+import { UserCaptionTemplate, Button as TemplateButton } from '../types';
 import { listUserCaptionTemplates, createUserCaptionTemplate, updateUserCaptionTemplate, deleteUserCaptionTemplate, createUserCaptionTemplateButton, updateUserCaptionTemplateButton, deleteUserCaptionTemplateButton, updateUserCaptionTemplateLayout } from '../api';
 import { RichTextEditor } from './RichTextEditor';
 import { CaptionPreview } from './CaptionPreview';
@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
 import { Input } from './ui/input';
-import { FileText, Plus, Trash2, Loader2, Check, ChevronDown, ChevronRight, Hash, LayoutTemplate, Layers } from 'lucide-react';
+import { Plus, Trash2, Loader2, Check, ChevronDown, ChevronRight, Hash, Layers } from 'lucide-react';
 
 interface Props {
   toast: (msg: string, type: 'success' | 'error' | 'info') => void;
@@ -91,9 +91,9 @@ export function UserTemplatesManager({ toast }: Props) {
     }
   };
 
-  const handleAddButton = async (templateId: string, btn: any) => {
+  const handleAddButton = async (templateId: string, btn: TemplateButton) => {
     try {
-      await createUserCaptionTemplateButton(templateId, btn.nameButton, btn.buttonUrl, btn.positionX, btn.positionY);
+      await createUserCaptionTemplateButton(templateId, btn.nameButton, btn.buttonUrl);
       load(); // Reload to get the real DB ID
       toast('Botão adicionado', 'success');
     } catch {
@@ -259,7 +259,7 @@ function TemplateEditor({
 }: {
   template: UserCaptionTemplate;
   onUpdateCaption: (id: string, code: string, caption: string) => void;
-  onAddButton: (btn: any) => void;
+  onAddButton: (btn: TemplateButton) => void;
   onEditButton: (buttonId: string, updates: any) => void;
   onDeleteButton: (buttonId: string) => void;
   onMoveButton: (layout: { buttonId: string }[][]) => void;
@@ -337,7 +337,16 @@ function TemplateEditor({
           onAdd={onAddButton}
           onEdit={onEditButton}
           onDelete={onDeleteButton}
-          onMove={onMoveButton}
+          onMove={(buttonId, x, y) => {
+            const moved = template.buttons.map(button => button.buttonId === buttonId ? { ...button, positionX: x, positionY: y } : button);
+            const rows = Array.from({ length: Math.max(...moved.map(button => button.positionY), 0) + 1 }, (_, row) =>
+              moved
+                .filter(button => button.positionY === row)
+                .sort((a, b) => a.positionX - b.positionX)
+                .map(button => ({ buttonId: button.buttonId }))
+            );
+            onMoveButton(rows);
+          }}
           onMoveReactions={() => {}}
           hideReactions={true}
         />

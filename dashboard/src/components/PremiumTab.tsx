@@ -8,7 +8,7 @@ import {
 import { Channel, SubscriptionStatus } from '../types';
 import {
     fetchSubscriptionStatus, createSubscriptionInvoice, cancelSubscription,
-    addExtraChannel, removeExtraChannel, createExtraChannelInvoice
+    removeExtraChannel, createExtraChannelInvoice
 } from '../api';
 import {
     Star, Crown, FlaskConical, Hash, ChevronRight, Check, Loader2, XCircle
@@ -107,8 +107,6 @@ export function PremiumTab({ toast, channels, onStatusChange }: PremiumTabProps)
         try {
             const res = await createSubscriptionInvoice(isTestMode, channelCount);
             const invoiceUrl = res?.data?.invoiceUrl;
-            const totalStars = res?.data?.totalStars;
-
             if (invoiceUrl) {
                 toast(
                     isTestMode
@@ -146,8 +144,6 @@ export function PremiumTab({ toast, channels, onStatusChange }: PremiumTabProps)
         try {
             const res = await createExtraChannelInvoice(isTestMode);
             const invoiceUrl = res?.data?.invoiceUrl;
-            const totalStars = res?.data?.totalStars;
-
             if (invoiceUrl) {
                 const tg = window.Telegram?.WebApp;
                 if (tg?.openInvoice) {
@@ -461,7 +457,7 @@ export function PremiumTab({ toast, channels, onStatusChange }: PremiumTabProps)
         <>
             {triggerCard}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogContent showCloseButton={false} className="sm:max-w-sm p-5 bg-[var(--bg)]">
+                <DialogContent showCloseButton={false} className="sm:max-w-sm bg-popover p-5">
                     {isActive ? subscriptionManagement : (step === 'info' ? stepPlanInfo : stepChannelSelect)}
                 </DialogContent>
             </Dialog>
