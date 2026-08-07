@@ -249,7 +249,7 @@ func (c *AppContainer) StartBackground(ctx context.Context) {
 	c.startOnce.Do(func() {
 		c.syncFixedPostBuilderSession(ctx)
 		go c.ChannelEventService.CleanupOld(ctx, services.ChannelEventRetentionDays)
-		c.startBroadcastWorkers(5)
+		c.startBroadcastWorkers(ctx, 5)
 		go c.SchedulerService.Start(ctx)
 		go c.SubscriptionService.StartMaintenance(ctx)
 	})
@@ -305,66 +305,74 @@ func (c *AppContainer) syncFixedPostBuilderSession(ctx context.Context) {
 	}
 }
 
-func (c *AppContainer) startBroadcastWorkers(workerCount int) {
+func (c *AppContainer) startBroadcastWorkers(ctx context.Context, workerCount int) {
 	for i := 0; i < workerCount; i++ {
-		go c.broadcastWorker()
+		go c.broadcastWorker(ctx)
 	}
 }
 
-func (c *AppContainer) broadcastWorker() {
-	for job := range c.BroadcastQueue {
-		var keyboard [][]telego.InlineKeyboardButton
-		var replyMarkup *telego.InlineKeyboardMarkup
+func (c *AppContainer) broadcastWorker(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case job, ok := <-c.BroadcastQueue:
+			if !ok {
+				return
+			}
+			var keyboard [][]telego.InlineKeyboardButton
+			var replyMarkup *telego.InlineKeyboardMarkup
 
-		if len(job.Buttons) > 0 {
-			for _, btn := range job.Buttons {
-				button := telego.InlineKeyboardButton{
-					Text: btn.Text,
+			if len(job.Buttons) > 0 {
+				for _, btn := range job.Buttons {
+					button := telego.InlineKeyboardButton{
+						Text: btn.Text,
+					}
+
+					if btn.Type == "url" {
+						button.URL = btn.Value
+					} else if btn.Type == "callback" {
+						button.CallbackData = btn.Value
+					}
+
+					keyboard = append(keyboard, []telego.InlineKeyboardButton{button})
 				}
-
-				if btn.Type == "url" {
-					button.URL = btn.Value
-				} else if btn.Type == "callback" {
-					button.CallbackData = btn.Value
+				replyMarkup = &telego.InlineKeyboardMarkup{
+					InlineKeyboard: keyboard,
 				}
+			}
 
-				keyboard = append(keyboard, []telego.InlineKeyboardButton{button})
+			var err error
+			if job.ImageUrl != "" {
+				params := &telego.SendPhotoParams{
+					ChatID:    telego.ChatID{ID: job.ChatID},
+					Photo:     telego.InputFile{URL: job.ImageUrl},
+					Caption:   job.Text,
+					ParseMode: telego.ModeHTML,
+				}
+				if replyMarkup != nil {
+					params.ReplyMarkup = replyMarkup
+				}
+				_, err = c.TelegoBot.SendPhoto(ctx, params)
+			} else {
+				params := &telego.SendMessageParams{
+					ChatID:    telego.ChatID{ID: job.ChatID},
+					Text:      job.Text,
+					ParseMode: telego.ModeHTML,
+				}
+				if replyMarkup != nil {
+					params.ReplyMarkup = replyMarkup
+				}
+				_, err = c.TelegoBot.SendMessage(ctx, params)
 			}
-			replyMarkup = &telego.InlineKeyboardMarkup{
-				InlineKeyboard: keyboard,
+
+			if err != nil {
+				logger.Error("APP", "Erro ao enviar para %d: %v", job.ChatID, err)
+				continue
 			}
+
+			// 🔥 Controle de rate limit global
+			time.Sleep(35 * time.Millisecond)
 		}
-
-		var err error
-		if job.ImageUrl != "" {
-			params := &telego.SendPhotoParams{
-				ChatID:    telego.ChatID{ID: job.ChatID},
-				Photo:     telego.InputFile{URL: job.ImageUrl},
-				Caption:   job.Text,
-				ParseMode: telego.ModeHTML,
-			}
-			if replyMarkup != nil {
-				params.ReplyMarkup = replyMarkup
-			}
-			_, err = c.TelegoBot.SendPhoto(context.Background(), params)
-		} else {
-			params := &telego.SendMessageParams{
-				ChatID:    telego.ChatID{ID: job.ChatID},
-				Text:      job.Text,
-				ParseMode: telego.ModeHTML,
-			}
-			if replyMarkup != nil {
-				params.ReplyMarkup = replyMarkup
-			}
-			_, err = c.TelegoBot.SendMessage(context.Background(), params)
-		}
-
-		if err != nil {
-			logger.Error("APP", "Erro ao enviar para %d: %v", job.ChatID, err)
-			continue
-		}
-
-		// 🔥 Controle de rate limit global
-		time.Sleep(35 * time.Millisecond)
 	}
 }

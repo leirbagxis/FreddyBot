@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -181,7 +182,7 @@ func (s *SubscriptionService) CreateInvoice(ctx context.Context, userID int64, t
 		return nil, errors.Internal(fmt.Errorf("create invoice link: %w", err))
 	}
 
-	logger.Bot("🧾 Invoice link criado para %d: %d stars (payload=%s)", userID, totalStars, payload)
+	logger.Bot("🧾 Invoice link criado para %d: %d stars (payload=%s)", userID, totalStars, utils.TruncateString(payload, 20))
 
 	return &InvoiceResult{
 		InvoiceURL: *invoiceLink,
@@ -268,7 +269,7 @@ func (s *SubscriptionService) HandlePreCheckout(ctx context.Context, query *tele
 	userID := query.From.ID
 	payload := query.InvoicePayload
 
-	logger.Bot("💳 PreCheckoutQuery: user=%d payload=%s amount=%d", userID, payload, query.TotalAmount)
+	logger.Bot("💳 PreCheckoutQuery: user=%d payload=%s amount=%d", userID, utils.TruncateString(payload, 20), query.TotalAmount)
 
 	validPayload, err := s.paymentIntentRepo.IsPendingForPayment(ctx, payload, userID, query.TotalAmount, time.Now())
 	if err != nil {

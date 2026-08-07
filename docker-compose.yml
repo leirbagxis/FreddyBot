@@ -16,13 +16,15 @@ services:
     container_name: postgres_freddybot
     restart: always
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: 12345
-      POSTGRES_DB: freddybot
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-12345}
+      POSTGRES_DB: ${POSTGRES_DB:-freddybot}
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/freddybot/data
+    networks:
+      - app-network
 
 
 networks:
@@ -32,3 +34,4 @@ networks:
 volumes:
   redis-data:
   postgres_data:
+

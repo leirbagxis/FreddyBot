@@ -4,7 +4,7 @@ import "time"
 
 type ServerConfig struct {
 	ID                      uint      `gorm:"primaryKey" json:"id"`
-	Maintence               bool      `gorm:"default:false" json:"maintence"`
+	Maintence               bool      `gorm:"column:maintence;default:false" json:"maintence"`
 	ForceJoin               bool      `gorm:"default:false" json:"forceJoin"`
 	GlobalDefaultCaption    string    `json:"globalDefaultCaption"`
 	GlobalNewPackCaption    string    `json:"globalNewPackCaption"`

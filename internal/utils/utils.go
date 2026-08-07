@@ -200,3 +200,17 @@ func MarkdownToTelegramHTML(text string) string {
 
 	return text
 }
+
+func MaskPhone(phone string) string {
+	if len(phone) <= 4 {
+		return "****"
+	}
+	return phone[:3] + "****" + phone[len(phone)-2:]
+}
+
+func TruncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}

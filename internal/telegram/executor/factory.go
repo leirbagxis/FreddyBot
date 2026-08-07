@@ -3,7 +3,6 @@ package executor
 import (
 	"context"
 	"fmt"
-	"sync"
 )
 
 // Provider e a interface que a factory usa para consultar se um usuario
@@ -31,8 +30,6 @@ type ExecutorFactory struct {
 	mtproto  *MTProtoExecutor
 	adminSP  AdminSessionProvider
 	provider Provider
-	cache    map[int64]TelegramExecutor
-	mu       sync.RWMutex
 }
 
 // NewExecutorFactory cria uma nova factory.
@@ -51,7 +48,6 @@ func NewExecutorFactory(
 		mtproto:  mtproto,
 		adminSP:  adminSP,
 		provider: provider,
-		cache:    make(map[int64]TelegramExecutor),
 	}
 }
 
@@ -61,36 +57,16 @@ func NewExecutorFactory(
 //  2. Se o usuario tiver premium (ManagedPremiumAccount) -> PremiumExecutor com admin MTProto.
 //  3. Caso contrario -> BotAPIExecutor.
 func (f *ExecutorFactory) ForUser(ctx context.Context, userID int64) TelegramExecutor {
-	f.mu.RLock()
-	exec, ok := f.cache[userID]
-	f.mu.RUnlock()
-
-	if ok {
-		return exec
-	}
-
-	var chosen TelegramExecutor
 	if f.mtproto != nil && f.provider.HasConnectedAccount(ctx, userID) {
-		chosen = NewUserExecutor(userID, f.botAPI, f.mtproto)
+		return NewUserExecutor(userID, f.botAPI, f.mtproto)
 	} else if f.mtproto != nil && f.adminSP != nil && f.provider.HasPremiumManagedAccount(ctx, userID) {
-		chosen = NewPremiumExecutor(userID, f.botAPI, f.mtproto, f.adminSP)
-	} else {
-		chosen = f.botAPI
+		return NewPremiumExecutor(userID, f.botAPI, f.mtproto, f.adminSP)
 	}
-
-	f.mu.Lock()
-	f.cache[userID] = chosen
-	f.mu.Unlock()
-
-	return chosen
+	return f.botAPI
 }
 
-// InvalidateCache limpa o cache de executors para um usuario.
-// Deve ser chamado quando uma conta e conectada ou desconectada.
+// InvalidateCache é mantido para compatibilidade, mas a fábrica agora avalia os executores dinamicamente.
 func (f *ExecutorFactory) InvalidateCache(userID int64) {
-	f.mu.Lock()
-	delete(f.cache, userID)
-	f.mu.Unlock()
 }
 
 // ForChannel e um atalho que busca o owner do canal e retorna o executor.

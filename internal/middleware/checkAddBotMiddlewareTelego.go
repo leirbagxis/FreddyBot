@@ -2,13 +2,29 @@ package middleware
 
 import (
 	"context"
+	"sync"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
+
+var (
+	botUserCache   *telego.User
+	botUserCacheOnce sync.Once
+)
+
+func getBotUser(b *telego.Bot) *telego.User {
+	botUserCacheOnce.Do(func() {
+		info, err := b.GetMe(context.Background())
+		if err == nil {
+			botUserCache = info
+		}
+	})
+	return botUserCache
+}
 
 func CheckAddBotMiddlewareTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
@@ -76,7 +92,10 @@ func handleMyChatMemberTelego(b *telego.Bot, chatMember *telego.ChatMemberUpdate
 func handleForwardedMessageTelego(b *telego.Bot, message *telego.Message, origin *telego.MessageOriginChannel) bool {
 	forwardedChatID := origin.Chat.ID
 
-	botInfo, _ := b.GetMe(context.Background())
+	botInfo := getBotUser(b)
+	if botInfo == nil {
+		return false
+	}
 	botMember, err := b.GetChatMember(context.Background(), &telego.GetChatMemberParams{
 		ChatID: telego.ChatID{ID: forwardedChatID},
 		UserID: botInfo.ID,

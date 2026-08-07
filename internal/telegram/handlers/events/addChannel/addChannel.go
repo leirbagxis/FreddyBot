@@ -8,6 +8,7 @@ import (
 
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/postBuilder"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -44,35 +45,40 @@ func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler
 		// Verificar se o canal já existe no banco
 		existing, _ := c.ChannelService.GetChannelByID(context.Background(), chatID)
 		if existing != nil {
-			logger.Bot("AskAddChannel: Canal %d já existe no banco. Ignorando convite.", chatID)
-			return nil
-		}
+			logger.Bot("AskAddChannel: Canal %d já existe no banco.", chatID)
+		} else {
+			bot := ctx.Bot()
+			logger.Bot("AskAddChannel: Solicitação para o canal %d pelo usuário %d", chatID, fromID)
 
-		bot := ctx.Bot()
-		logger.Bot("AskAddChannel: Solicitação para o canal %d pelo usuário %d", chatID, fromID)
+			data := map[string]string{
+				"channelName": chatTitle,
+				"channelId":   fmt.Sprintf("%d", chatID),
+				"firstName":   firstName,
+			}
 
-		data := map[string]string{
-			"channelName": chatTitle,
-			"channelId":   fmt.Sprintf("%d", chatID),
-			"firstName":   firstName,
-		}
-
-		text, _ := parser.GetMessageTelego("toadd-require-message", data)
-		kb := &telego.InlineKeyboardMarkup{
-			InlineKeyboard: [][]telego.InlineKeyboardButton{
-				{
-					{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
-					{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
+			text, _ := parser.GetMessageTelego("toadd-require-message", data)
+			kb := &telego.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telego.InlineKeyboardButton{
+					{
+						{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
+						{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
+					},
 				},
-			},
+			}
+
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:      telego.ChatID{ID: fromID},
+				Text:        text,
+				ReplyMarkup: kb,
+				ParseMode:   telego.ModeHTML,
+			})
 		}
 
-		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:      telego.ChatID{ID: fromID},
-			Text:        text,
-			ReplyMarkup: kb,
-			ParseMode:   telego.ModeHTML,
-		})
+		// Oferecer também o PostBuilder para a mensagem encaminhada recebida
+		if update.Message != nil {
+			logger.Bot("AskAddChannel: Repassando mensagem encaminhada para o PostBuilder...")
+			_ = postbuilder.ProcessIncomingContentTelego(ctx, update, c)
+		}
 
 		return nil
 	}

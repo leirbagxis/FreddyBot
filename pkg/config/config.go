@@ -25,7 +25,8 @@ var (
 	DatabaseFile          string
 	RedisAddr             string
 	OwnerID               int64
-	SecreteKey            string
+	SecreteKey            string // Deprecated: use SecretKey
+	SecretKey             string
 	WebAppURL             string
 	WebhookURL            string
 	TelegramWebhookSecret string
@@ -57,11 +58,16 @@ func init() {
 	OwnerID = mustGetEnvInt64("OWNER_ID")
 	AppPort = os.Getenv("APP_PORT")
 	SecreteKey = mustGetEnv("SECRET_KEY")
+	SecretKey = SecreteKey
 	WebAppURL = mustGetEnv("WEBAPP_URL")
 	WebhookURL = os.Getenv("WEBHOOK_URL")                        // opcional
 	TelegramWebhookSecret = os.Getenv("TELEGRAM_WEBHOOK_SECRET") // obrigatorio apenas no modo webhook
 	AppEnv = os.Getenv("APP_ENV")                                // dev ou prod
 	StarsTestMode = os.Getenv("STARS_TEST_MODE") == "true"
+	if StarsTestMode && (AppEnv == "prod" || os.Getenv("GO_ENV") == "production") {
+		logger.Error("CONFIG", "⛔ STARS_TEST_MODE=true em ambiente de produção! Desativando por segurança.")
+		StarsTestMode = false
+	}
 	if StarsTestMode {
 		logger.Bot("🧪 Modo teste Stars ATIVADO — invoices com ?test=true custam 1 star")
 	} else {

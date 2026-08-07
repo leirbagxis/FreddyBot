@@ -97,106 +97,143 @@ func buildPostBuilderURLButton(btn cache.PostBuilderButton, useCustomEmoji bool)
 	return button
 }
 
+func ProcessIncomingContentTelego(ctx *telegohandler.Context, update telego.Update, c *container.AppContainer) error {
+	if update.Message == nil || update.Message.From == nil {
+		return nil
+	}
+
+	bot := ctx.Bot()
+	userID := update.Message.From.ID
+
+	logger.Bot("PostBuilder: Processando mensagem recebida de UserID=%d | TextLen=%d | CaptionLen=%d | Photo=%v | Video=%v | ForwardOrigin=%v",
+		userID, len(update.Message.Text), len(update.Message.Caption), update.Message.Photo != nil, update.Message.Video != nil, update.Message.ForwardOrigin != nil)
+
+	// Check Blacklist
+	user, err := c.UserService.GetUserByID(context.Background(), userID)
+	if err == nil && user != nil && user.IsBlacklisted {
+		logger.Bot("PostBuilder: Usuario %d esta na blacklist. Ignorando.", userID)
+		return nil
+	}
+
+	// Detect media
+	var mediaID string
+	var mediaType string
+
+	// Se o usuário estiver configurando um sticker separador, o PostBuilder não deve interceptar
+	awaitingStickerChannel, _ := c.CacheService.GetAwaitingStickerSeparator(context.Background(), userID)
+	if awaitingStickerChannel != 0 && update.Message.Sticker != nil {
+		return nil
+	}
+
+	if update.Message.Photo != nil {
+		mediaID = update.Message.Photo[len(update.Message.Photo)-1].FileID
+		mediaType = "photo"
+	} else if update.Message.Video != nil {
+		mediaID = update.Message.Video.FileID
+		mediaType = "video"
+	} else if update.Message.Animation != nil {
+		mediaID = update.Message.Animation.FileID
+		mediaType = "animation"
+	} else if update.Message.Audio != nil {
+		mediaID = update.Message.Audio.FileID
+		mediaType = "audio"
+	} else if update.Message.Document != nil {
+		mediaID = update.Message.Document.FileID
+		mediaType = "document"
+	} else if update.Message.Sticker != nil {
+		mediaID = update.Message.Sticker.FileID
+		mediaType = "sticker"
+	} else if update.Message.Text != "" {
+		mediaType = "text"
+	}
+
+	// Primeiro verifica se o usuário está em uma etapa de entrada ativa (ex: digitando título, agendamento)
+	scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), userID)
+	if scheduleState != nil && scheduleState.SessionID != "" {
+		logger.Bot("PostBuilder: Usuario %d em fluxo de agendamento ativo", userID)
+		handleScheduleTextInput(ctx, update.Message.Chat.ID, userID, update.Message.Text, scheduleState, c)
+		return nil
+	}
+	activeState, _ := c.CacheService.GetPostBuilderState(context.Background(), userID)
+	if activeState != nil && activeState.Step != "" {
+		logger.Bot("PostBuilder: Usuario %d em etapa de entrada ativa '%s'", userID, activeState.Step)
+		return handleTextInputTelego(ctx, update, c, activeState)
+	}
+
+	// Se não tiver nem mídia nem texto, encerra
+	if mediaID == "" && mediaType == "" {
+		logger.Bot("PostBuilder: Nenhum tipo de midia ou texto identificado para o usuario %d", userID)
+		return nil
+	}
+
+	// Conteúdo/Mídia detectado, oferecer Post Builder
+	kb := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
+				{Text: "🛠️ Post Builder", CallbackData: "pb-start"},
+			},
+		},
+	}
+
+	// Capturar legenda ou texto existente na mídia/mensagem
+	var captionText string
+	if update.Message.Caption != "" {
+		captionText = channelpost.ProcessTextWithFormattingTelego(update.Message.Caption, update.Message.CaptionEntities)
+	} else if update.Message.Text != "" {
+		captionText = channelpost.ProcessTextWithFormattingTelego(update.Message.Text, update.Message.Entities)
+	}
+
+	// Extrair botões inline pré-existentes na mídia recebida
+	var initialButtons []cache.PostBuilderButton
+	if update.Message.ReplyMarkup != nil {
+		for _, row := range update.Message.ReplyMarkup.InlineKeyboard {
+			for _, btn := range row {
+				if btn.URL != "" {
+					initialButtons = append(initialButtons, cache.PostBuilderButton{
+						Text:          btn.Text,
+						URL:           btn.URL,
+						CustomEmojiID: btn.IconCustomEmojiID,
+					})
+				}
+			}
+		}
+	}
+
+	// Store initial state
+	state := cache.PostBuilderState{
+		MediaType:   mediaType,
+		MediaFileID: mediaID,
+		Body:        captionText,
+		Buttons:     initialButtons,
+		Step:        "",
+	}
+	c.CacheService.SetPostBuilderState(context.Background(), userID, state)
+	recordPostBuilderEvent(c, "postbuilder_started", services.ChannelEventStatusInfo, userID, 0, "", map[string]any{"media_type": mediaType, "chat_id": update.Message.Chat.ID, "has_caption": captionText != ""}, nil)
+
+	logger.Bot("PostBuilder: Rascunho inicial criado com sucesso para UserID=%d | MediaType=%s | MediaID=%s | BodyLen=%d | Buttons=%d",
+		userID, mediaType, mediaID, len(captionText), len(initialButtons))
+
+	msgText := "✨ Conteúdo detectado! Deseja usar o <b>Post Builder</b> para criar uma postagem personalizada?"
+	if captionText != "" {
+		msgText += "\n\n📝 <b>Texto/Legenda detectado!</b> Você poderá editá-lo no Post Builder."
+	}
+
+	_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      update.Message.Chat.ChatID(),
+		Text:        msgText,
+		ParseMode:   telego.ModeHTML,
+		ReplyMarkup: kb,
+		ReplyParameters: &telego.ReplyParameters{
+			MessageID: update.Message.MessageID,
+		},
+	})
+
+	return nil
+}
+
 func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
-		if update.Message == nil || update.Message.From == nil {
-			return nil
-		}
-
-		bot := ctx.Bot()
-
-		// Check Blacklist
-		user, err := c.UserService.GetUserByID(context.Background(), update.Message.From.ID)
-		if err == nil && user != nil && user.IsBlacklisted {
-			return nil
-		}
-
-		// Detect media
-		var mediaID string
-		var mediaType string
-
-		// Se o usuário estiver configurando um sticker separador, o PostBuilder não deve interceptar
-		awaitingStickerChannel, _ := c.CacheService.GetAwaitingStickerSeparator(context.Background(), update.Message.From.ID)
-		if awaitingStickerChannel != 0 && update.Message.Sticker != nil {
-			return nil
-		}
-
-		if update.Message.Photo != nil {
-			mediaID = update.Message.Photo[len(update.Message.Photo)-1].FileID
-			mediaType = "photo"
-		} else if update.Message.Video != nil {
-			mediaID = update.Message.Video.FileID
-			mediaType = "video"
-		} else if update.Message.Animation != nil {
-			mediaID = update.Message.Animation.FileID
-			mediaType = "animation"
-		} else if update.Message.Audio != nil {
-			mediaID = update.Message.Audio.FileID
-			mediaType = "audio"
-		} else if update.Message.Document != nil {
-			mediaID = update.Message.Document.FileID
-			mediaType = "document"
-		} else if update.Message.Sticker != nil {
-			mediaID = update.Message.Sticker.FileID
-			mediaType = "sticker"
-		}
-
-		if mediaID == "" {
-			// Check if user is in schedule input flow (post builder state was deleted after save)
-			scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), update.Message.From.ID)
-			if scheduleState != nil && scheduleState.SessionID != "" {
-				handleScheduleTextInput(ctx, update.Message.Chat.ID, update.Message.From.ID, update.Message.Text, scheduleState, c)
-				return nil
-			}
-			// Check if we are in a state of awaiting text input
-			state, _ := c.CacheService.GetPostBuilderState(context.Background(), update.Message.From.ID)
-			if state != nil && state.Step != "" {
-				return handleTextInputTelego(ctx, update, c, state)
-			}
-			return nil
-		}
-
-		// Media detected, offer Post Builder
-		kb := &telego.InlineKeyboardMarkup{
-			InlineKeyboard: [][]telego.InlineKeyboardButton{
-				{
-					{Text: "🛠️ Post Builder", CallbackData: "pb-start"},
-				},
-			},
-		}
-
-		// Capturar legenda existente na mídia
-		var captionText string
-		if update.Message.Caption != "" {
-			captionText = channelpost.ProcessTextWithFormattingTelego(update.Message.Caption, update.Message.CaptionEntities)
-		}
-
-		// Store initial state
-		state := cache.PostBuilderState{
-			MediaType:   mediaType,
-			MediaFileID: mediaID,
-			Body:        captionText,
-			Step:        "",
-		}
-		c.CacheService.SetPostBuilderState(context.Background(), update.Message.From.ID, state)
-		recordPostBuilderEvent(c, "postbuilder_started", services.ChannelEventStatusInfo, update.Message.From.ID, 0, "", map[string]any{"media_type": mediaType, "chat_id": update.Message.Chat.ID, "has_caption": captionText != ""}, nil)
-
-		msgText := "✨ Media detectada! Deseja usar o <b>Post Builder</b> para criar uma postagem personalizada?"
-		if captionText != "" {
-			msgText += "\n\n📝 <b>Legenda detectada!</b> Você poderá editá-la no Post Builder."
-		}
-
-		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:      update.Message.Chat.ChatID(),
-			Text:        msgText,
-			ParseMode:   telego.ModeHTML,
-			ReplyMarkup: kb,
-			ReplyParameters: &telego.ReplyParameters{
-				MessageID: update.Message.MessageID,
-			},
-		})
-
-		return nil
+		return ProcessIncomingContentTelego(ctx, update, c)
 	}
 }
 
@@ -325,14 +362,32 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 			})
 		}
 
+		sessionID := state.TemplateSessionID
 		state.Step = ""
+		state.TemplateSessionID = ""
 		c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
+
+		var completionKB *telego.InlineKeyboardMarkup
+		if sessionID != "" {
+			completionKB = &telego.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telego.InlineKeyboardButton{
+					{
+						{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+					},
+				},
+			}
+		}
+
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    update.Message.Chat.ChatID(),
-			Text:      fmt.Sprintf("✅ Template <b>%s</b> salvo com sucesso!\n\nUse 📋 Templates no menu para carregá-lo depois.", tpl.Code),
-			ParseMode: telego.ModeHTML,
+			ChatID:      update.Message.Chat.ChatID(),
+			Text:        fmt.Sprintf("✅ Template <b>%s</b> salvo com sucesso!\n\nUse 📋 Templates no menu para carregá-lo depois.", tpl.Code),
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: completionKB,
 		})
-		showMenuTelego(ctx, chatID, userID, c, state)
+
+		if sessionID == "" {
+			showMenuTelego(ctx, chatID, userID, c, state)
+		}
 		return nil
 
 	case "awaiting_button":
@@ -412,38 +467,33 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 
 	isSticker := state.MediaType == "sticker"
 
-	sb.WriteString("🛠️ <b>Post Builder - Menu</b>\n\n")
-	if isSticker {
-		sb.WriteString("📝 <b>Texto:</b> não suportado para stickers\n\n")
-	} else {
-		sb.WriteString(fmt.Sprintf("📝 <b>Título:</b> %s\n", state.Title))
-		sb.WriteString(fmt.Sprintf("📄 <b>Corpo:</b> %s\n", state.Body))
-		sb.WriteString(fmt.Sprintf("👣 <b>Rodapé:</b> %s\n", state.Footer))
-	}
-	// Formatar reações para exibição no menu
-	displayReactions := state.Reactions
-	if strings.Contains(displayReactions, "eid:") {
-		parts := strings.Split(displayReactions, ",")
-		for i, p := range parts {
-			if strings.HasPrefix(p, "eid:") {
-				parts[i] = "🖼️" // Placeholder para emoji customizado
-			}
+	check := func(filled bool) string {
+		if filled {
+			return "✅"
 		}
-		displayReactions = strings.Join(parts, ", ")
+		return "❌"
 	}
 
-	sb.WriteString(fmt.Sprintf("🎭 <b>Reações:</b> %s\n", displayReactions))
-	sb.WriteString(fmt.Sprintf("🔘 <b>Botões:</b> %d\n\n", len(state.Buttons)))
+	sb.WriteString("🛠️ <b>Post Builder - Menu</b>\n\n")
+	if isSticker {
+		sb.WriteString("📝 <b>Texto:</b> não suportado para stickers\n")
+	} else {
+		sb.WriteString(fmt.Sprintf("📝 <b>Título:</b> %s\n", check(state.Title != "")))
+		sb.WriteString(fmt.Sprintf("📄 <b>Corpo:</b> %s\n", check(state.Body != "")))
+		sb.WriteString(fmt.Sprintf("👣 <b>Rodapé:</b> %s\n", check(state.Footer != "")))
+	}
+	sb.WriteString(fmt.Sprintf("🎭 <b>Reações:</b> %s\n", check(state.Reactions != "")))
+	sb.WriteString(fmt.Sprintf("🔘 <b>Botões:</b> %s\n\n", check(len(state.Buttons) > 0)))
 	sb.WriteString("Escolha o que deseja editar:")
 
 	var kbRows [][]telego.InlineKeyboardButton
 	if isSticker {
 		kbRows = [][]telego.InlineKeyboardButton{
 			{
-				{Text: "🎭 Reações", CallbackData: "pb-edit-reactions"},
+				{Text: fmt.Sprintf("🎭 Reações %s", check(state.Reactions != "")), CallbackData: "pb-edit-reactions"},
 			},
 			{
-				{Text: "🔘 Botões", CallbackData: "pb-manage-buttons"},
+				{Text: fmt.Sprintf("🔘 Botões %s", check(len(state.Buttons) > 0)), CallbackData: "pb-manage-buttons"},
 				{Text: "📥 Importar Canal", CallbackData: "pb-import-channel"},
 			},
 			{
@@ -451,21 +501,21 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 			},
 			{
 				{Text: "✅ Salvar", CallbackData: "pb-save"},
-				{Text: "❌ Cancelar", CallbackData: "pb-cancel"},
+				{Text: "❌ Cancelar", CallbackData: "pb-cancel", Style: "danger"},
 			},
 		}
 	} else {
 		kbRows = [][]telego.InlineKeyboardButton{
 			{
-				{Text: "📝 Título", CallbackData: "pb-edit-title"},
-				{Text: "📄 Corpo", CallbackData: "pb-edit-body"},
+				{Text: fmt.Sprintf("📝 Título %s", check(state.Title != "")), CallbackData: "pb-edit-title"},
+				{Text: fmt.Sprintf("📄 Corpo %s", check(state.Body != "")), CallbackData: "pb-edit-body"},
 			},
 			{
-				{Text: "👣 Rodapé", CallbackData: "pb-edit-footer"},
-				{Text: "🎭 Reações", CallbackData: "pb-edit-reactions"},
+				{Text: fmt.Sprintf("👣 Rodapé %s", check(state.Footer != "")), CallbackData: "pb-edit-footer"},
+				{Text: fmt.Sprintf("🎭 Reações %s", check(state.Reactions != "")), CallbackData: "pb-edit-reactions"},
 			},
 			{
-				{Text: "🔘 Botões", CallbackData: "pb-manage-buttons"},
+				{Text: fmt.Sprintf("🔘 Botões %s", check(len(state.Buttons) > 0)), CallbackData: "pb-manage-buttons"},
 				{Text: "📥 Importar Canal", CallbackData: "pb-import-channel"},
 			},
 			{
@@ -474,7 +524,7 @@ func showMenuTelego(ctx *telegohandler.Context, chatID, userID int64, c *contain
 			},
 			{
 				{Text: "✅ Salvar", CallbackData: "pb-save"},
-				{Text: "❌ Cancelar", CallbackData: "pb-cancel"},
+				{Text: "❌ Cancelar", CallbackData: "pb-cancel", Style: "danger"},
 			},
 		}
 	}
@@ -602,6 +652,7 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		state, _ := c.CacheService.GetPostBuilderState(context.Background(), userID)
 		if state == nil &&
 			data != "pb-cancel" &&
+			!strings.HasPrefix(data, "pb-saved-menu:") &&
 			!strings.HasPrefix(data, "pb-send-") &&
 			!strings.HasPrefix(data, "pb-schedule:") &&
 			!strings.HasPrefix(data, "pb-sch:") &&
@@ -621,6 +672,14 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
 			CallbackQueryID: update.CallbackQuery.ID,
 		})
+
+		if strings.HasPrefix(data, "pb-saved-menu:") {
+			sessionID := strings.TrimPrefix(data, "pb-saved-menu:")
+			_ = c.CacheService.DeleteScheduleState(context.Background(), userID)
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			showSavedPostMenu(ctx, chatID, userID, messageID, sessionID, c)
+			return nil
+		}
 
 		if strings.HasPrefix(data, "pb-import-apply:") {
 			channelIDStr := strings.TrimPrefix(data, "pb-import-apply:")
@@ -676,23 +735,34 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			sessionID := strings.TrimPrefix(data, "pb-save-template:")
 			pbState, err := c.CacheService.GetPostBuilderSession(context.Background(), sessionID)
 			if err != nil || pbState == nil {
-				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-					ChatID: telego.ChatID{ID: chatID},
-					Text:   "❌ Sessão do PostBuilder expirada. Salve o post novamente.",
+				_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+					CallbackQueryID: update.CallbackQuery.ID,
+					Text:            "⚠️ Sessão do PostBuilder expirada.",
+					ShowAlert:       true,
 				})
 				return nil
 			}
 			state = pbState
 			state.Step = "awaiting_template_name"
-			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			state.TemplateSessionID = sessionID
+
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			backKB := &telego.InlineKeyboardMarkup{
+				InlineKeyboard: [][]telego.InlineKeyboardButton{
+					{
+						{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+					},
+				},
+			}
+
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        "💾 Envie o <b>nome</b> para salvar este post como template:",
 				ParseMode:   telego.ModeHTML,
-				ReplyMarkup: promptBackKB(),
+				ReplyMarkup: backKB,
 			})
-			if msg != nil {
-				state.PromptMessageID = msg.MessageID
-			}
+			state.PromptMessageID = messageID
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 			return nil
 		}
@@ -760,7 +830,8 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 
 		if strings.HasPrefix(data, "pb-send-to-channels:") {
 			sessionID := strings.TrimPrefix(data, "pb-send-to-channels:")
-			handleSendToChannelsTelego(ctx, chatID, userID, sessionID, c)
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			handleSendToChannelsTelego(ctx, chatID, userID, messageID, sessionID, update.CallbackQuery.ID, c)
 			return nil
 		}
 
@@ -835,12 +906,16 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		if strings.HasPrefix(data, "pb-schedule:") {
 			sessionID := strings.TrimPrefix(data, "pb-schedule:")
 			messageID := update.CallbackQuery.Message.GetMessageID()
-			handleSchedulePost(ctx, chatID, userID, messageID, sessionID, c)
+			handleSchedulePost(ctx, chatID, userID, messageID, sessionID, update.CallbackQuery.ID, c)
 			return nil
 		}
 
 		switch data {
 		case "pb-start":
+			if update.CallbackQuery != nil && update.CallbackQuery.Message != nil {
+				state.MenuMessageID = update.CallbackQuery.Message.GetMessageID()
+				c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
+			}
 			showMenuTelego(ctx, chatID, userID, c, state)
 		case "pb-manage-buttons":
 			showButtonManagerTelego(ctx, chatID, userID, c, state)
@@ -889,63 +964,63 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			})
 		case "pb-edit-title":
 			state.Step = "awaiting_title"
-			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        "📝 Envie o <b>Título</b> da postagem (suporta formatação):",
 				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: promptBackKB(),
 			})
-			if msg != nil {
-				state.PromptMessageID = msg.MessageID
-			}
+			state.PromptMessageID = messageID
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		case "pb-edit-body":
 			state.Step = "awaiting_body"
-			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        "📄 Envie o <b>Corpo</b> da postagem (suporta formatação):",
 				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: promptBackKB(),
 			})
-			if msg != nil {
-				state.PromptMessageID = msg.MessageID
-			}
+			state.PromptMessageID = messageID
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		case "pb-edit-footer":
 			state.Step = "awaiting_footer"
-			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        "👣 Envie o <b>Rodapé</b> da postagem (suporta formatação):",
 				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: promptBackKB(),
 			})
-			if msg != nil {
-				state.PromptMessageID = msg.MessageID
-			}
+			state.PromptMessageID = messageID
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		case "pb-edit-reactions":
 			state.Step = "awaiting_reactions"
-			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        "🎭 Envie as <b>Reações</b> separadas por vírgula (ex: 👍,👎,❤️):",
 				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: promptBackKB(),
 			})
-			if msg != nil {
-				state.PromptMessageID = msg.MessageID
-			}
+			state.PromptMessageID = messageID
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		case "pb-add-button":
 			state.Step = "awaiting_button"
-			msg, _ := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        "🔘 Envie os dados do botão no formato:\n\n<code>Nome do Botão\nhttps://link.com</code>",
 				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: promptBackKB(),
 			})
-			if msg != nil {
-				state.PromptMessageID = msg.MessageID
-			}
+			state.PromptMessageID = messageID
 			c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
 		case "pb-preview":
 			err := sendFinalPostTelego(ctx, chatID, userID, c, state, false)
@@ -986,12 +1061,17 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 					{
 						{Text: "💾 Salvar como Template", CallbackData: "pb-save-template:" + id},
 					},
+					{
+						{Text: "❌ Cancelar", CallbackData: "pb-cancel", Style: "danger"},
+					},
 				},
 			}
 
 			recordPostBuilderEvent(c, "postbuilder_saved", services.ChannelEventStatusSuccess, userID, 0, id, map[string]any{"media_type": state.MediaType, "buttons": len(state.Buttons), "has_reactions": state.Reactions != ""}, nil)
-			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			messageID := update.CallbackQuery.Message.GetMessageID()
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 				ChatID:      telego.ChatID{ID: chatID},
+				MessageID:   messageID,
 				Text:        fmt.Sprintf("✅ <b>Postagem salva com sucesso!</b>\n\nUtilize o modo inline para enviar:\n<code>@%s pb %s</code>", botInfo.Username, id),
 				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: kb,
@@ -1095,24 +1175,33 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 
 		case "pb-cancel":
 			c.CacheService.DeletePostBuilderState(context.Background(), userID)
-			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-				ChatID: telego.ChatID{ID: chatID},
-				Text:   "❌ Post Builder cancelado.",
-			})
+			if update.CallbackQuery != nil && update.CallbackQuery.Message != nil {
+				messageID := update.CallbackQuery.Message.GetMessageID()
+				_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+					ChatID:    telego.ChatID{ID: chatID},
+					MessageID: messageID,
+					Text:      "❌ Post Builder cancelado.",
+				})
+			} else {
+				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID: telego.ChatID{ID: chatID},
+					Text:   "❌ Post Builder cancelado.",
+				})
+			}
 		}
 
 		return nil
 	}
 }
 
-func handleSendToChannelsTelego(ctx *telegohandler.Context, chatID, userID int64, sessionID string, c *container.AppContainer) {
+func handleSendToChannelsTelego(ctx *telegohandler.Context, chatID, userID int64, messageID int, sessionID, callbackQueryID string, c *container.AppContainer) {
 	bot := ctx.Bot()
 	channels, err := c.ChannelService.GetUserChannels(context.Background(), userID)
 	if err != nil || len(channels) == 0 {
-		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			Text:      "❌ Você não possui canais cadastrados para envio direto.",
-			ParseMode: telego.ModeHTML,
+		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: callbackQueryID,
+			Text:            "⚠️ Você não possui nenhum canal cadastrado para enviar postagens!",
+			ShowAlert:       true,
 		})
 		return
 	}
@@ -1123,10 +1212,14 @@ func handleSendToChannelsTelego(ctx *telegohandler.Context, chatID, userID int64
 			{Text: "📣 " + ch.Title, CallbackData: fmt.Sprintf("pb-send-apply:%d:%s", ch.ID, sessionID)},
 		})
 	}
+	rows = append(rows, []telego.InlineKeyboardButton{
+		{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+	})
 
 	kb := &telego.InlineKeyboardMarkup{InlineKeyboard: rows}
-	_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+	_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
 		ChatID:      telego.ChatID{ID: chatID},
+		MessageID:   messageID,
 		Text:        "📢 <b>Enviar para Canal</b>\n\nSelecione o canal para o qual deseja enviar esta postagem:",
 		ParseMode:   telego.ModeHTML,
 		ReplyMarkup: kb,
@@ -1155,9 +1248,18 @@ func handleSendApplyTelego(ctx *telegohandler.Context, chatID, userID int64, cha
 	}
 	recordPostBuilderEvent(c, "postbuilder_sent_to_channel", services.ChannelEventStatusSuccess, userID, channelID, sessionID, map[string]any{"media_type": state.MediaType, "buttons": len(state.Buttons)}, nil)
 
+	completionKB := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
+				{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+			},
+		},
+	}
+
 	_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-		ChatID: telego.ChatID{ID: chatID},
-		Text:   "✅ Postagem enviada com sucesso para o canal!",
+		ChatID:      telego.ChatID{ID: chatID},
+		Text:        "✅ Postagem enviada com sucesso para o canal!",
+		ReplyMarkup: completionKB,
 	})
 }
 
@@ -1524,14 +1626,14 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 	}
 }
 
-func handleSchedulePost(ctx *telegohandler.Context, chatID, userID int64, messageID int, sessionID string, c *container.AppContainer) {
+func handleSchedulePost(ctx *telegohandler.Context, chatID, userID int64, messageID int, sessionID, callbackQueryID string, c *container.AppContainer) {
 	bot := ctx.Bot()
 	channels, err := c.ChannelService.GetUserChannels(context.Background(), userID)
 	if err != nil || len(channels) == 0 {
-		_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			MessageID: messageID,
-			Text:      "❌ Nenhum canal encontrado.",
+		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: callbackQueryID,
+			Text:            "⚠️ Você não possui nenhum canal cadastrado para usar esta funcionalidade!",
+			ShowAlert:       true,
 		})
 		return
 	}
@@ -1543,7 +1645,7 @@ func handleSchedulePost(ctx *telegohandler.Context, chatID, userID int64, messag
 		})
 	}
 	buttons = append(buttons, []telego.InlineKeyboardButton{
-		{Text: "❌ Cancelar", CallbackData: "pb-cancel"},
+		{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
 	})
 
 	_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
@@ -1572,7 +1674,8 @@ func handleScheduleTypeSelection(ctx *telegohandler.Context, chatID, userID int6
 			{Text: "📋 Fila de envio", CallbackData: "pb-sch-type:" + sessionID + ":" + channelID + ":queue"},
 		},
 		{
-			{Text: "❌ Cancelar", CallbackData: "pb-cancel"},
+			{Text: "🔙 Voltar ao Canal", CallbackData: "pb-schedule:" + sessionID},
+			{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
 		},
 	}
 
@@ -1609,11 +1712,19 @@ func handleScheduleTypeAction(ctx *telegohandler.Context, chatID, userID int64, 
 		return
 	}
 
+	buttons := [][]telego.InlineKeyboardButton{
+		{
+			{Text: "🔙 Voltar", CallbackData: "pb-sch:" + sessionID + ":" + channelID},
+			{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+		},
+	}
+
 	_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
-		ChatID:    telego.ChatID{ID: chatID},
-		MessageID: messageID,
-		Text:      prompt,
-		ParseMode: telego.ModeHTML,
+		ChatID:      telego.ChatID{ID: chatID},
+		MessageID:   messageID,
+		Text:        prompt,
+		ParseMode:   telego.ModeHTML,
+		ReplyMarkup: &telego.InlineKeyboardMarkup{InlineKeyboard: buttons},
 	})
 }
 
@@ -1659,6 +1770,15 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 	brazilTZ := utils.BrazilTZ()
 	postData := mustMarshal(pbState)
 
+	completionKB := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
+				{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + scheduleState.SessionID},
+				{Text: "📋 Meus Agendamentos", CallbackData: "my-schedules"},
+			},
+		},
+	}
+
 	switch scheduleState.ScheduleType {
 	case "once":
 		// Parse "DD/MM/AAAA HH:MM"
@@ -1685,9 +1805,10 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		}
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			Text:      fmt.Sprintf("✅ <b>Agendamento criado!</b>\n\nEnvio único em: %s", parsedTime.Format("02/01/2006 15:04")),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        fmt.Sprintf("✅ <b>Agendamento criado!</b>\n\nEnvio único em: %s", parsedTime.Format("02/01/2006 15:04")),
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: completionKB,
 		})
 		_ = schedule
 
@@ -1717,9 +1838,10 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		}
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			Text:      fmt.Sprintf("✅ <b>Agendamento diário criado!</b>\n\nHorário: %s", scheduleTime),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        fmt.Sprintf("✅ <b>Agendamento diário criado!</b>\n\nHorário: %s", scheduleTime),
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: completionKB,
 		})
 		_ = schedule
 
@@ -1769,9 +1891,10 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		}
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			Text:      fmt.Sprintf("✅ <b>Agendamento semanal criado!</b>\n\nHorário: %s\nDias: %s", scheduleTime, scheduleDays),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        fmt.Sprintf("✅ <b>Agendamento semanal criado!</b>\n\nHorário: %s\nDias: %s", scheduleTime, scheduleDays),
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: completionKB,
 		})
 		_ = schedule
 
@@ -1802,14 +1925,76 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		}
 
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:    telego.ChatID{ID: chatID},
-			Text:      fmt.Sprintf("✅ <b>Fila criada!</b>\n\nPosição na fila: %d", pos),
-			ParseMode: telego.ModeHTML,
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        fmt.Sprintf("✅ <b>Fila criada!</b>\n\nPosição na fila: %d", pos),
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: completionKB,
 		})
 		_ = schedule
 	}
 
 	c.CacheService.DeleteScheduleState(context.Background(), userID)
+}
+
+func showSavedPostMenu(ctx *telegohandler.Context, chatID, userID int64, messageID int, sessionID string, c *container.AppContainer) {
+	bot := ctx.Bot()
+	state, err := c.CacheService.GetPostBuilderSession(context.Background(), sessionID)
+	if err != nil || state == nil {
+		if messageID != 0 {
+			_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+				ChatID:    telego.ChatID{ID: chatID},
+				MessageID: messageID,
+				Text:      "❌ Sessão da postagem expirada ou não encontrada.",
+			})
+		} else {
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: telego.ChatID{ID: chatID},
+				Text:   "❌ Sessão da postagem expirada ou não encontrada.",
+			})
+		}
+		return
+	}
+
+	botInfo, _ := bot.GetMe(context.Background())
+	query := "pb " + sessionID
+	kb := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
+				{Text: "🚀 Compartilhar", SwitchInlineQuery: &query},
+			},
+			{
+				{Text: "📢 Enviar para Canais", CallbackData: "pb-send-to-channels:" + sessionID},
+			},
+			{
+				{Text: "📅 Agendar Envio", CallbackData: "pb-schedule:" + sessionID},
+			},
+			{
+				{Text: "💾 Salvar como Template", CallbackData: "pb-save-template:" + sessionID},
+			},
+			{
+				{Text: "❌ Cancelar", CallbackData: "pb-cancel", Style: "danger"},
+			},
+		},
+	}
+
+	text := fmt.Sprintf("✅ <b>Postagem salva com sucesso!</b>\n\nUtilize o modo inline para enviar:\n<code>@%s pb %s</code>", botInfo.Username, sessionID)
+
+	if messageID != 0 {
+		_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   messageID,
+			Text:        text,
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: kb,
+		})
+	} else {
+		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        text,
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: kb,
+		})
+	}
 }
 
 func promptBackKB() *telego.InlineKeyboardMarkup {

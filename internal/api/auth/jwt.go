@@ -99,7 +99,12 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 func newJTI() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+		b2 := make([]byte, 16)
+		for i := range b2 {
+			b2[i] = byte(time.Now().UnixNano() & 0xff)
+			time.Sleep(time.Nanosecond)
+		}
+		return fmt.Sprintf("%x", b2)
 	}
 	return fmt.Sprintf("%x", b)
 }

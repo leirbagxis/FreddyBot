@@ -1,6 +1,8 @@
 package routes
 
 import (
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/controllers"
@@ -16,6 +18,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 	api := r.Group("/api")
 	api.Use(middleware.BodyLimit(middleware.MaxAPIRequestBodyBytes))
+	api.Use(middleware.RateLimit(120, time.Minute))
 
 	// Controladores
 	authController := controllers.NewAuthController(c)
@@ -40,7 +43,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	schedulerController := controllers.NewSchedulerController(c)
 
 	// --- Rota de Login Unificada ---
-	api.POST("/login", authController.Login)
+	api.POST("/login", middleware.RateLimit(15, time.Minute), authController.Login)
 
 	// --- Log de erros do frontend (sem auth - captura erros antes do login) ---
 	api.POST("/log/client-error", handlers.ClientErrorHandler(c))
@@ -169,7 +172,6 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 
 	// --- Rotas de Conta Conectada MTProto ---
 	accountRoutes := api.Group("/account")
-	accountRoutes.Use(auth.AuthMiddlewareJWT(c))
 	{
 		accountRoutes.GET("", accountController.GetAccountStatus)
 		accountRoutes.GET("/status", accountController.GetAuthStatus)

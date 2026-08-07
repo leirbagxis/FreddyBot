@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/leirbagxis/FreddyBot/internal/api"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
@@ -16,9 +17,19 @@ import (
 
 func main() {
 
-	db := database.InitDB()
+	db, err := database.InitDB()
+	if err != nil {
+		logger.Error("APP", "Erro ao inicializar banco de dados: %v", err)
+		os.Exit(1)
+	}
+	defer func() {
+		sqlDB, err := db.DB()
+		if err == nil && sqlDB != nil {
+			_ = sqlDB.Close()
+		}
+	}()
 
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
 	webhookHandler, _, app, err := telegram.StartBot(db)

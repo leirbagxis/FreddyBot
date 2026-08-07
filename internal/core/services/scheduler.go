@@ -80,6 +80,11 @@ func (s *SchedulerService) processDuePosts() {
 		return
 	}
 
+	maxPerCycle := 20
+	if len(posts) > maxPerCycle {
+		posts = posts[:maxPerCycle]
+	}
+
 	for _, post := range posts {
 		s.sendScheduledPost(ctx, &post)
 		time.Sleep(1 * time.Second)

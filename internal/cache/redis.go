@@ -2,7 +2,7 @@ package cache
 
 import (
 	"context"
-	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -22,7 +22,8 @@ func GetRedisClient() *redis.Client {
 
 		opt, err := redis.ParseURL(config.RedisAddr)
 		if err != nil {
-			panic(fmt.Sprintf("Invalid Redis URL: %v", err))
+			logger.Error("REDIS", "URL do Redis inválida: %v", err)
+			log.Fatalf("Invalid Redis URL: %v", err)
 		}
 		opt.PoolSize = 10
 		opt.MinIdleConns = 5
@@ -37,7 +38,8 @@ func GetRedisClient() *redis.Client {
 		defer cancel()
 
 		if err := redisClient.Ping(ctx).Err(); err != nil {
-			panic(fmt.Sprintf("Failed to connect to Redis: %v", err))
+			logger.Error("REDIS", "Falha ao conectar no Redis: %v", err)
+			log.Fatalf("Failed to connect to Redis: %v", err)
 		}
 
 		logger.Bot("✅ Redis conectado com sucesso")

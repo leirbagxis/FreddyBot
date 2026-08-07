@@ -23,6 +23,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/postBuilder"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/payments"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegohandler"
 )
@@ -42,10 +43,6 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	addChannelGroup.Handle(addchannel.AskAddChannelHandlerTelego(c))
 
 	bh.Handle(addchannel.UpdateChannelInfoHandlerTelego(c), telegohandler.AnyMyChatMember())
-
-	forwardedGroup := bh.Group(matchForwardedChannelTelego())
-	forwardedGroup.Use(middleware.CheckAddBotMiddlewareTelego(c))
-	forwardedGroup.Handle(addchannel.AskAddChannelHandlerTelego(c))
 
 	// Commands
 	bh.Handle(commandStart.HandlerTelego(c), telegohandler.CommandEqual("start"))
@@ -186,15 +183,7 @@ func matchAwaitingCaptionTelego(c *container.AppContainer) telegohandler.Predica
 	}
 }
 
-func matchForwardedChannelTelego() telegohandler.Predicate {
-	return func(ctx context.Context, update telego.Update) bool {
-		if update.Message == nil || update.Message.ForwardOrigin == nil {
-			return false
-		}
-		_, ok := update.Message.ForwardOrigin.(*telego.MessageOriginChannel)
-		return ok
-	}
-}
+
 
 func matchOwnerTelego() telegohandler.Predicate {
 	return func(ctx context.Context, update telego.Update) bool {
@@ -249,17 +238,23 @@ func matchPostBuilderTelego(c *container.AppContainer) telegohandler.Predicate {
 			return false
 		}
 
-		// Match if it has media
-		if update.Message.Photo != nil || update.Message.Video != nil || update.Message.Animation != nil || update.Message.Audio != nil || update.Message.Document != nil || update.Message.Sticker != nil {
+		// Match if it has media or text content
+		if update.Message.Photo != nil || update.Message.Video != nil || update.Message.Animation != nil || update.Message.Audio != nil || update.Message.Document != nil || update.Message.Sticker != nil || update.Message.Text != "" || update.Message.Caption != "" {
+			logger.Bot("Predicate: matchPostBuilderTelego = true (conteudo/midia) para UserID=%d", userId)
 			return true
 		}
 		// Match if in active session for text input
 		state, _ := c.CacheService.GetPostBuilderState(context.Background(), update.Message.From.ID)
 		if state != nil && state.Step != "" {
+			logger.Bot("Predicate: matchPostBuilderTelego = true (etapa ativa %s) para UserID=%d", state.Step, userId)
 			return true
 		}
 		// Match if in schedule input flow (post builder state was deleted after save)
 		scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), update.Message.From.ID)
-		return scheduleState != nil && scheduleState.SessionID != ""
+		matchedSchedule := scheduleState != nil && scheduleState.SessionID != ""
+		if matchedSchedule {
+			logger.Bot("Predicate: matchPostBuilderTelego = true (agendamento ativo) para UserID=%d", userId)
+		}
+		return matchedSchedule
 	}
 }

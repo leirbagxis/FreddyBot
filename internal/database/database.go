@@ -43,8 +43,9 @@ func validFixedPostBuilderPayload(payload string) bool {
 	return json.Unmarshal([]byte(payload), &raw) == nil
 }
 
-func InitDB() *gorm.DB {
+func InitDB() (*gorm.DB, error) {
 	var dialector gorm.Dialector
+	isSQLite := false
 
 	// DatabaseDriver permite forçar postgres/sqlite independente do AppEnv.
 	// Valores: "postgres", "sqlite" (ou vazio = usa AppEnv).
@@ -54,10 +55,12 @@ func InitDB() *gorm.DB {
 		customLogger.DB("🐘 Usando banco de dados PostgreSQL (forçado por DATABASE_DRIVER)")
 		dialector = postgres.Open(config.DatabaseFile)
 	case "sqlite":
+		isSQLite = true
 		customLogger.DB("📦 Usando banco de dados SQLite (forçado por DATABASE_DRIVER)")
 		dialector = sqlite.Open(config.DatabaseFile)
 	default:
 		if config.AppEnv == "dev" {
+			isSQLite = true
 			customLogger.DB("📦 Usando banco de dados SQLite (modo dev)")
 			dialector = sqlite.Open(config.DatabaseFile)
 		} else {
@@ -68,12 +71,12 @@ func InitDB() *gorm.DB {
 
 	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	db.Config.Logger = logger.Default.LogMode(logger.Silent)
 
 	// Habilitar Foreign Keys no SQLite
-	if config.AppEnv == "dev" {
+	if isSQLite {
 		db.Exec("PRAGMA foreign_keys = ON;")
 	}
 
@@ -83,25 +86,28 @@ func InitDB() *gorm.DB {
 		sqlDB.SetMaxIdleConns(10)
 		sqlDB.SetMaxOpenConns(100)
 		sqlDB.SetConnMaxLifetime(time.Hour)
+		sqlDB.SetConnMaxIdleTime(5 * time.Minute)
 		customLogger.DB("⚙️ Pool de conexões configurado (Idle: 10, Open: 100)")
 	}
 
-	// Forçar recriação de índices que mudaram de estrutura
-	db.Exec("DROP INDEX IF EXISTS idx_vote_user")
+	if !isSQLite {
+		// Forçar recriação de índices que mudaram de estrutura
+		db.Exec("DROP INDEX IF EXISTS idx_vote_user")
 
-	// Migração: ScheduledPost.ID mudou de uuid para text
-	db.Exec(`DO $$ BEGIN
-		IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
-			ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
-		END IF;
-	END $$;`)
+		// Migração: ScheduledPost.ID mudou de uuid para text
+		db.Exec(`DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
+				ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
+			END IF;
+		END $$;`)
 
-	// Migração: adicionar coluna pin_message se não existir
-	db.Exec(`DO $$ BEGIN
-		IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
-			ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
-		END IF;
-	END $$;`)
+		// Migração: adicionar coluna pin_message se não existir
+		db.Exec(`DO $$ BEGIN
+			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
+				ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
+			END IF;
+		END $$;`)
+	}
 
 	err = db.AutoMigrate(
 		&models.User{},
@@ -131,18 +137,18 @@ func InitDB() *gorm.DB {
 		&models.UserCaptionTemplateButton{},
 	)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := initServerConfig(db); err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := seedPremiumFeatures(db); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return db
+	return db, nil
 }
 
 func initServerConfig(db *gorm.DB) error {

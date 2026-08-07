@@ -16,6 +16,7 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/mtproto/encryption"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -152,7 +153,7 @@ type AdminAuthStep struct {
 
 // StartAuth inicia o fluxo de autenticacao para uma nova conta admin.
 func (s *AdminAccountService) StartAuth(ctx context.Context, label string, phoneNumber string) (*AdminAuthStep, error) {
-	logger.Bot("📱 Iniciando auth MTProto admin: label=%s phone=%s", label, phoneNumber)
+	logger.Bot("📱 Iniciando auth MTProto admin: label=%s phone=%s", label, utils.MaskPhone(phoneNumber))
 	if !s.isConfigured() {
 		return &AdminAuthStep{Step: "error", Error: "Conexão MTProto indisponível. Configure MTPROTO_APP_ID e MTPROTO_APP_HASH."}, nil
 	}
