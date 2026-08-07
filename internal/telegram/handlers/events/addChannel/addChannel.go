@@ -8,7 +8,6 @@ import (
 
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
-	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/postBuilder"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/logs"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
@@ -17,26 +16,44 @@ import (
 	"github.com/mymmrac/telego/telegohandler"
 )
 
+func SendAddChannelPromptTelego(bot *telego.Bot, fromID, chatID int64, chatTitle, firstName string) error {
+	logger.Bot("AskAddChannel: Solicitação para o canal %d pelo usuário %d", chatID, fromID)
+
+	data := map[string]string{
+		"channelName": chatTitle,
+		"channelId":   fmt.Sprintf("%d", chatID),
+		"firstName":   firstName,
+	}
+
+	text, _ := parser.GetMessageTelego("toadd-require-message", data)
+	kb := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
+				{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
+				{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
+			},
+		},
+	}
+
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      telego.ChatID{ID: fromID},
+		Text:        text,
+		ReplyMarkup: kb,
+		ParseMode:   telego.ModeHTML,
+	})
+	return err
+}
+
 func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
-		var chatID int64
-		var fromID int64
-		var chatTitle string
-		var firstName string
-
-		if update.MyChatMember != nil {
-			chatID = update.MyChatMember.Chat.ID
-			fromID = update.MyChatMember.From.ID
-			chatTitle = update.MyChatMember.Chat.Title
-			firstName = update.MyChatMember.From.FirstName
-		} else if update.Message != nil && update.Message.ForwardOrigin != nil {
-			if origin, ok := update.Message.ForwardOrigin.(*telego.MessageOriginChannel); ok {
-				chatID = origin.Chat.ID
-				fromID = update.Message.From.ID
-				chatTitle = origin.Chat.Title
-				firstName = update.Message.From.FirstName
-			}
+		if update.MyChatMember == nil {
+			return nil
 		}
+
+		chatID := update.MyChatMember.Chat.ID
+		fromID := update.MyChatMember.From.ID
+		chatTitle := update.MyChatMember.Chat.Title
+		firstName := update.MyChatMember.From.FirstName
 
 		if chatID == 0 {
 			return nil
@@ -46,41 +63,10 @@ func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler
 		existing, _ := c.ChannelService.GetChannelByID(context.Background(), chatID)
 		if existing != nil {
 			logger.Bot("AskAddChannel: Canal %d já existe no banco.", chatID)
-		} else {
-			bot := ctx.Bot()
-			logger.Bot("AskAddChannel: Solicitação para o canal %d pelo usuário %d", chatID, fromID)
-
-			data := map[string]string{
-				"channelName": chatTitle,
-				"channelId":   fmt.Sprintf("%d", chatID),
-				"firstName":   firstName,
-			}
-
-			text, _ := parser.GetMessageTelego("toadd-require-message", data)
-			kb := &telego.InlineKeyboardMarkup{
-				InlineKeyboard: [][]telego.InlineKeyboardButton{
-					{
-						{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
-						{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
-					},
-				},
-			}
-
-			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-				ChatID:      telego.ChatID{ID: fromID},
-				Text:        text,
-				ReplyMarkup: kb,
-				ParseMode:   telego.ModeHTML,
-			})
+			return nil
 		}
 
-		// Oferecer também o PostBuilder para a mensagem encaminhada recebida
-		if update.Message != nil {
-			logger.Bot("AskAddChannel: Repassando mensagem encaminhada para o PostBuilder...")
-			_ = postbuilder.ProcessIncomingContentTelego(ctx, update, c)
-		}
-
-		return nil
+		return SendAddChannelPromptTelego(ctx.Bot(), fromID, chatID, chatTitle, firstName)
 	}
 }
 

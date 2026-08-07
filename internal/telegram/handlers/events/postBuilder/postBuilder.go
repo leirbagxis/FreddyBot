@@ -16,11 +16,28 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/core/services"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	channelpost "github.com/leirbagxis/FreddyBot/internal/telegram/events/channelPost"
+	addchannel "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/events/addChannel"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegohandler"
 )
+
+func isBotAdminTelego(chatMember telego.ChatMember) bool {
+	if chatMember == nil {
+		return false
+	}
+	status := chatMember.MemberStatus()
+	if status == telego.MemberStatusCreator {
+		return true
+	}
+	if status == telego.MemberStatusAdministrator {
+		if admin, ok := chatMember.(*telego.ChatMemberAdministrator); ok {
+			return admin.CanPostMessages && admin.CanEditMessages && admin.CanDeleteMessages && admin.CanInviteUsers
+		}
+	}
+	return false
+}
 
 func isEmoji(s string) bool {
 	for _, r := range s {
@@ -164,6 +181,31 @@ func ProcessIncomingContentTelego(ctx *telegohandler.Context, update telego.Upda
 	if mediaID == "" && mediaType == "" {
 		logger.Bot("PostBuilder: Nenhum tipo de midia ou texto identificado para o usuario %d", userID)
 		return nil
+	}
+
+	// Verificar se é mensagem encaminhada de um canal
+	if update.Message.ForwardOrigin != nil {
+		if origin, ok := update.Message.ForwardOrigin.(*telego.MessageOriginChannel); ok {
+			channelID := origin.Chat.ID
+			existingChannel, _ := c.ChannelService.GetChannelByID(context.Background(), channelID)
+			if existingChannel == nil {
+				// Canal NÃO está configurado no banco. Verificar se o bot é admin no canal.
+				botInfo, _ := bot.GetMe(context.Background())
+				if botInfo != nil {
+					botMember, err := bot.GetChatMember(context.Background(), &telego.GetChatMemberParams{
+						ChatID: telego.ChatID{ID: channelID},
+						UserID: botInfo.ID,
+					})
+					if err == nil && isBotAdminTelego(botMember) {
+						logger.Bot("PostBuilder: Mensagem encaminhada do canal %d. Bot e admin porem canal NAO esta configurado no banco. Disparando prompt de vinculacao.", channelID)
+						return addchannel.SendAddChannelPromptTelego(bot, userID, channelID, origin.Chat.Title, update.Message.From.FirstName)
+					}
+				}
+				logger.Bot("PostBuilder: Mensagem encaminhada do canal %d. Bot NAO e admin no canal. Prosseguindo para o PostBuilder.", channelID)
+			} else {
+				logger.Bot("PostBuilder: Mensagem encaminhada do canal %d que JA ESTA configurado no banco. Prosseguindo para o PostBuilder.", channelID)
+			}
+		}
 	}
 
 	// Conteúdo/Mídia detectado, oferecer Post Builder
