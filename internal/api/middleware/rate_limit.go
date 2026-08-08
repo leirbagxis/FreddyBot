@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"time"
@@ -28,7 +29,9 @@ func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
 		}
 
 		if count == 1 {
-			client.Expire(c.Request.Context(), key, window)
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			_ = client.Expire(ctx, key, window).Err()
+			cancel()
 		}
 
 		if count > int64(limit) {

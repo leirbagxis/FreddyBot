@@ -10,12 +10,17 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database"
 	"github.com/leirbagxis/FreddyBot/internal/telegram"
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
 // Send any text message to the bot after the bot has been started
 
 func main() {
+	if err := config.Validate(); err != nil {
+		logger.Error("APP", "Configuração inválida: %v", err)
+		os.Exit(1)
+	}
 
 	db, err := database.InitDB()
 	if err != nil {

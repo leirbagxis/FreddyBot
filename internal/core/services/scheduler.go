@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/leirbagxis/FreddyBot/internal/cache"
@@ -85,10 +86,16 @@ func (s *SchedulerService) processDuePosts() {
 		posts = posts[:maxPerCycle]
 	}
 
+	var wg sync.WaitGroup
 	for _, post := range posts {
-		s.sendScheduledPost(ctx, &post)
-		time.Sleep(1 * time.Second)
+		wg.Add(1)
+		p := post
+		go func() {
+			defer wg.Done()
+			s.sendScheduledPost(ctx, &p)
+		}()
 	}
+	wg.Wait()
 }
 
 func (s *SchedulerService) sendScheduledPost(ctx context.Context, post *models.ScheduledPost) {

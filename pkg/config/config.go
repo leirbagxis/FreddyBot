@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -138,4 +139,25 @@ func parseOrigins(raw string, fallback string) []string {
 		origins = append(origins, fallback)
 	}
 	return origins
+}
+
+// Validate verifica se todas as configurações obrigatórias foram carregadas corretamente.
+func Validate() error {
+	var missing []string
+	if TelegramBotToken == "" {
+		missing = append(missing, "TELEGRAM_BOT_TOKEN")
+	}
+	if RedisAddr == "" {
+		missing = append(missing, "REDIS_HOST")
+	}
+	if OwnerID == 0 && !isTestMode() {
+		missing = append(missing, "OWNER_ID")
+	}
+	if SecretKey == "" {
+		missing = append(missing, "SECRET_KEY")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("variáveis de ambiente obrigatórias ausentes ou inválidas: %s", strings.Join(missing, ", "))
+	}
+	return nil
 }
