@@ -120,6 +120,7 @@ type Button struct {
 	ButtonID       string    `gorm:"type:text;primaryKey" json:"buttonId"`
 	NameButton     string    `json:"nameButton"`
 	ButtonURL      string    `json:"buttonUrl"`
+	Style          string    `gorm:"type:text" json:"style,omitempty"`
 	PositionX      int       `gorm:"default:0;index:idx_button_pos" json:"positionX"`
 	PositionY      int       `gorm:"default:0;index:idx_button_pos" json:"positionY"`
 	OwnerChannelID int64     `gorm:"index" json:"ownerChannelId"`
@@ -155,6 +156,7 @@ type CustomCaptionButton struct {
 	ButtonID       string    `gorm:"type:text;primaryKey" json:"buttonId"`
 	NameButton     string    `json:"nameButton"`
 	ButtonURL      string    `json:"buttonUrl"`
+	Style          string    `gorm:"type:text" json:"style,omitempty"`
 	PositionX      int       `gorm:"default:0" json:"positionX"`
 	PositionY      int       `gorm:"default:0" json:"positionY"`
 	OwnerCaptionID string    `gorm:"index" json:"ownerCaptionId"`

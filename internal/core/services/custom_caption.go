@@ -100,6 +100,7 @@ func (s *CustomCaptionService) ReplaceCustomCaptionsForChannel(ctx context.Conte
 					ButtonID:       uuid.NewString(),
 					NameButton:     btn.NameButton,
 					ButtonURL:      btn.ButtonURL,
+					Style:          btn.Style,
 					PositionX:      0,
 					PositionY:      i,
 					OwnerCaptionID: captionID,

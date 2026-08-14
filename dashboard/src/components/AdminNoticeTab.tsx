@@ -207,7 +207,7 @@ export function AdminNoticeTab({
                 <div className="broadcast-preview-stage">{renderPreview()}</div>
             </aside>
 
-            <ConfirmModal open={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleSendNotice} title="Iniciar broadcast?" message={`Você iniciará um envio para aproximadamente ${recipientCount.toLocaleString('pt-BR')} destinatário${recipientCount === 1 ? '' : 's'} em “${selectedTarget.label}”. O processamento seguirá em segundo plano.`} confirmText="Iniciar envio" danger />
+            <ConfirmModal open={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleSendNotice} title="Iniciar broadcast?" message={`Você iniciará o envio para aproximadamente ${recipientCount.toLocaleString('pt-BR')} destinatário${recipientCount === 1 ? '' : 's'} em “${selectedTarget.label}”. O processamento seguirá em segundo plano.`} confirmText="Iniciar envio" danger={false} />
         </div>
     );
 }

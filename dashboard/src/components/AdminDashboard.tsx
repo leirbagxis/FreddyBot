@@ -1,13 +1,14 @@
-import { useState, useMemo, useTransition, useEffect, Dispatch, SetStateAction } from 'react';
+import { useState, useMemo, useTransition, useEffect, Dispatch, SetStateAction, Suspense, lazy } from 'react';
 import { AdminDashboardData, User, Channel, AuditResult } from '../types';
-import { AdminNoticeTab } from './AdminNoticeTab';
-import { AdminConfigTab } from './AdminConfigTab';
-import { AdminAuditTab } from './AdminAuditTab';
-import { AdminLogsTab } from './AdminLogsTab';
-import { AdminMTProtoAccountsTab } from './AdminMTProtoAccountsTab';
-import { AdminPremiumFeaturesTab } from './AdminPremiumFeaturesTab';
-import { AdminSubscriptionsTab } from './AdminSubscriptionsTab';
 import { NoticeButton, NoticeTarget, updateUserAdmin, updateUserBlacklist } from '../api';
+
+const AdminNoticeTab = lazy(() => import('./AdminNoticeTab').then(m => ({ default: m.AdminNoticeTab })));
+const AdminConfigTab = lazy(() => import('./AdminConfigTab').then(m => ({ default: m.AdminConfigTab })));
+const AdminAuditTab = lazy(() => import('./AdminAuditTab').then(m => ({ default: m.AdminAuditTab })));
+const AdminLogsTab = lazy(() => import('./AdminLogsTab').then(m => ({ default: m.AdminLogsTab })));
+const AdminMTProtoAccountsTab = lazy(() => import('./AdminMTProtoAccountsTab').then(m => ({ default: m.AdminMTProtoAccountsTab })));
+const AdminPremiumFeaturesTab = lazy(() => import('./AdminPremiumFeaturesTab').then(m => ({ default: m.AdminPremiumFeaturesTab })));
+const AdminSubscriptionsTab = lazy(() => import('./AdminSubscriptionsTab').then(m => ({ default: m.AdminSubscriptionsTab })));
 import { Hash, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare } from 'lucide-react';
 import { useToast } from './Toast';
 import { Button } from './ui/button';
@@ -400,43 +401,59 @@ export function AdminDashboard({
       {localActiveTab === 'channels' && renderChannelsTab()}
       {localActiveTab === 'audit' && (
         <div className="space-y-4">
-          <AdminAuditTab
-            navigateToChannel={navigateToChannel}
-            onOpenUser={(id) => {
-              onOpenUserDetail(id);
-              navigateToTab('users');
-            }}
-            results={auditResults}
-            setResults={setAuditResults}
-            loading={auditLoading}
-            onRunAudit={handleRunAudit}
-          />
+          <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando auditoria...</div>}>
+            <AdminAuditTab
+              navigateToChannel={navigateToChannel}
+              onOpenUser={(id) => {
+                onOpenUserDetail(id);
+                navigateToTab('users');
+              }}
+              results={auditResults}
+              setResults={setAuditResults}
+              loading={auditLoading}
+              onRunAudit={handleRunAudit}
+            />
+          </Suspense>
         </div>
       )}
-      {localActiveTab === 'notice' && renderNoticeTab()}
+      {localActiveTab === 'notice' && (
+        <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando aviso...</div>}>
+          {renderNoticeTab()}
+        </Suspense>
+      )}
       {localActiveTab === 'logs' && (
         <div className="space-y-4">
-          <AdminLogsTab navigateToChannel={navigateToChannel} initialChannelId={initialLogsChannelId} />
+          <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando logs...</div>}>
+            <AdminLogsTab navigateToChannel={navigateToChannel} initialChannelId={initialLogsChannelId} />
+          </Suspense>
         </div>
       )}
       {localActiveTab === 'config' && (
         <div className="space-y-4">
-          <AdminConfigTab />
+          <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando configurações...</div>}>
+            <AdminConfigTab />
+          </Suspense>
         </div>
       )}
       {localActiveTab === 'accounts' && (
         <div className="space-y-4">
-          <AdminMTProtoAccountsTab />
+          <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando contas MTProto...</div>}>
+            <AdminMTProtoAccountsTab />
+          </Suspense>
         </div>
       )}
       {localActiveTab === 'premium-features' && (
         <div className="space-y-4">
-          <AdminPremiumFeaturesTab toast={toast} />
+          <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando recursos premium...</div>}>
+            <AdminPremiumFeaturesTab toast={toast} />
+          </Suspense>
         </div>
       )}
       {localActiveTab === 'subscriptions' && (
         <div className="space-y-4">
-          <AdminSubscriptionsTab toast={toast} />
+          <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando assinaturas...</div>}>
+            <AdminSubscriptionsTab toast={toast} />
+          </Suspense>
         </div>
       )}
     </div>

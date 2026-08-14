@@ -42,6 +42,7 @@ export interface Button {
   buttonId: string;
   nameButton: string;
   buttonUrl: string;
+  style?: string;
   positionX: number;
   positionY: number;
   ownerChannelId: number;
@@ -337,6 +338,9 @@ export interface ScheduledPost {
   scheduleDays?: string;
   nextRunAt: string;
   repeatUntil?: string;
+  intervalMin?: number;
+  windowStart?: string;
+  windowEnd?: string;
   queueGroupId?: string;
   queuePosition: number;
   loopQueue: boolean;

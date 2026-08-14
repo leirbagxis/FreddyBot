@@ -76,8 +76,17 @@ func (c *ChannelController) GetChannelByIDController(ctx *gin.Context) {
 		}
 	}
 
+	userDTO := dto.ToUserDTO(channel.Owner)
+	if len(userDTO.Channels) == 0 && channel.OwnerID != 0 {
+		if userChannels, err := c.container.ChannelService.GetUserChannels(ctx, channel.OwnerID); err == nil {
+			for _, ch := range userChannels {
+				userDTO.Channels = append(userDTO.Channels, dto.ToChannelDTO(&ch))
+			}
+		}
+	}
+
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse(gin.H{
-		"user":    dto.ToUserDTO(channel.Owner),
+		"user":    userDTO,
 		"channel": dto.ToChannelDTO(channel),
 	}))
 }

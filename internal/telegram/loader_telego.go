@@ -226,7 +226,7 @@ func matchPostBuilderTelego(c *container.AppContainer) telegohandler.Predicate {
 			return false
 		}
 
-		// Prioridade para sessões ativas
+		// Prioridade para sessões ativas de outros fluxos
 		userId := update.Message.From.ID
 		if id, _ := c.CacheService.GetAwaitingStickerSeparator(context.Background(), userId); id != 0 {
 			return false
@@ -238,23 +238,35 @@ func matchPostBuilderTelego(c *container.AppContainer) telegohandler.Predicate {
 			return false
 		}
 
-		// Match if it has media or text content
-		if update.Message.Photo != nil || update.Message.Video != nil || update.Message.Animation != nil || update.Message.Audio != nil || update.Message.Document != nil || update.Message.Sticker != nil || update.Message.Text != "" || update.Message.Caption != "" {
-			logger.Bot("Predicate: matchPostBuilderTelego = true (conteudo/midia) para UserID=%d", userId)
-			return true
-		}
-		// Match if in active session for text input
-		state, _ := c.CacheService.GetPostBuilderState(context.Background(), update.Message.From.ID)
+		// Match se o usuário estiver em uma etapa de entrada ativa do PostBuilder
+		state, _ := c.CacheService.GetPostBuilderState(context.Background(), userId)
 		if state != nil && state.Step != "" {
 			logger.Bot("Predicate: matchPostBuilderTelego = true (etapa ativa %s) para UserID=%d", state.Step, userId)
 			return true
 		}
-		// Match if in schedule input flow (post builder state was deleted after save)
-		scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), update.Message.From.ID)
-		matchedSchedule := scheduleState != nil && scheduleState.SessionID != ""
-		if matchedSchedule {
+
+		// Match se o usuário estiver no fluxo de agendamento ativo
+		scheduleState, _ := c.CacheService.GetScheduleState(context.Background(), userId)
+		if scheduleState != nil && scheduleState.SessionID != "" {
 			logger.Bot("Predicate: matchPostBuilderTelego = true (agendamento ativo) para UserID=%d", userId)
+			return true
 		}
-		return matchedSchedule
+
+		// Match se contiver mídia ou for encaminhada
+		hasMedia := update.Message.Photo != nil ||
+			update.Message.Video != nil ||
+			update.Message.Animation != nil ||
+			update.Message.Audio != nil ||
+			update.Message.Document != nil ||
+			update.Message.Sticker != nil
+
+		isForwarded := update.Message.ForwardOrigin != nil
+
+		if hasMedia || isForwarded {
+			logger.Bot("Predicate: matchPostBuilderTelego = true (midia/encaminhamento) para UserID=%d", userId)
+			return true
+		}
+
+		return false
 	}
 }

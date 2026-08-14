@@ -51,11 +51,22 @@ func HandlerTelego(c *container.AppContainer) telegohandler.Handler {
 				statusEmoji = "✅"
 			}
 
+			typeLabel := s.ScheduleType
+			timeLabel := s.ScheduleTime
+			if s.ScheduleType == "interval" {
+				typeLabel = fmt.Sprintf("intervalo (%dmin)", s.IntervalMin)
+				if s.WindowStart != "" {
+					timeLabel = fmt.Sprintf("%s-%s", s.WindowStart, s.WindowEnd)
+				} else {
+					timeLabel = "24h"
+				}
+			}
+
 			text += fmt.Sprintf("%s <b>%s</b> → %s\n⏰ %s | %s\n\n",
 				statusEmoji,
 				s.ChannelTitle,
-				s.ScheduleType,
-				s.ScheduleTime,
+				typeLabel,
+				timeLabel,
 				s.Status,
 			)
 

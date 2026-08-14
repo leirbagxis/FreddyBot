@@ -19,12 +19,13 @@ func (r *ButtonRepository) CreateButton(ctx context.Context, button *models.Butt
 	return r.db.WithContext(ctx).Create(button).Error
 }
 
-func (r *ButtonRepository) UpdateButton(ctx context.Context, channelID int64, buttonID, name, url string) (int64, error) {
+func (r *ButtonRepository) UpdateButton(ctx context.Context, channelID int64, buttonID, name, url, style string) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&models.Button{}).
 		Where("button_id = ? AND owner_channel_id = ?", buttonID, channelID).
 		Updates(map[string]interface{}{
 			"name_button": name,
 			"button_url":  url,
+			"style":       style,
 		})
 	return result.RowsAffected, result.Error
 }

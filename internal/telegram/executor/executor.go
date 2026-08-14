@@ -55,6 +55,7 @@ type InlineKeyboardButton struct {
 	Text         string
 	URL          string
 	CallbackData string
+	Style        string
 }
 
 // NewEmptyKeyboard cria um InlineKeyboardMarkup vazio.

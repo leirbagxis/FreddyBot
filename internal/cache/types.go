@@ -15,6 +15,7 @@ type Session struct {
 type PostBuilderButton struct {
 	Text          string `json:"text"`
 	URL           string `json:"url"`
+	Style         string `json:"style,omitempty"`
 	CustomEmojiID string `json:"custom_emoji_id,omitempty"`
 }
 

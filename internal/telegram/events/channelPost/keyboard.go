@@ -17,6 +17,7 @@ func CreateInlineKeyboardTelego(buttons []dbmodels.Button, customCaption *dbmode
 			finalButtons = append(finalButtons, dbmodels.Button{
 				NameButton: cb.NameButton,
 				ButtonURL:  cb.ButtonURL,
+				Style:      cb.Style,
 				PositionY:  cb.PositionY,
 				PositionX:  cb.PositionX,
 			})
@@ -44,7 +45,7 @@ func CreateInlineKeyboardTelego(buttons []dbmodels.Button, customCaption *dbmode
 		if row < 0 {
 			row = 0
 		}
-		btn := telego.InlineKeyboardButton{Text: b.NameButton, URL: buttonURL}
+		btn := telego.InlineKeyboardButton{Text: b.NameButton, URL: buttonURL, Style: b.Style}
 		rows[row] = append(rows[row], btn)
 	}
 

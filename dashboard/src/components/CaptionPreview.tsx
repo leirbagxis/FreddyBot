@@ -53,6 +53,12 @@ function mdToHtml(text: string): string {
     // List items
     .replace(/^•\s?(.+)$/gm, '<li class="cp-li">$1</li>');
 
+  // Highlight template variables ($name, $title, $link, $count)
+  h = h.replace(/(\$(?:name|title|link|count))\b/g, '<span class="cp-var font-mono text-[11px] px-1.5 py-0.5 rounded bg-accent/15 text-accent font-bold">$1</span>');
+
+  // Auto-link t.me URLs
+  h = h.replace(/(^|[^"'])(https?:\/\/t\.me\/[a-zA-Z0-9_/-]+)/g, '$1<a class="cp-a text-accent font-medium hover:underline" href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
+
   return h;
 }
 

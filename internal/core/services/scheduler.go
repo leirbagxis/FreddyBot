@@ -28,6 +28,9 @@ type ScheduleOptions struct {
 	QueuePosition int
 	LoopQueue     bool
 	PinMessage    bool
+	IntervalMin   int
+	WindowStart   string
+	WindowEnd     string
 }
 
 type SchedulerService struct {
@@ -146,6 +149,15 @@ func (s *SchedulerService) sendScheduledPost(ctx context.Context, post *models.S
 			logger.Info("SCHEDULER", "Post semanal %s: próximo envio %s", post.ID, nextRun.Format("02/01 15:04"))
 		} else {
 			logger.Info("SCHEDULER", "Post semanal %s finalizado", post.ID)
+		}
+	case "interval":
+		nextRun := s.calculateNextInterval(post, sentAt)
+		if nextRun != nil && (post.RepeatUntil == nil || nextRun.Before(*post.RepeatUntil)) {
+			s.repo.UpdateStatus(ctx, post.ID, "pending")
+			s.repo.UpdateNextRunAt(ctx, post.ID, *nextRun)
+			logger.Info("SCHEDULER", "Post intervalo %s: próximo envio %s (cada %dmin)", post.ID, nextRun.Format("02/01 15:04"), post.IntervalMin)
+		} else {
+			logger.Info("SCHEDULER", "Post intervalo %s finalizado (repeat_until atingido)", post.ID)
 		}
 	case "queue":
 		s.advanceQueue(ctx, post)
@@ -322,6 +334,34 @@ func (s *SchedulerService) calculateNextWeekly(post *models.ScheduledPost) *time
 	return nil
 }
 
+func (s *SchedulerService) calculateNextInterval(post *models.ScheduledPost, sentAt time.Time) *time.Time {
+	intervalMin := post.IntervalMin
+	if intervalMin < 5 {
+		intervalMin = 5
+	}
+	next := sentAt.Add(time.Duration(intervalMin) * time.Minute)
+
+	if post.WindowStart != "" && post.WindowEnd != "" {
+		brazilTZ := utils.BrazilTZ()
+		nextLocal := next.In(brazilTZ)
+
+		startH, startM := parseHHMM(post.WindowStart)
+		endH, endM := parseHHMM(post.WindowEnd)
+
+		windowStart := time.Date(nextLocal.Year(), nextLocal.Month(), nextLocal.Day(), startH, startM, 0, 0, brazilTZ)
+		windowEnd := time.Date(nextLocal.Year(), nextLocal.Month(), nextLocal.Day(), endH, endM, 0, 0, brazilTZ)
+
+		if nextLocal.Before(windowStart) {
+			next = windowStart
+		} else if nextLocal.After(windowEnd) {
+			next = windowStart.AddDate(0, 0, 1)
+		}
+	}
+
+	result := next.UTC()
+	return &result
+}
+
 func (s *SchedulerService) advanceQueue(ctx context.Context, sentPost *models.ScheduledPost) {
 	if sentPost.QueueGroupID == "" {
 		return
@@ -382,8 +422,8 @@ func parseHHMM(s string) (int, int) {
 }
 
 func validateScheduleTime(s string) (int, int, error) {
-	parts := strings.Split(s, ":")
-	if len(parts) != 2 || len(parts[0]) != 2 || len(parts[1]) != 2 {
+	parts := strings.Split(strings.TrimSpace(s), ":")
+	if len(parts) != 2 || len(parts[0]) < 1 || len(parts[0]) > 2 || len(parts[1]) < 1 || len(parts[1]) > 2 {
 		return 0, 0, fmt.Errorf("horário inválido, use HH:MM")
 	}
 	hour, err := strconv.Atoi(parts[0])
@@ -405,8 +445,33 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 		return nil, apperrors.ErrForbidden
 	}
 	if opts.ScheduleType == "daily" || opts.ScheduleType == "weekly" {
-		if _, _, err := validateScheduleTime(opts.ScheduleTime); err != nil {
+		h, m, err := validateScheduleTime(opts.ScheduleTime)
+		if err != nil {
 			return nil, apperrors.BadRequest(err.Error())
+		}
+		opts.ScheduleTime = fmt.Sprintf("%02d:%02d", h, m)
+	}
+	if opts.ScheduleType == "interval" {
+		if opts.IntervalMin < 5 {
+			return nil, apperrors.BadRequest("intervalo mínimo é 5 minutos")
+		}
+		if opts.IntervalMin > 1440 {
+			return nil, apperrors.BadRequest("para intervalos de 24h ou mais, use o tipo 'daily'")
+		}
+		if (opts.WindowStart != "" && opts.WindowEnd == "") || (opts.WindowStart == "" && opts.WindowEnd != "") {
+			return nil, apperrors.BadRequest("informe início e fim da janela de horário, ou deixe ambos vazios")
+		}
+		if opts.WindowStart != "" {
+			sh, sm, err := validateScheduleTime(opts.WindowStart)
+			if err != nil {
+				return nil, apperrors.BadRequest("horário de início da janela inválido")
+			}
+			eh, em, err := validateScheduleTime(opts.WindowEnd)
+			if err != nil {
+				return nil, apperrors.BadRequest("horário de fim da janela inválido")
+			}
+			opts.WindowStart = fmt.Sprintf("%02d:%02d", sh, sm)
+			opts.WindowEnd = fmt.Sprintf("%02d:%02d", eh, em)
 		}
 	}
 
@@ -429,6 +494,20 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 			nextRun = time.Date(now.Year(), now.Month(), now.Day()+1, hour, min, 0, 0, brazilTZ).UTC()
 		}
 		nextRunAt = nextRun
+	} else if opts.ScheduleType == "interval" {
+		if opts.WindowStart != "" {
+			brazilTZ := utils.BrazilTZ()
+			now := time.Now().In(brazilTZ)
+			startH, startM := parseHHMM(opts.WindowStart)
+			windowStart := time.Date(now.Year(), now.Month(), now.Day(), startH, startM, 0, 0, brazilTZ)
+			if now.Before(windowStart) {
+				nextRunAt = windowStart.UTC()
+			} else {
+				nextRunAt = time.Now().Add(time.Duration(opts.IntervalMin) * time.Minute).UTC()
+			}
+		} else {
+			nextRunAt = time.Now().Add(time.Duration(opts.IntervalMin) * time.Minute).UTC()
+		}
 	}
 
 	var scheduleDaysStr string
@@ -449,6 +528,9 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 		ScheduleDays:  scheduleDaysStr,
 		NextRunAt:     nextRunAt,
 		RepeatUntil:   opts.RepeatUntil,
+		IntervalMin:   opts.IntervalMin,
+		WindowStart:   opts.WindowStart,
+		WindowEnd:     opts.WindowEnd,
 		QueueGroupID:  opts.QueueGroupID,
 		QueuePosition: opts.QueuePosition,
 		LoopQueue:     opts.LoopQueue,
@@ -543,6 +625,42 @@ func (s *SchedulerService) UpdateScheduleTime(ctx context.Context, id string, ow
 		}
 	}
 	return s.repo.UpdateScheduleTime(ctx, id, nextRunAt, scheduleTime)
+}
+
+func (s *SchedulerService) UpdateScheduleInterval(ctx context.Context, id string, ownerID int64, intervalMin int, windowStart, windowEnd string) error {
+	post, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if post.OwnerID != ownerID {
+		return fmt.Errorf("não autorizado")
+	}
+	if intervalMin < 5 {
+		return apperrors.BadRequest("intervalo mínimo é 5 minutos")
+	}
+	if intervalMin > 1440 {
+		return apperrors.BadRequest("para intervalos de 24h ou mais, use o tipo 'daily'")
+	}
+
+	normStart := ""
+	normEnd := ""
+	if windowStart != "" || windowEnd != "" {
+		if windowStart == "" || windowEnd == "" {
+			return apperrors.BadRequest("informe início e fim da janela de horário, ou deixe ambos vazios")
+		}
+		sh, sm, err := validateScheduleTime(windowStart)
+		if err != nil {
+			return apperrors.BadRequest("horário de início da janela inválido")
+		}
+		eh, em, err := validateScheduleTime(windowEnd)
+		if err != nil {
+			return apperrors.BadRequest("horário de fim da janela inválido")
+		}
+		normStart = fmt.Sprintf("%02d:%02d", sh, sm)
+		normEnd = fmt.Sprintf("%02d:%02d", eh, em)
+	}
+
+	return s.repo.UpdateScheduleInterval(ctx, id, intervalMin, normStart, normEnd)
 }
 
 func (s *SchedulerService) UpdateSchedulePinMessage(ctx context.Context, id string, ownerID int64, pinMessage bool) error {

@@ -151,6 +151,18 @@ func (r *ScheduledPostRepository) UpdateScheduleTime(ctx context.Context, id str
 		Updates(updates).Error
 }
 
+func (r *ScheduledPostRepository) UpdateScheduleInterval(ctx context.Context, id string, intervalMin int, windowStart, windowEnd string) error {
+	updates := map[string]interface{}{
+		"interval_min": intervalMin,
+		"window_start": windowStart,
+		"window_end":   windowEnd,
+	}
+	return r.db.WithContext(ctx).
+		Model(&models.ScheduledPost{}).
+		Where("id = ?", id).
+		Updates(updates).Error
+}
+
 func (r *ScheduledPostRepository) UpdatePinMessage(ctx context.Context, id string, pinMessage bool) error {
 	return r.db.WithContext(ctx).
 		Model(&models.ScheduledPost{}).

@@ -32,7 +32,8 @@ func toTelegoKeyboard(keyboard *InlineKeyboardMarkup) *telego.InlineKeyboardMark
 		buttons := make([]telego.InlineKeyboardButton, len(row))
 		for j, btn := range row {
 			tb := telego.InlineKeyboardButton{
-				Text: btn.Text,
+				Text:  btn.Text,
+				Style: btn.Style,
 			}
 			if btn.URL != "" {
 				tb.URL = btn.URL

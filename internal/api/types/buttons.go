@@ -7,6 +7,7 @@ import (
 type ButtonCreateRequest struct {
 	NameButton string `json:"nameButton" binding:"required"`
 	ButtonURL  string `json:"buttonUrl,omitempty"`
+	Style      string `json:"style,omitempty"`
 }
 
 type ButtonCreateResponse struct {

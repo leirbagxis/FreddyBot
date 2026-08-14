@@ -15,6 +15,9 @@ type ScheduledPost struct {
 	ScheduleDays string     `json:"scheduleDays"` // JSON "[1,3,5]" para weekly
 	NextRunAt    time.Time  `gorm:"index:idx_schedule_next_run" json:"nextRunAt"`
 	RepeatUntil  *time.Time `json:"repeatUntil"`
+	IntervalMin  int        `gorm:"default:0" json:"intervalMin"`
+	WindowStart  string     `json:"windowStart"`
+	WindowEnd    string     `json:"windowEnd"`
 
 	QueueGroupID  string `gorm:"index:idx_schedule_queue" json:"queueGroupId"`
 	QueuePosition int    `json:"queuePosition"`

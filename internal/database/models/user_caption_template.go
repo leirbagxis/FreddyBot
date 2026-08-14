@@ -17,6 +17,7 @@ type UserCaptionTemplateButton struct {
 	ButtonID        string `gorm:"type:text;primaryKey" json:"buttonId"`
 	NameButton      string `gorm:"type:text;not null" json:"nameButton"`
 	ButtonURL       string `gorm:"type:text" json:"buttonUrl"`
+	Style           string `gorm:"type:text" json:"style,omitempty"`
 	PositionX       int    `gorm:"default:0" json:"positionX"`
 	PositionY       int    `gorm:"default:0" json:"positionY"`
 	OwnerTemplateID string `gorm:"index" json:"ownerTemplateId"`

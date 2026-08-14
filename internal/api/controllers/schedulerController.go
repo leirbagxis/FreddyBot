@@ -124,6 +124,23 @@ func (ctrl *SchedulerController) EditSchedule(ctx *gin.Context) {
 		}
 	}
 
+	// Update interval configuration if provided
+	if req.IntervalMin != nil {
+		windowStart := ""
+		if req.WindowStart != nil {
+			windowStart = *req.WindowStart
+		}
+		windowEnd := ""
+		if req.WindowEnd != nil {
+			windowEnd = *req.WindowEnd
+		}
+		err := ctrl.container.SchedulerService.UpdateScheduleInterval(ctx, id, userID, *req.IntervalMin, windowStart, windowEnd)
+		if err != nil {
+			ctx.Error(err)
+			return
+		}
+	}
+
 	// Update pin message flag if provided
 	if req.PinMessage != nil {
 		err := ctrl.container.SchedulerService.UpdateSchedulePinMessage(ctx, id, userID, *req.PinMessage)
@@ -162,6 +179,9 @@ func (ctrl *SchedulerController) CreateSchedule(ctx *gin.Context) {
 		ScheduleType: req.ScheduleType,
 		ScheduleTime: req.ScheduleTime,
 		ScheduleDays: req.ScheduleDays,
+		IntervalMin:  req.IntervalMin,
+		WindowStart:  req.WindowStart,
+		WindowEnd:    req.WindowEnd,
 		LoopQueue:    req.LoopQueue,
 		PinMessage:   req.PinMessage,
 	}

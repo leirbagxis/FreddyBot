@@ -22,12 +22,13 @@ interface DashboardInicioTabProps {
     isDisconnecting: boolean;
     confirmDisconnect: () => void;
     showDisconnectSuccess: boolean;
+    hasPremium?: boolean;
 }
 
 export const DashboardInicioTab = memo(({
     channel, getGreeting, getGreetingIcon,
     handleDisconnect, showDisconnect, setShowDisconnect, isDisconnecting, confirmDisconnect,
-    showDisconnectSuccess,
+    showDisconnectSuccess, hasPremium = false,
 }: DashboardInicioTabProps) => {
     const [transferInput, setTransferInput] = useState('');
     const [isTransferring, setIsTransferring] = useState(false);
@@ -37,23 +38,7 @@ export const DashboardInicioTab = memo(({
     const [showTransferError, setShowTransferError] = useState(false);
     const [transferErrorMessage, setTransferErrorMessage] = useState('');
     const [showTransferSuccess, setShowTransferSuccess] = useState(false);
-    const [hasPremium, setHasPremium] = useState(false);
     const toast = useToast();
-
-    useEffect(() => {
-        let cancelled = false;
-        Promise.all([
-            fetchSubscriptionStatus().catch(() => ({ data: null })),
-            fetchAccountStatus().catch(() => ({ status: 'disconnected' })),
-        ]).then(([subRes, accStatus]) => {
-            if (cancelled) return;
-            const s = subRes?.data;
-            const active = s?.hasSubscription && s?.subscription?.status === 'active';
-            const account = accStatus?.status === 'connected';
-            setHasPremium(active || account);
-        });
-        return () => { cancelled = true; };
-    }, []);
 
     const handleTransferClick = async () => {
         const newOwner = transferInput.trim();
@@ -115,34 +100,31 @@ export const DashboardInicioTab = memo(({
     return (
         <div className="space-y-3 tab-content-wrapper">
             
-            {/* Unified Identity Card */}
-            <Card className="animate-stagger-in">
-                <CardContent className="pt-4">
-                    {/* Header: Greeting & Emoji */}
-                    <div className="flex items-center justify-between mb-5">
-                        <div className="flex items-center gap-2">
-                            <div className="flex items-center justify-center size-9 rounded-lg shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                                {getGreetingIcon()}
-                            </div>
-                            <div>
-                                <h2 className="text-[15px] font-bold leading-none">{getGreeting()}</h2>
-                                <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Painel de Controle</p>
-                            </div>
+            {/* Unified Identity Header (Transparente) */}
+            <div className="animate-stagger-in bg-transparent py-1">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="flex items-center justify-center size-9 rounded-xl shrink-0 bg-accent/15 text-accent">
+                            {getGreetingIcon()}
                         </div>
-                        <div className="flex items-center gap-1.5">
-                            {hasPremium && (
-                                <Badge variant="default" className="text-[10px] gap-1 px-2 py-0.5 h-5">
-                                    <Crown size={10} /> Premium
-                                </Badge>
-                            )}
-                            <div className="flex items-center gap-1.5 bg-accent/10 px-2.5 py-1 rounded-lg">
-                                <ShieldCheck size={12} className="text-accent" />
-                                <span className="text-[11px] font-mono font-bold text-accent">{channel.ownerId}</span>
-                            </div>
+                        <div>
+                            <h2 className="text-[15px] font-bold leading-none text-foreground">{getGreeting()}</h2>
+                            <p className="text-[10px] text-muted-foreground mt-1 uppercase tracking-wider font-semibold">Painel de Controle</p>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                    <div className="flex items-center gap-1.5">
+                        {hasPremium && (
+                            <Badge variant="default" className="text-[10px] gap-1 px-2 py-0.5 h-5">
+                                <Crown size={10} /> Premium
+                            </Badge>
+                        )}
+                        <div className="flex items-center gap-1.5 bg-accent/15 px-2.5 py-1 rounded-xl border border-accent/20">
+                            <ShieldCheck size={12} className="text-accent" />
+                            <span className="text-[11px] font-mono font-bold text-accent">{channel.ownerId}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
             {/* Canal */}
             <div className="bg-muted/20 rounded-2xl px-5 py-5">

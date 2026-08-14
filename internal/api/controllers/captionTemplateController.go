@@ -49,6 +49,7 @@ func (ctrl *CaptionTemplateController) Save(ctx *gin.Context) {
 			buttons = append(buttons, types.CaptionButtonSnapshot{
 				NameButton: b.NameButton,
 				ButtonURL:  b.ButtonURL,
+				Style:      b.Style,
 			})
 		}
 		customCaptions = append(customCaptions, types.CustomCaptionSnapshot{

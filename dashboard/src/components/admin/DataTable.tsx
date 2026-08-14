@@ -1,5 +1,7 @@
 import { memo, useState, useMemo } from 'react';
 import { ChevronDown, ChevronUp, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 export interface Column<T> {
   key: string;
@@ -88,7 +90,7 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
           {searchable && (
             <div className="data-table-search">
               <Search size={14} />
-              <input
+              <Input
                 type="text"
                 placeholder={searchPlaceholder}
                 value={search}
@@ -177,20 +179,24 @@ export const DataTable = memo(function DataTable<T extends Record<string, any>>(
             {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sorted.length)} de {sorted.length}
           </span>
           <div className="data-table-page-btns">
-            <button
+            <Button
+              variant="outline"
+              size="sm"
               className="data-table-page-btn"
               disabled={page === 0}
               onClick={() => setPage(p => p - 1)}
             >
               Anterior
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               className="data-table-page-btn"
               disabled={page >= totalPages - 1}
               onClick={() => setPage(p => p + 1)}
             >
               Próximo
-            </button>
+            </Button>
           </div>
         </div>
       )}

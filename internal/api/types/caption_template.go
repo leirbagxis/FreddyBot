@@ -3,6 +3,7 @@ package types
 type CaptionButtonSnapshot struct {
 	NameButton string `json:"nameButton"`
 	ButtonURL  string `json:"buttonUrl"`
+	Style      string `json:"style,omitempty"`
 }
 
 type CustomCaptionSnapshot struct {

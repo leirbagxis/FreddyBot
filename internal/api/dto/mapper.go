@@ -169,6 +169,7 @@ func ToButtonDTO(b *models.Button) ButtonDTO {
 		ButtonID:  b.ButtonID,
 		Name:      b.NameButton,
 		URL:       b.ButtonURL,
+		Style:     b.Style,
 		PositionX: b.PositionX,
 		PositionY: b.PositionY,
 	}
@@ -179,6 +180,7 @@ func ToCustomCaptionButtonDTO(b *models.CustomCaptionButton) ButtonDTO {
 		ButtonID:  b.ButtonID,
 		Name:      b.NameButton,
 		URL:       b.ButtonURL,
+		Style:     b.Style,
 		PositionX: b.PositionX,
 		PositionY: b.PositionY,
 	}

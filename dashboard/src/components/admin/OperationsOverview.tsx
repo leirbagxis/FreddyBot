@@ -1,7 +1,9 @@
 import { memo, useMemo } from 'react';
-import { ArrowRight, BellRing, ChartNoAxesColumnIncreasing, Hash, ShieldCheck, Users } from 'lucide-react';
+import { ArrowRight, BellRing, ChartNoAxesColumnIncreasing, Radio, ShieldCheck, Users } from 'lucide-react';
 import { Channel, User } from '../../types';
 import { getOperationalAlerts, getOverviewMetrics, OperationalAlertKind } from './crmSelectors';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 
 interface OperationsOverviewProps {
   users: User[];
@@ -25,7 +27,7 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
 
   const items = [
     { label: 'Usuários', value: compact(metrics.totalUsers), note: 'base cadastrada', icon: Users },
-    { label: 'Canais', value: compact(metrics.totalChannels), note: 'conectados', icon: Hash },
+    { label: 'Canais', value: compact(metrics.totalChannels), note: 'conectados', icon: Radio },
     { label: 'Administradores', value: compact(metrics.admins), note: 'com acesso', icon: ShieldCheck },
     { label: 'Ativação', value: `${metrics.activationRate}%`, note: `${compact(metrics.activatedUsers)} com canais`, icon: ChartNoAxesColumnIncreasing },
   ];
@@ -38,9 +40,9 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
           <div className="operations-title">Visão geral</div>
           <p>Estado atual da base e acessos que merecem revisão.</p>
         </div>
-        <button type="button" className="operations-overview-link" onClick={onViewUsers}>
+        <Button variant="ghost" type="button" className="operations-overview-link" onClick={onViewUsers}>
           Ver usuários <ArrowRight size={15} aria-hidden="true" />
-        </button>
+        </Button>
       </header>
 
       <div className="operations-metrics">
@@ -84,11 +86,11 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
           {alerts.length ? (
             <div className="operations-alert-list">
               {alerts.map((alert) => (
-                <button type="button" key={alert.id} className={`operations-alert is-${alert.severity}`} onClick={() => onReviewAlert(alert.id)}>
+                <Button variant="ghost" type="button" key={alert.id} className={`operations-alert is-${alert.severity}`} onClick={() => onReviewAlert(alert.id)}>
                   <strong>{alert.count}</strong>
                   <span><b>{alert.title}</b><small>{alert.description}</small></span>
                   <ArrowRight size={15} aria-hidden="true" />
-                </button>
+                </Button>
               ))}
             </div>
           ) : (
@@ -108,16 +110,16 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
         {reviewUsers.length ? (
           <div className="operations-queue-list">
             {reviewUsers.map((user) => (
-              <button type="button" key={user.id} onClick={() => onOpenUser(user.id)}>
+              <button type="button" key={user.id} onClick={() => onOpenUser(user.id)} className="operations-queue-item">
                 <span className="operations-avatar">{(user.first_name || '?')[0].toUpperCase()}</span>
                 <span className="operations-user">
                   <strong>{user.first_name || 'Sem nome'}</strong>
                   <small>ID {user.id} · {user.channels?.length || 0} canais</small>
                 </span>
-                <span className={user.is_blacklisted ? 'is-risk' : user.is_admin ? 'is-admin' : ''}>
+                <Badge variant={user.is_blacklisted ? 'destructive' : user.is_admin ? 'default' : 'outline'} className="justify-self-end">
                   {user.is_blacklisted ? 'Bloqueado' : user.is_admin ? 'Admin' : 'Sem canais'}
-                </span>
-                <ArrowRight size={15} aria-hidden="true" />
+                </Badge>
+                <ArrowRight size={15} aria-hidden="true" className="justify-self-end text-muted-foreground" />
               </button>
             ))}
           </div>

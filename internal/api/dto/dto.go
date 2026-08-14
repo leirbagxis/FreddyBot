@@ -68,6 +68,7 @@ type ButtonDTO struct {
 	ButtonID  string `json:"buttonId"`
 	Name      string `json:"nameButton"`
 	URL       string `json:"buttonUrl"`
+	Style     string `json:"style,omitempty"`
 	PositionX int    `json:"positionX"`
 	PositionY int    `json:"positionY"`
 }

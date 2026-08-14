@@ -214,15 +214,15 @@ export function AdminSubscriptionsTab({ toast }: AdminSubscriptionsTabProps) {
                 <div className="flex items-center gap-2">
                     <h2 className="text-base font-bold shrink-0">Assinaturas</h2>
                     {/* Filtros com scroll horizontal no mobile */}
-                    <div className="flex gap-1 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none]">
+                    <div className="flex gap-1.5 overflow-x-auto scrollbar-none [-ms-overflow-style:none] [scrollbar-width:none] py-0.5">
                         {(['all', 'active', 'cancelling', 'expired', 'with_charge'] as const).map(f => (
                             <button
                                 key={f}
                                 onClick={() => setStatusFilter(f)}
-                                className={`text-[10px] px-2 py-1 rounded-md whitespace-nowrap transition-colors shrink-0 ${
+                                className={`text-xs px-2.5 py-1 rounded-md whitespace-nowrap transition-colors shrink-0 font-medium ${
                                     statusFilter === f
-                                        ? 'bg-accent/15 text-accent font-medium'
-                                        : 'text-muted-foreground/60 hover:text-muted-foreground'
+                                        ? 'bg-primary text-primary-foreground shadow-xs'
+                                        : 'bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground'
                                 }`}
                             >
                                 {f === 'all' ? 'Todas' : f === 'active' ? 'Ativas' : f === 'cancelling' ? 'Cancelando' : f === 'expired' ? 'Expiradas' : 'Com charge'}

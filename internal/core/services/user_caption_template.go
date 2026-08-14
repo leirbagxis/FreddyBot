@@ -114,14 +114,18 @@ func (s *UserCaptionTemplateService) CreateButton(ctx context.Context, button *m
 	})
 }
 
-func (s *UserCaptionTemplateService) UpdateButton(ctx context.Context, templateID, buttonID, name, url string) error {
+func (s *UserCaptionTemplateService) UpdateButton(ctx context.Context, templateID, buttonID, name, url, style string) error {
 	return s.repo.WithTransaction(ctx, func(tx *gorm.DB) error {
+		updates := map[string]interface{}{
+			"name_button": name,
+			"button_url":  url,
+		}
+		if style != "" {
+			updates["style"] = style
+		}
 		return tx.Model(&models.UserCaptionTemplateButton{}).
 			Where("button_id = ? AND owner_template_id = ?", buttonID, templateID).
-			Updates(map[string]interface{}{
-				"name_button": name,
-				"button_url":  url,
-			}).Error
+			Updates(updates).Error
 	})
 }
 

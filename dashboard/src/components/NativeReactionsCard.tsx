@@ -78,27 +78,27 @@ export const NativeReactionsCard = memo(function NativeReactionsCard({
     const selectedList = localEmojis ? localEmojis.split(',').map(e => e.trim()).filter(Boolean) : [];
 
     return (
-        <Card className="animate-stagger-in" style={{ animationDelay: '0.18s' }}>
-            <CardContent className="pt-4">
-                {/* Header */}
-                <div className="flex items-start justify-between gap-4 mb-4">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="flex items-center justify-center size-10 rounded-xl shrink-0" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-                            <Heart size={20} />
-                        </div>
-                        <div className="min-w-0">
-                            <h3 className="text-sm font-bold">Reações Nativas do Telegram</h3>
-                            <p className="text-[11px] text-muted-foreground mt-0.5">
-                                O bot reage automaticamente às postagens editadas
-                            </p>
-                        </div>
+        <div className="rounded-2xl border border-border/80 bg-card p-4 space-y-3.5 shadow-sm transition-all hover:border-border">
+            {/* Header */}
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <div className="flex items-center justify-center size-10 rounded-xl shrink-0 bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                        <Heart size={19} />
                     </div>
-                    <Switch
-                        checked={localEnabled}
-                        onCheckedChange={handleToggle}
-                        disabled={saving === 'toggle'}
-                    />
+                    <div className="min-w-0">
+                        <h3 className="text-sm font-bold text-foreground leading-tight">Reações Nativas do Telegram</h3>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Use as reações nativas do Telegram em vez do grid.
+                        </p>
+                    </div>
                 </div>
+                <Switch
+                    checked={localEnabled}
+                    onCheckedChange={handleToggle}
+                    disabled={saving === 'toggle'}
+                    aria-label="Ativar reações nativas do Telegram"
+                />
+            </div>
 
                 {localEnabled && (
                     <div className="space-y-4 pt-3 border-t border-border">
@@ -149,6 +149,7 @@ export const NativeReactionsCard = memo(function NativeReactionsCard({
                                         const selected = selectedList.includes(emoji);
                                         return (
                                             <button
+                                                type="button"
                                                 key={emoji}
                                                 onClick={() => handleEmojiToggle(emoji)}
                                                 disabled={saving === 'emoji'}
@@ -157,6 +158,8 @@ export const NativeReactionsCard = memo(function NativeReactionsCard({
                                                         ? 'bg-accent/15 border border-accent/30 scale-110'
                                                         : 'bg-muted/30 hover:bg-muted/50 border border-transparent'
                                                 }`}
+                                                aria-pressed={selected}
+                                                aria-label={`${selected ? 'Remover' : 'Adicionar'} reação ${emoji}`}
                                             >
                                                 {emoji}
                                             </button>
@@ -199,7 +202,6 @@ export const NativeReactionsCard = memo(function NativeReactionsCard({
                         </div>
                     </div>
                 )}
-            </CardContent>
-        </Card>
+        </div>
     );
 });

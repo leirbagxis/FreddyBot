@@ -202,6 +202,7 @@ func convertUserTemplateButtons(buttons []dbmodels.UserCaptionTemplateButton) []
 			ButtonID:   b.ButtonID,
 			NameButton: b.NameButton,
 			ButtonURL:  b.ButtonURL,
+			Style:      b.Style,
 			PositionX:  b.PositionX,
 			PositionY:  b.PositionY,
 		}
@@ -216,6 +217,7 @@ func convertCustomButtons(cbs []dbmodels.CustomCaptionButton) []dbmodels.Button 
 			ButtonID:   cb.ButtonID,
 			NameButton: cb.NameButton,
 			ButtonURL:  cb.ButtonURL,
+			Style:      cb.Style,
 			PositionX:  cb.PositionX,
 			PositionY:  cb.PositionY,
 		}

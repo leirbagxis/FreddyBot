@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, Suspense, lazy } from 'react';
 import { DashboardData, Button, TelegramUser, AdminDashboardData, Channel, AuditResult } from './types';
 import {
   login, fetchDashboardData, fetchUserChannels, fetchAdminDashboard,
@@ -13,32 +13,34 @@ import { ButtonGrid } from './components/ButtonGrid';
 import { CaptionCard } from './components/CaptionCard';
 import { NewPackCaptionCard } from './components/NewPackCaptionCard';
 import { ReactionsCard } from './components/ReactionsCard';
-import { AdminDashboard } from './components/AdminDashboard';
 import { DashboardInicioTab } from './components/DashboardInicioTab';
-import { ContaTelegramTab } from './components/ContaTelegramTab';
 import { PremiumTab } from './components/PremiumTab';
 import { NativeReactionsCard } from './components/NativeReactionsCard';
 import { UserTemplatesManager } from './components/UserTemplatesManager';
 import { PerfLine } from './components/WaveDivider';
-import { PremiumConfigTab } from './components/PremiumConfigTab';
-import { ScheduleTab } from './components/ScheduleTab';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TabBar, Tab } from './components/TabBar';
 import { AdminLayout } from './components/admin/AdminLayout';
 import { ToastProvider, useToast } from './components/Toast';
 import { useTheme } from './hooks/useTheme';
+
+const AdminDashboard = lazy(() => import('./components/AdminDashboard').then(m => ({ default: m.AdminDashboard })));
+const ContaTelegramTab = lazy(() => import('./components/ContaTelegramTab').then(m => ({ default: m.ContaTelegramTab })));
+const PremiumConfigTab = lazy(() => import('./components/PremiumConfigTab').then(m => ({ default: m.PremiumConfigTab })));
+const ScheduleTab = lazy(() => import('./components/ScheduleTab').then(m => ({ default: m.ScheduleTab })));
 import { Button as ShadButton } from './components/ui/button';
 import { Switch } from './components/ui/switch';
 import { Badge } from './components/ui/badge';
 import {
   Dialog, DialogContent,
 } from './components/ui/dialog';
+import { SideMenu } from './components/SideMenu';
 import {
   Hash, Sun, Moon, Send, ExternalLink, MousePointerClick, Link2,
   LayoutDashboard, Type, Grid3X3, Shield, MessageCircle,
   AlertTriangle, ChevronRight, ArrowLeft, Zap, UserCheck,
   CloudMoon, Sunrise, Headphones, Video, Image, FileText, Smile, Film, SlidersHorizontal,
-  Crown, Calendar
+  Crown, Calendar, Menu, Layers
 } from 'lucide-react';
 
 const BASE_TABS: Tab[] = [
@@ -46,7 +48,6 @@ const BASE_TABS: Tab[] = [
   { id: 'legendas', label: 'Legendas', icon: <Type size={22} /> },
   { id: 'botoes', label: 'Botões', icon: <Grid3X3 size={22} /> },
   { id: 'permissoes', label: 'Permissões', icon: <Shield size={22} /> },
-  { id: 'agendamentos', label: 'Agendamentos', icon: <Calendar size={22} /> },
   { id: 'conta', label: 'Conta Telegram', icon: <UserCheck size={22} /> },
 ];
 
@@ -114,6 +115,8 @@ const DashboardContent = memo(function DashboardContent() {
   const [initialLogsChannelId] = useState(() => getInitialLogsChannelIdFromUrl());
   const [showContaModal, setShowContaModal] = useState(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState(false);
+  const [showSchedulesModal, setShowSchedulesModal] = useState(false);
+  const [showSideMenu, setShowSideMenu] = useState(false);
   const [hasPremiumAccess, setHasPremiumAccess] = useState(false);
   const [hasSubscription, setHasSubscription] = useState(false);
   const [hasMtprotoAccount, setHasMtprotoAccount] = useState(false);
@@ -903,15 +906,42 @@ const DashboardContent = memo(function DashboardContent() {
 
   if (!isAdmin && showTemplatesModal) {
     return (
-      <div className="app-layout" style={{ display: 'flex', flexDirection: 'column', height: '100dvh' }}>
-        <div className="sticky top-0 z-50 flex items-center h-14 px-4 bg-background/90 backdrop-blur border-b border-border shrink-0">
-          <ShadButton variant="ghost" size="icon" onClick={() => setShowTemplatesModal(false)} className="-ml-2 mr-3">
+      <div className="app-layout channel-dashboard templates-page flex flex-col min-h-dvh bg-background">
+        <div className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 bg-card/90 backdrop-blur-md border-b border-border/80 shrink-0">
+          <ShadButton variant="ghost" size="icon" onClick={() => setShowTemplatesModal(false)} className="-ml-1 text-muted-foreground hover:text-foreground">
             <ArrowLeft size={20} />
           </ShadButton>
-          <h1 className="text-base font-semibold">Meus Templates</h1>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <Layers className="size-4 text-purple-400" />
+              <h1 className="text-base font-bold text-foreground leading-none">Meus Templates</h1>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              Crie e gerencie seus templates de legendas e botões.
+            </p>
+          </div>
         </div>
-        <div className="main-content flex-1 p-4 overflow-y-auto">
+        <div className="main-content flex-1 p-4 overflow-y-auto pb-10">
           <UserTemplatesManager toast={toast} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAdmin && showSchedulesModal) {
+    return (
+      <div className="app-layout channel-dashboard schedule-page flex flex-col min-h-dvh bg-background">
+        <div className="sticky top-0 z-50 flex items-center gap-3 px-4 py-3 bg-card/90 backdrop-blur-md border-b border-border/80 shrink-0">
+          <ShadButton variant="ghost" size="icon" onClick={() => setShowSchedulesModal(false)} className="-ml-1 text-muted-foreground hover:text-foreground">
+            <ArrowLeft size={20} />
+          </ShadButton>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base font-bold text-foreground leading-tight">Todos os Agendamentos</h1>
+            <p className="text-xs text-muted-foreground truncate">Visualize e gerencie todos os agendamentos de postagens.</p>
+          </div>
+        </div>
+        <div className="main-content flex-1 p-4 overflow-y-auto pb-24">
+          <ScheduleTab />
         </div>
       </div>
     );
@@ -928,67 +958,53 @@ const DashboardContent = memo(function DashboardContent() {
         users={adminData.users || []}
         channels={adminData.channels || []}
       >
-        <MemoizedAdminDashboard
-          adminData={adminData}
-          activeTab={adminActiveTab}
-          navigateToChannel={navigateToChannel}
-          selectedUserId={adminSelectedUserId}
-          onSelectUser={onSelectAdminUser}
-          onOpenUserDetail={openAdminUserDetail}
-          onMessageUser={openSupportNoticeForUser}
-          noticeMessage={noticeMessage}
-          setNoticeMessage={setNoticeMessage}
-          noticeImageUrl={noticeImageUrl}
-          setNoticeImageUrl={setNoticeImageUrl}
-          noticeTarget={noticeTarget}
-          setNoticeTarget={setNoticeTarget}
-          noticeTargetId={noticeTargetId}
-          setNoticeTargetId={setNoticeTargetId}
-          noticeButtons={noticeButtons}
-          handleAddNoticeButton={handleAddNoticeButton}
-          updateNoticeButton={updateNoticeButton}
-          removeNoticeButton={removeNoticeButton}
-          handleSendNotice={handleSendNotice}
-          isSendingNotice={isSendingNotice}
-          auditResults={auditResults}
-          setAuditResults={setAuditResults}
-          auditLoading={auditLoading}
-          handleRunAudit={handleRunAudit}
-          initialLogsChannelId={initialLogsChannelId}
-          toast={toast}
-        />
+        <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando painel administrativo...</div>}>
+          <MemoizedAdminDashboard
+            adminData={adminData}
+            activeTab={adminActiveTab}
+            navigateToChannel={navigateToChannel}
+            selectedUserId={adminSelectedUserId}
+            onSelectUser={onSelectAdminUser}
+            onOpenUserDetail={openAdminUserDetail}
+            onMessageUser={openSupportNoticeForUser}
+            noticeMessage={noticeMessage}
+            setNoticeMessage={setNoticeMessage}
+            noticeImageUrl={noticeImageUrl}
+            setNoticeImageUrl={setNoticeImageUrl}
+            noticeTarget={noticeTarget}
+            setNoticeTarget={setNoticeTarget}
+            noticeTargetId={noticeTargetId}
+            setNoticeTargetId={setNoticeTargetId}
+            noticeButtons={noticeButtons}
+            handleAddNoticeButton={handleAddNoticeButton}
+            updateNoticeButton={updateNoticeButton}
+            removeNoticeButton={removeNoticeButton}
+            handleSendNotice={handleSendNotice}
+            isSendingNotice={isSendingNotice}
+            auditResults={auditResults}
+            setAuditResults={setAuditResults}
+            auditLoading={auditLoading}
+            handleRunAudit={handleRunAudit}
+            initialLogsChannelId={initialLogsChannelId}
+            toast={toast}
+          />
+        </Suspense>
       </AdminLayout>
     );
   }
 
   return (
-    <div className={`app-layout ${isAdmin ? 'admin-layout' : ''}`}>
+    <div className={`app-layout ${isAdmin ? 'admin-layout' : ''} ${!isChannels && !isAdmin ? 'channel-dashboard' : ''}`}>
       <div className={isAdmin ? 'app-main' : 'w-full flex flex-col min-h-screen'}>
         <div className="top-bar animate-stagger-in">
-          {isSpecificChannel && (
-            <button 
-              className="sidebar-trigger-btn mr-2" 
-              onClick={handleBack}
-              title="Voltar"
-            >
-              <ArrowLeft size={22} />
-            </button>
-          )}
-
-          <div className="top-avatar">
-            {tgUser?.photo_url ? (
-              <img src={tgUser.photo_url} alt="" />
-            ) : (
-              initials
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <h1 className="text-[15px] font-bold truncate">{displayName}</h1>
-            <p className="text-xs truncate text-muted-foreground">{isChannels ? 'Meus Canais' : (isAdmin ? 'Painel Admin' : 'Visão Geral')}</p>
-          </div>
-          <button className="theme-switch" onClick={toggleTheme} title={`Tema atual: ${theme === 'telegram' ? 'Telegram' : theme === 'dark' ? 'Escuro' : 'Claro'}`}>
-            {theme === 'telegram' ? <Send size={17} /> : theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          <button
+            className="sidebar-trigger-btn mr-2"
+            onClick={() => setShowSideMenu(true)}
+            title="Abrir Menu"
+          >
+            <Menu size={22} />
           </button>
+
         </div>
 
         <div className="main-content">
@@ -1069,6 +1085,17 @@ const DashboardContent = memo(function DashboardContent() {
                     </div>
                     <ChevronRight size={18} className="action-card-chevron" />
                   </div>
+
+                  <div className="action-card animate-stagger-in" onClick={() => setShowSchedulesModal(true)}>
+                    <div className="action-card-icon">
+                      <Calendar size={22} />
+                    </div>
+                    <div className="action-card-body">
+                      <div className="action-card-title">Agendamentos</div>
+                      <div className="action-card-desc">Visualize e gerencie os agendamentos de todos os seus canais</div>
+                    </div>
+                    <ChevronRight size={18} className="action-card-chevron" />
+                  </div>
                 </>
               )}
 
@@ -1145,14 +1172,14 @@ const DashboardContent = memo(function DashboardContent() {
                 isDisconnecting={isDisconnecting}
                 confirmDisconnect={confirmDisconnect}
                 showDisconnectSuccess={showDisconnectSuccess}
+                hasPremium={hasPremiumAccess}
               />
             </div>
           )}
 
           {!isChannels && !isAdmin && activeTab === 'legendas' && channel && (
-            <div className="space-y-2 tab-content-wrapper">
+            <div className="space-y-5 tab-content-wrapper">
               <CaptionCard caption={channel.defaultCaption} onUpdate={handleUpdateCaption} />
-              <PerfLine accent />
               <NewPackCaptionCard
                 caption={channel.newPackCaption}
                 messageButtons={channel.newPackMessageButtons ?? true}
@@ -1161,9 +1188,14 @@ const DashboardContent = memo(function DashboardContent() {
                 replyToSticker={channel.newPackReplyToSticker ?? false}
                 onUpdate={handleUpdateNewPack}
               />
-              <PerfLine accent />
               <ReactionsCard reactions={channel.reactions} onUpdate={handleUpdateReactions} />
-              <PerfLine accent />
+
+              <div className="flex items-center gap-3 my-6 pt-2">
+                <div className="h-px bg-border/60 flex-1" />
+                <span className="text-[10px] font-bold tracking-widest text-muted-foreground/80 uppercase">OUTRAS OPÇÕES</span>
+                <div className="h-px bg-border/60 flex-1" />
+              </div>
+
               <NativeReactionsCard
                 channelId={channel.id}
                 enabled={channel.nativeReactionsEnabled ?? false}
@@ -1190,26 +1222,32 @@ const DashboardContent = memo(function DashboardContent() {
 
           {!isChannels && !isAdmin && activeTab === 'conta' && (
             <div className="tab-content-wrapper">
-              <ContaTelegramTab />
+              <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando conta...</div>}>
+                <ContaTelegramTab />
+              </Suspense>
             </div>
           )}
 
           {!isChannels && !isAdmin && activeTab === 'premium' && channel && premiumEnabled && (
             <div className="tab-content-wrapper">
-              <PremiumConfigTab
-                channelId={channel.id}
-                caption={channel.defaultCaption?.caption || ''}
-                onUpdateCaption={handleUpdateCaption}
-                toast={toast}
-                hasSubscription={hasSubscription}
-                hasAccount={hasMtprotoAccount}
-              />
+              <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando premium...</div>}>
+                <PremiumConfigTab
+                  channelId={channel.id}
+                  caption={channel.defaultCaption?.caption || ''}
+                  onUpdateCaption={handleUpdateCaption}
+                  toast={toast}
+                  hasSubscription={hasSubscription}
+                  hasAccount={hasMtprotoAccount}
+                />
+              </Suspense>
             </div>
           )}
 
           {!isChannels && !isAdmin && activeTab === 'agendamentos' && channel && (
             <div className="tab-content-wrapper">
-              <ScheduleTab channelId={channel.id} />
+              <Suspense fallback={<div className="p-8 text-center text-xs text-muted-foreground animate-pulse">Carregando agendamentos...</div>}>
+                <ScheduleTab channelId={channel.id} />
+              </Suspense>
             </div>
           )}
 
@@ -1261,7 +1299,7 @@ const DashboardContent = memo(function DashboardContent() {
                 </div>
 
                 {channel.dynamicLinks && (
-                  <div className="pl-6 space-y-2 mt-3 border-l-2 border-border ml-4">
+                  <div className="pl-6 space-y-2 mt-3 ml-4">
                     <div className="text-[10px] font-bold text-muted-foreground/40 uppercase mb-2 tracking-wider">Regras de Exceção</div>
                     <div className="flex items-center justify-between rounded-xl px-4 py-3 bg-muted/50 cursor-pointer transition-colors hover:bg-muted/80" onClick={() => handleDynamicLinks('dlBotButtons', !channel.dlBotButtons)}>
                       <div className="flex items-center gap-3">
@@ -1319,7 +1357,7 @@ const DashboardContent = memo(function DashboardContent() {
                     return (
                       <div
                         key={type.key}
-                        className="p-3 rounded-xl bg-muted/50 border border-border animate-stagger-in"
+                        className="p-3 rounded-xl bg-muted/50 border-none animate-stagger-in"
                       >
                         <div className="flex items-center gap-3 mb-3">
                           <span className="shrink-0 text-accent/70">{type.icon}</span>
@@ -1383,6 +1421,21 @@ const DashboardContent = memo(function DashboardContent() {
           </DialogContent>
         </Dialog>
       )}
+      <SideMenu
+        isOpen={showSideMenu}
+        onClose={() => setShowSideMenu(false)}
+        tgUser={tgUser}
+        displayName={displayName}
+        userId={tgUser?.id || user?.id || 0}
+        channelsCount={user?.channels?.length || 0}
+        onOpenTemplates={() => setShowTemplatesModal(true)}
+        onOpenConta={() => setShowContaModal(true)}
+        onOpenSchedules={() => setShowSchedulesModal(true)}
+        onNavigateChannels={() => { window.location.href = '/me/channels'; }}
+        theme={theme}
+        toggleTheme={toggleTheme}
+        connectedAccountEnabled={connectedAccountEnabled}
+      />
     </div>
   );
 });

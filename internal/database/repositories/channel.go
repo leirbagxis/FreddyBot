@@ -71,6 +71,7 @@ func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64)
 		Joins("DefaultCaption.ButtonsPermission").
 		Joins("Separator").
 		Preload("Owner").
+		Preload("Owner.Channels").
 		Preload("Buttons").
 		Preload("CustomCaptions").
 		Preload("CustomCaptions.Buttons").

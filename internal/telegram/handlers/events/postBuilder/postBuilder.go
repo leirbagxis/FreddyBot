@@ -160,8 +160,6 @@ func ProcessIncomingContentTelego(ctx *telegohandler.Context, update telego.Upda
 	} else if update.Message.Sticker != nil {
 		mediaID = update.Message.Sticker.FileID
 		mediaType = "sticker"
-	} else if update.Message.Text != "" {
-		mediaType = "text"
 	}
 
 	// Primeiro verifica se o usuário está em uma etapa de entrada ativa (ex: digitando título, agendamento)
@@ -177,10 +175,14 @@ func ProcessIncomingContentTelego(ctx *telegohandler.Context, update telego.Upda
 		return handleTextInputTelego(ctx, update, c, activeState)
 	}
 
-	// Se não tiver nem mídia nem texto, encerra
-	if mediaID == "" && mediaType == "" {
-		logger.Bot("PostBuilder: Nenhum tipo de midia ou texto identificado para o usuario %d", userID)
+	// Se não tiver mídia nem for mensagem encaminhada, ignora (evita interceptar texto/links comuns)
+	if mediaID == "" && update.Message.ForwardOrigin == nil {
+		logger.Bot("PostBuilder: Mensagem comum sem midia nem encaminhamento para o usuario %d. Ignorando.", userID)
 		return nil
+	}
+
+	if mediaType == "" && update.Message.Text != "" {
+		mediaType = "text"
 	}
 
 	// Verificar se é mensagem encaminhada de um canal
@@ -398,6 +400,7 @@ func handleTextInputTelego(ctx *telegohandler.Context, update telego.Update, c *
 				ButtonID:        fmt.Sprintf("btn_%d_%d", time.Now().UnixNano(), i),
 				NameButton:      btn.Text,
 				ButtonURL:       btn.URL,
+				Style:           btn.Style,
 				PositionX:       0,
 				PositionY:       i,
 				OwnerTemplateID: tpl.ID,
@@ -711,11 +714,10 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			return nil
 		}
 
-		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
-			CallbackQueryID: update.CallbackQuery.ID,
-		})
-
 		if strings.HasPrefix(data, "pb-saved-menu:") {
+			_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+			})
 			sessionID := strings.TrimPrefix(data, "pb-saved-menu:")
 			_ = c.CacheService.DeleteScheduleState(context.Background(), userID)
 			messageID := update.CallbackQuery.Message.GetMessageID()
@@ -835,8 +837,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			state.Buttons = []cache.PostBuilderButton{}
 			for _, btn := range tpl.Buttons {
 				state.Buttons = append(state.Buttons, cache.PostBuilderButton{
-					Text: btn.NameButton,
-					URL:  btn.ButtonURL,
+					Text:  btn.NameButton,
+					URL:   btn.ButtonURL,
+					Style: btn.Style,
 				})
 			}
 
@@ -954,6 +957,9 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 
 		switch data {
 		case "pb-start":
+			_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+				CallbackQueryID: update.CallbackQuery.ID,
+			})
 			if update.CallbackQuery != nil && update.CallbackQuery.Message != nil {
 				state.MenuMessageID = update.CallbackQuery.Message.GetMessageID()
 				c.CacheService.SetPostBuilderState(context.Background(), userID, *state)
@@ -1238,6 +1244,31 @@ func CallbackHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 
 func handleSendToChannelsTelego(ctx *telegohandler.Context, chatID, userID int64, messageID int, sessionID, callbackQueryID string, c *container.AppContainer) {
 	bot := ctx.Bot()
+
+	state, err := c.CacheService.GetPostBuilderSession(context.Background(), sessionID)
+	if err != nil || state == nil {
+		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: callbackQueryID,
+			Text:            "⚠️ Sessão da postagem expirada ou não encontrada.",
+			ShowAlert:       true,
+		})
+		backKB := &telego.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telego.InlineKeyboardButton{
+				{
+					{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+				},
+			},
+		}
+		_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   messageID,
+			Text:        "❌ <b>Sessão Expirada</b>\n\nEsta postagem não foi encontrada no servidor.",
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: backKB,
+		})
+		return
+	}
+
 	channels, err := c.ChannelService.GetUserChannels(context.Background(), userID)
 	if err != nil || len(channels) == 0 {
 		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
@@ -1245,8 +1276,26 @@ func handleSendToChannelsTelego(ctx *telegohandler.Context, chatID, userID int64
 			Text:            "⚠️ Você não possui nenhum canal cadastrado para enviar postagens!",
 			ShowAlert:       true,
 		})
+		backKB := &telego.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telego.InlineKeyboardButton{
+				{
+					{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+				},
+			},
+		}
+		_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   messageID,
+			Text:        "⚠️ <b>Nenhum Canal Cadastrado</b>\n\nVocê precisa cadastrar pelo menos um canal no bot para enviar postagens.",
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: backKB,
+		})
 		return
 	}
+
+	_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: callbackQueryID,
+	})
 
 	var rows [][]telego.InlineKeyboardButton
 	for _, ch := range channels {
@@ -1670,6 +1719,31 @@ func InlineHandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHan
 
 func handleSchedulePost(ctx *telegohandler.Context, chatID, userID int64, messageID int, sessionID, callbackQueryID string, c *container.AppContainer) {
 	bot := ctx.Bot()
+
+	state, err := c.CacheService.GetPostBuilderSession(context.Background(), sessionID)
+	if err != nil || state == nil {
+		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+			CallbackQueryID: callbackQueryID,
+			Text:            "⚠️ Sessão da postagem expirada ou não encontrada.",
+			ShowAlert:       true,
+		})
+		backKB := &telego.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telego.InlineKeyboardButton{
+				{
+					{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+				},
+			},
+		}
+		_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   messageID,
+			Text:        "❌ <b>Sessão Expirada</b>\n\nEsta postagem não foi encontrada no servidor.",
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: backKB,
+		})
+		return
+	}
+
 	channels, err := c.ChannelService.GetUserChannels(context.Background(), userID)
 	if err != nil || len(channels) == 0 {
 		_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
@@ -1677,8 +1751,26 @@ func handleSchedulePost(ctx *telegohandler.Context, chatID, userID int64, messag
 			Text:            "⚠️ Você não possui nenhum canal cadastrado para usar esta funcionalidade!",
 			ShowAlert:       true,
 		})
+		backKB := &telego.InlineKeyboardMarkup{
+			InlineKeyboard: [][]telego.InlineKeyboardButton{
+				{
+					{Text: "🔙 Voltar ao Post", CallbackData: "pb-saved-menu:" + sessionID},
+				},
+			},
+		}
+		_, _ = bot.EditMessageText(context.Background(), &telego.EditMessageTextParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			MessageID:   messageID,
+			Text:        "⚠️ <b>Nenhum Canal Cadastrado</b>\n\nVocê precisa cadastrar pelo menos um canal no bot para agendar postagens.",
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: backKB,
+		})
 		return
 	}
+
+	_ = bot.AnswerCallbackQuery(context.Background(), &telego.AnswerCallbackQueryParams{
+		CallbackQueryID: callbackQueryID,
+	})
 
 	var buttons [][]telego.InlineKeyboardButton
 	for _, ch := range channels {
@@ -1711,6 +1803,9 @@ func handleScheduleTypeSelection(ctx *telegohandler.Context, chatID, userID int6
 		},
 		{
 			{Text: "📅 Recorrente (semanal)", CallbackData: "pb-sch-type:" + sessionID + ":" + channelID + ":weekly"},
+		},
+		{
+			{Text: "⏱️ Intervalo fixo", CallbackData: "pb-sch-type:" + sessionID + ":" + channelID + ":interval"},
 		},
 		{
 			{Text: "📋 Fila de envio", CallbackData: "pb-sch-type:" + sessionID + ":" + channelID + ":queue"},
@@ -1748,6 +1843,8 @@ func handleScheduleTypeAction(ctx *telegohandler.Context, chatID, userID int64, 
 		prompt = "🔄 <b>Recorrência Diária</b>\n\nEnvie o horário diário no formato:\n<code>HH:MM</code>\n\nExemplo: <code>14:30</code>"
 	case "weekly":
 		prompt = "📅 <b>Recorrência Semanal</b>\n\nEnvie o horário e dias da semana:\n<code>HH:MM</code>\n<code>1,3,5</code> (seg,qua,sex)"
+	case "interval":
+		prompt = "⏱️ <b>Intervalo Fixo</b>\n\nEnvie o intervalo em minutos e, opcionalmente, a janela de horário:\n\n<b>Linha 1:</b> intervalo em minutos\n<b>Linha 2:</b> horário início-fim (opcional)\n\nExemplos:\n<code>30</code>\n→ A cada 30 minutos, 24h/dia\n\n<code>60\n08:00-22:00</code>\n→ A cada 1 hora, das 08:00 às 22:00"
 	case "queue":
 		prompt = "📋 <b>Fila de Envio</b>\n\nEnvie a posição na fila (número inteiro):\n<code>1</code> = próximo\n<code>2</code> = depois do próximo"
 	default:
@@ -1935,6 +2032,61 @@ func handleScheduleTextInput(ctx *telegohandler.Context, chatID, userID int64, t
 		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
 			ChatID:      telego.ChatID{ID: chatID},
 			Text:        fmt.Sprintf("✅ <b>Agendamento semanal criado!</b>\n\nHorário: %s\nDias: %s", scheduleTime, scheduleDays),
+			ParseMode:   telego.ModeHTML,
+			ReplyMarkup: completionKB,
+		})
+		_ = schedule
+
+	case "interval":
+		lines := strings.Split(text, "\n")
+		intervalMin, err := strconv.Atoi(strings.TrimSpace(lines[0]))
+		if err != nil || intervalMin < 5 {
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID:    telego.ChatID{ID: chatID},
+				Text:      "❌ Intervalo inválido. Envie um número em minutos (mínimo 5).",
+				ParseMode: telego.ModeHTML,
+			})
+			return
+		}
+
+		var windowStart, windowEnd string
+		if len(lines) >= 2 && strings.TrimSpace(lines[1]) != "" {
+			windowParts := strings.Split(strings.TrimSpace(lines[1]), "-")
+			if len(windowParts) == 2 {
+				windowStart = strings.TrimSpace(windowParts[0])
+				windowEnd = strings.TrimSpace(windowParts[1])
+			} else {
+				_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+					ChatID:    telego.ChatID{ID: chatID},
+					Text:      "❌ Janela de horário inválida. Use o formato:\n<code>HH:MM-HH:MM</code>",
+					ParseMode: telego.ModeHTML,
+				})
+				return
+			}
+		}
+
+		opts := services.ScheduleOptions{
+			ScheduleType: "interval",
+			IntervalMin:  intervalMin,
+			WindowStart:  windowStart,
+			WindowEnd:    windowEnd,
+		}
+		schedule, err := c.SchedulerService.CreateScheduledPost(context.Background(), userID, channelID, postData, opts)
+		if err != nil {
+			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+				ChatID: telego.ChatID{ID: chatID},
+				Text:   fmt.Sprintf("❌ Erro ao criar agendamento: %s", err.Error()),
+			})
+			return
+		}
+
+		confirmText := fmt.Sprintf("✅ <b>Agendamento por intervalo criado!</b>\n\nA cada %d minutos", intervalMin)
+		if windowStart != "" {
+			confirmText += fmt.Sprintf("\nJanela: %s às %s", windowStart, windowEnd)
+		}
+		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
+			ChatID:      telego.ChatID{ID: chatID},
+			Text:        confirmText,
 			ParseMode:   telego.ModeHTML,
 			ReplyMarkup: completionKB,
 		})

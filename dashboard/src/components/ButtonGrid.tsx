@@ -30,27 +30,31 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
   const [cols, setCols] = useState(() => Math.max(4, buttons.reduce((m, b) => Math.max(m, b.positionX), 0) + 1));
   const [rows, setRows] = useState(() => {
     const maxBtnY = buttons.reduce((m, b) => Math.max(m, b.positionY), -1);
-    return Math.max(3, Math.max(maxBtnY, reactionPosition) + 2);
+    const activeY = hideReactions ? maxBtnY : Math.max(maxBtnY, reactionPosition);
+    return Math.max(1, activeY + 1);
   });
 
   // Sync grid dimensions when props change (e.g. after move or external update)
   useEffect(() => {
     const maxBRow = buttons.reduce((m, b) => Math.max(m, b.positionY), -1);
-    const neededRows = Math.max(maxBRow, reactionPosition) + 2;
+    const activeY = hideReactions ? maxBRow : Math.max(maxBRow, reactionPosition);
+    const neededRows = Math.max(1, activeY + 1);
     setRows(prev => Math.max(prev, neededRows));
 
     const maxBCol = buttons.reduce((m, b) => Math.max(m, b.positionX), -1);
-    const neededCols = maxBCol + 1;
+    const neededCols = Math.max(1, maxBCol + 1);
     setCols(prev => Math.max(prev, neededCols));
-  }, [buttons, reactionPosition]);
+  }, [buttons, reactionPosition, hideReactions]);
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [editUrl, setEditUrl] = useState('');
+  const [editStyle, setEditStyle] = useState('');
   const [addingAt, setAddingAt] = useState<{ x: number; y: number } | null>(null);
   const [newName, setNewName] = useState('');
   const [newUrl, setNewUrl] = useState('');
+  const [newStyle, setNewStyle] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const [dragBtnId, setDragBtnId] = useState<string | null>(null);
@@ -65,6 +69,31 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
 
   const btnAt = (x: number, y: number) => buttons.find(b => b.positionX === x && b.positionY === y);
   const cellKey = (x: number, y: number) => `${x},${y}`;
+
+  const getButtonStyle = (style?: string) => {
+    switch (style) {
+      case 'primary':
+        return {
+          background: 'rgba(36, 129, 204, 0.25)',
+          borderColor: 'rgba(36, 129, 204, 0.6)',
+          color: '#60a5fa',
+        };
+      case 'success':
+        return {
+          background: 'rgba(14, 165, 115, 0.25)',
+          borderColor: 'rgba(14, 165, 115, 0.6)',
+          color: '#34d399',
+        };
+      case 'danger':
+        return {
+          background: 'rgba(232, 62, 62, 0.25)',
+          borderColor: 'rgba(232, 62, 62, 0.6)',
+          color: '#f87171',
+        };
+      default:
+        return {};
+    }
+  };
 
   const processUrl = (url: string) => {
     const u = url.trim();
@@ -228,7 +257,7 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
       setAddingAt(null); setEditingId(null);
     } else {
       setAddingAt({ x, y });
-      setNewName(''); setNewUrl('');
+      setNewName(''); setNewUrl(''); setNewStyle('');
       setSelectedId(null); setEditingId(null);
     }
   };
@@ -239,6 +268,7 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
     onAdd({
       buttonId: '', // Temporarily empty, will be assigned real ID from DB via App.tsx
       nameButton: newName.trim(), buttonUrl: finalUrl,
+      style: newStyle || undefined,
       positionX: addingAt.x, positionY: addingAt.y,
       ownerChannelId: channelId,
       created_at: new Date().toISOString(),
@@ -251,13 +281,14 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
     setEditingId(b.buttonId);
     setEditName(b.nameButton);
     setEditUrl(b.buttonUrl);
+    setEditStyle(b.style || '');
     setSelectedId(null); setAddingAt(null);
   };
 
   const doEdit = () => {
     const finalUrl = processUrl(editUrl);
     if (!editingId || !editName.trim() || !validateUrl(finalUrl)) return;
-    onEdit(editingId, { nameButton: editName.trim(), buttonUrl: finalUrl });
+    onEdit(editingId, { nameButton: editName.trim(), buttonUrl: finalUrl, style: editStyle || undefined });
     setEditingId(null);
   };
 
@@ -341,7 +372,11 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
                     onDrop={e => onCellDrop(e, x, y)}
                     onDragLeave={() => setDragOverKey(null)}
                   >
-                    {!hasBtn && !isReac && <Plus size={12} className="text-muted-foreground/20" />}
+                    {!hasBtn && !isReac && (
+                      <div className="flex items-center justify-center size-7 rounded-lg bg-muted/20 border border-border/40 text-muted-foreground/60 group-hover:text-foreground group-hover:bg-muted/40 transition-all active:scale-95">
+                        <Plus size={14} />
+                      </div>
+                    )}
                   </div>
                 );
               })
@@ -351,6 +386,7 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
             {buttons.map(b => {
               const isSel = selectedId === b.buttonId;
               const isSource = dragBtnId === b.buttonId;
+              const customStyle = getButtonStyle(b.style);
               
               return (
                 <div
@@ -370,12 +406,13 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
                     gridColumn: b.positionX + 1,
                     gridRow: b.positionY + 1,
                     zIndex: 10,
-                    cursor: 'grab'
+                    cursor: 'grab',
+                    ...customStyle,
                   }}
                 >
-                  <div className="flex flex-col items-center justify-center w-full h-full select-none min-w-0 gap-1" style={{ pointerEvents: 'none' }}>
-                    <GripVertical size={14} className="text-muted-foreground/25" />
-                    <span className="text-[12px] font-semibold truncate max-w-full px-1 leading-tight text-center">{b.nameButton}</span>
+                  <div className="flex flex-col items-center justify-center w-full h-full select-none min-w-0 gap-1 px-1 py-1 group" style={{ pointerEvents: 'none' }}>
+                    <GripVertical size={13} className="text-muted-foreground/45 group-hover:text-muted-foreground/80 transition-colors" />
+                    <span className="text-[12px] font-bold truncate max-w-full leading-tight text-center text-foreground">{b.nameButton}</span>
                   </div>
                 </div>
               );
@@ -436,7 +473,14 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
           <div className="mt-3 mx-4 p-4 rounded-xl bg-muted border border-border">
               <div className="flex items-center justify-between gap-3 mb-2">
                 <div className="min-w-0 flex-1">
-                  <h4 className="text-sm font-semibold truncate">{selBtn.nameButton}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="text-sm font-semibold truncate">{selBtn.nameButton}</h4>
+                    {selBtn.style && (
+                      <Badge variant="outline" className="text-[10px] capitalize" style={getButtonStyle(selBtn.style)}>
+                        {selBtn.style}
+                      </Badge>
+                    )}
+                  </div>
                   <p className="text-xs mt-0.5 truncate font-mono text-muted-foreground">{selBtn.buttonUrl}</p>
                 </div>
               </div>
@@ -476,6 +520,46 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
               {!validateUrl(editUrl) && editUrl.trim().length > 0 && (
                 <p className="text-xs text-destructive">Username do Telegram deve ter no mínimo 5 caracteres.</p>
               )}
+
+              {/* Color style selector */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cor do Botão (Telegram)</label>
+                <div className="flex items-center gap-3 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setEditStyle('')}
+                    title="Padrão (Neutro)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-white/10 ${editStyle === '' ? 'border-primary ring-2 ring-primary/40 scale-110' : 'border-border/60 hover:scale-105'}`}
+                  >
+                    <span className="text-[9px] font-bold text-muted-foreground">STD</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditStyle('primary')}
+                    title="Primary (Azul)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-[#2481cc] ${editStyle === 'primary' ? 'border-white ring-2 ring-[#2481cc]/80 scale-110' : 'border-transparent hover:scale-105'}`}
+                  >
+                    {editStyle === 'primary' && <Check size={14} className="text-white" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditStyle('success')}
+                    title="Success (Verde)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-[#0ea573] ${editStyle === 'success' ? 'border-white ring-2 ring-[#0ea573]/80 scale-110' : 'border-transparent hover:scale-105'}`}
+                  >
+                    {editStyle === 'success' && <Check size={14} className="text-white" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditStyle('danger')}
+                    title="Danger (Vermelho)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-[#e83e3e] ${editStyle === 'danger' ? 'border-white ring-2 ring-[#e83e3e]/80 scale-110' : 'border-transparent hover:scale-105'}`}
+                  >
+                    {editStyle === 'danger' && <Check size={14} className="text-white" />}
+                  </button>
+                </div>
+              </div>
+
               <div className="flex gap-2 justify-end pt-1">
                 <Button variant="secondary" size="sm" onClick={() => setEditingId(null)}>
                   <X size={12} /> Cancelar
@@ -508,6 +592,46 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
               {!validateUrl(newUrl) && newUrl.trim().length > 0 && (
                 <p className="text-xs text-destructive">Username do Telegram deve ter no mínimo 5 caracteres.</p>
               )}
+
+              {/* Color style selector */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Cor do Botão (Telegram)</label>
+                <div className="flex items-center gap-3 pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setNewStyle('')}
+                    title="Padrão (Neutro)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-white/10 ${newStyle === '' ? 'border-primary ring-2 ring-primary/40 scale-110' : 'border-border/60 hover:scale-105'}`}
+                  >
+                    <span className="text-[9px] font-bold text-muted-foreground">STD</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStyle('primary')}
+                    title="Primary (Azul)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-[#2481cc] ${newStyle === 'primary' ? 'border-white ring-2 ring-[#2481cc]/80 scale-110' : 'border-transparent hover:scale-105'}`}
+                  >
+                    {newStyle === 'primary' && <Check size={14} className="text-white" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStyle('success')}
+                    title="Success (Verde)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-[#0ea573] ${newStyle === 'success' ? 'border-white ring-2 ring-[#0ea573]/80 scale-110' : 'border-transparent hover:scale-105'}`}
+                  >
+                    {newStyle === 'success' && <Check size={14} className="text-white" />}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewStyle('danger')}
+                    title="Danger (Vermelho)"
+                    className={`size-8 rounded-full border-2 transition-all flex items-center justify-center bg-[#e83e3e] ${newStyle === 'danger' ? 'border-white ring-2 ring-[#e83e3e]/80 scale-110' : 'border-transparent hover:scale-105'}`}
+                  >
+                    {newStyle === 'danger' && <Check size={14} className="text-white" />}
+                  </button>
+                </div>
+              </div>
+
               <div className="flex gap-2 justify-end pt-1">
                 <Button variant="secondary" size="sm" onClick={() => setAddingAt(null)}>
                   <X size={12} /> Cancelar
@@ -523,24 +647,24 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
 
       {/* Delete confirm */}
       <Dialog open={!!confirmDeleteId} onOpenChange={(open) => { if (!open) setConfirmDeleteId(null); }}>
-        <DialogContent className="sm:max-w-sm" showCloseButton={false}>
-          <DialogHeader className="gap-3">
-            <div className="section-icon" style={{ background: 'var(--danger-soft)', color: 'var(--danger)' }}>
-              <AlertTriangle size={20} />
+        <DialogContent className="sm:max-w-md p-6 text-center bg-card text-card-foreground border border-border/80 shadow-2xl rounded-2xl" showCloseButton={false}>
+          <DialogHeader className="items-center gap-3">
+            <div className="flex size-14 items-center justify-center rounded-2xl bg-destructive/15 text-destructive border border-destructive/30 shadow-sm">
+              <AlertTriangle size={26} />
             </div>
-            <DialogTitle>Excluir Botão</DialogTitle>
-            <DialogDescription>
-              Excluir "{buttons.find(b => b.buttonId === confirmDeleteId)?.nameButton}"?
+            <DialogTitle className="text-lg font-bold text-foreground tracking-tight mt-1">Excluir Botão</DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed px-2 text-muted-foreground font-medium">
+              Tem certeza que deseja excluir o botão <strong className="text-foreground">"{buttons.find(b => b.buttonId === confirmDeleteId)?.nameButton}"</strong>?
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2">
-            <DialogClose render={<Button variant="secondary" className="flex-1">Cancelar</Button>} />
+          <DialogFooter className="flex flex-row items-center justify-center gap-3 mt-4 pt-2 border-t-0 p-0">
+            <DialogClose render={<Button variant="outline" className="flex-1 rounded-xl h-11 text-xs font-semibold border-border bg-surface text-foreground hover:bg-muted">Cancelar</Button>} />
             <Button
               variant="destructive"
-              className="flex-1"
+              className="flex-1 rounded-xl h-11 text-xs font-bold transition-all shadow-md"
               onClick={() => { onDelete(confirmDeleteId!); setConfirmDeleteId(null); setSelectedId(null); }}
             >
-              <Trash2 size={15} /> Excluir
+              <Trash2 size={15} className="mr-1.5" /> Excluir
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -129,6 +129,7 @@ func (ctrl *UserCaptionTemplateController) CreateButton(ctx *gin.Context) {
 	var body struct {
 		NameButton string `json:"nameButton" binding:"required"`
 		ButtonURL  string `json:"buttonUrl"`
+		Style      string `json:"style"`
 	}
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		ctx.Error(errors.BadRequest("nome do botão é obrigatório"))
@@ -146,6 +147,7 @@ func (ctrl *UserCaptionTemplateController) CreateButton(ctx *gin.Context) {
 		ButtonID:        uuid.NewString(),
 		NameButton:      body.NameButton,
 		ButtonURL:       body.ButtonURL,
+		Style:           body.Style,
 		PositionX:       0,
 		PositionY:       maxY,
 		OwnerTemplateID: ctx.Param("id"),
@@ -167,10 +169,11 @@ func (ctrl *UserCaptionTemplateController) UpdateButton(ctx *gin.Context) {
 	}
 
 	tpl, err := ctrl.container.UserCaptionTemplateService.GetByID(ctx, ctx.Param("id"))
-	if err != nil {
-		ctx.Error(err)
+	if err != nil || tpl == nil {
+		ctx.Error(errors.ErrNotFound)
 		return
 	}
+
 	if tpl.UserID != userID.(int64) {
 		ctx.Error(errors.ErrForbidden)
 		return
@@ -179,13 +182,14 @@ func (ctrl *UserCaptionTemplateController) UpdateButton(ctx *gin.Context) {
 	var body struct {
 		NameButton string `json:"nameButton" binding:"required"`
 		ButtonURL  string `json:"buttonUrl"`
+		Style      string `json:"style"`
 	}
 	if err := ctx.ShouldBindJSON(&body); err != nil {
 		ctx.Error(errors.BadRequest("nome do botão é obrigatório"))
 		return
 	}
 
-	if err := ctrl.container.UserCaptionTemplateService.UpdateButton(ctx, ctx.Param("id"), ctx.Param("buttonId"), body.NameButton, body.ButtonURL); err != nil {
+	if err := ctrl.container.UserCaptionTemplateService.UpdateButton(ctx, ctx.Param("id"), ctx.Param("buttonId"), body.NameButton, body.ButtonURL, body.Style); err != nil {
 		ctx.Error(err)
 		return
 	}

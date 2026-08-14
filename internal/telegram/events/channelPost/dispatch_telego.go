@@ -87,7 +87,8 @@ func toExecutorKeyboard(tk *telego.InlineKeyboardMarkup) *executor.InlineKeyboar
 		buttons := make([]executor.InlineKeyboardButton, len(row))
 		for j, btn := range row {
 			b := executor.InlineKeyboardButton{
-				Text: btn.Text,
+				Text:  btn.Text,
+				Style: btn.Style,
 			}
 			if btn.URL != "" {
 				b.URL = btn.URL

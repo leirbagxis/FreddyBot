@@ -47,6 +47,8 @@ export function AdminLayout({ activeTab, onTabChange, children, adminName, admin
           isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(prev => !prev)}
           mobileOpen={mobileOpen}
+          adminName={adminName}
+          adminAvatar={adminAvatar}
         />
 
         {mobileOpen && (

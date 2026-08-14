@@ -329,9 +329,16 @@ export const fetchAdminLogs = async (filters: AdminLogsFilters = {}): Promise<Ad
 
 // ===== Connected Account API =====
 
+let pendingAccountStatusPromise: Promise<AccountStatus> | null = null;
 export const fetchAccountStatus = async (): Promise<AccountStatus> => {
-    const response = await apiFetch('/api/account', { method: 'GET' });
-    return response?.data || { status: 'disconnected' };
+    if (pendingAccountStatusPromise) return pendingAccountStatusPromise;
+    pendingAccountStatusPromise = (async () => {
+        const response = await apiFetch('/api/account', { method: 'GET' });
+        return response?.data || { status: 'disconnected' };
+    })().finally(() => {
+        pendingAccountStatusPromise = null;
+    });
+    return pendingAccountStatusPromise;
 };
 
 export const fetchAuthStatus = async (): Promise<AuthStatus> => {
@@ -415,8 +422,13 @@ export const adminDeleteAccount = async (id: string) => {
 
 /* ===== Subscription (Premium) ===== */
 
+let pendingSubscriptionStatusPromise: Promise<any> | null = null;
 export const fetchSubscriptionStatus = async (): Promise<any> => {
-    return apiFetch('/api/subscription', { method: 'GET' });
+    if (pendingSubscriptionStatusPromise) return pendingSubscriptionStatusPromise;
+    pendingSubscriptionStatusPromise = apiFetch('/api/subscription', { method: 'GET' }).finally(() => {
+        pendingSubscriptionStatusPromise = null;
+    });
+    return pendingSubscriptionStatusPromise;
 };
 
 /** Cria uma invoice link para pagamento via WebApp.openInvoice().
@@ -641,7 +653,17 @@ export const deleteSchedule = async (id: string): Promise<any> => {
     return apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
 };
 
-export const updateScheduleTime = async (id: string, data: { nextRunAt?: string; scheduleTime?: string; pinMessage?: boolean }): Promise<any> => {
+export const updateScheduleTime = async (
+    id: string,
+    data: {
+        nextRunAt?: string;
+        scheduleTime?: string;
+        pinMessage?: boolean;
+        intervalMin?: number;
+        windowStart?: string;
+        windowEnd?: string;
+    }
+): Promise<any> => {
     const response = await apiFetch(`/api/schedule/${id}`, {
         method: 'PATCH',
         body: JSON.stringify(data),
@@ -682,18 +704,18 @@ export const deleteUserCaptionTemplate = async (id: string): Promise<any> => {
     return response?.data;
 };
 
-export const createUserCaptionTemplateButton = async (templateId: string, nameButton: string, buttonUrl: string): Promise<any> => {
+export const createUserCaptionTemplateButton = async (templateId: string, nameButton: string, buttonUrl: string, style?: string): Promise<any> => {
     const response = await apiFetch(`/api/me/templates/${templateId}/buttons`, {
         method: 'POST',
-        body: JSON.stringify({ nameButton, buttonUrl }),
+        body: JSON.stringify({ nameButton, buttonUrl, style }),
     });
     return response?.data;
 };
 
-export const updateUserCaptionTemplateButton = async (templateId: string, buttonId: string, nameButton: string, buttonUrl: string): Promise<any> => {
+export const updateUserCaptionTemplateButton = async (templateId: string, buttonId: string, nameButton: string, buttonUrl: string, style?: string): Promise<any> => {
     const response = await apiFetch(`/api/me/templates/${templateId}/buttons/${buttonId}`, {
         method: 'PUT',
-        body: JSON.stringify({ nameButton, buttonUrl }),
+        body: JSON.stringify({ nameButton, buttonUrl, style }),
     });
     return response?.data;
 };
