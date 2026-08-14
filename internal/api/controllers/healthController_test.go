@@ -28,3 +28,20 @@ func TestHealthzController(t *testing.T) {
 		t.Errorf("Expected body %s, got %s", expectedBody, w.Body.String())
 	}
 }
+
+func TestReadyzControllerUnhealthy(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+
+	// Container nulo -> DB e Redis indisponíveis -> 503
+	ctrl := NewHealthController(nil)
+	router.GET("/readyz", ctrl.Readyz)
+
+	w := httptest.NewRecorder()
+	req, _ := http.NewRequest("GET", "/readyz", nil)
+	router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("Expected status 503 Service Unavailable for /readyz without DB/Redis, got %d", w.Code)
+	}
+}

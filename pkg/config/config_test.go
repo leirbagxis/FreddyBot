@@ -66,4 +66,23 @@ func TestConfigValidation(t *testing.T) {
 			t.Error("Expected validation error for partial MTProto config, got nil")
 		}
 	})
+
+	t.Run("Fails when WebhookSecret contains invalid characters", func(t *testing.T) {
+		oldWebhook := os.Getenv("WEBHOOK_URL")
+		oldSecret := os.Getenv("TELEGRAM_WEBHOOK_SECRET")
+		defer func() {
+			os.Setenv("WEBHOOK_URL", oldWebhook)
+			os.Setenv("TELEGRAM_WEBHOOK_SECRET", oldSecret)
+			Load()
+		}()
+
+		os.Setenv("WEBHOOK_URL", "https://example.com/webhook")
+		os.Setenv("TELEGRAM_WEBHOOK_SECRET", "invalid secret with spaces!")
+		Load()
+
+		err := Validate()
+		if err == nil {
+			t.Error("Expected validation error for TELEGRAM_WEBHOOK_SECRET with spaces/invalid chars, got nil")
+		}
+	})
 }

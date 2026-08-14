@@ -45,6 +45,7 @@ func (h *HealthController) Readyz(c *gin.Context) {
 
 	if err := cache.HealthCheck(ctx); err != nil {
 		redisStatus = "down"
+		isReady = false
 	}
 
 	response := gin.H{

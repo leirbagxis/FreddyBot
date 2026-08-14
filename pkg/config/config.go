@@ -167,6 +167,18 @@ func parseOrigins(raw string, fallback string) []string {
 	return origins
 }
 
+func isValidWebhookSecret(secret string) bool {
+	if len(secret) < 1 || len(secret) > 256 {
+		return false
+	}
+	for _, r := range secret {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
 // Validate verifica se todas as configurações obrigatórias foram carregadas corretamente.
 func Validate() error {
 	var missing []string
@@ -200,6 +212,8 @@ func Validate() error {
 			missing = append(missing, "TELEGRAM_WEBHOOK_SECRET (obrigatório quando WEBHOOK_URL está configurado)")
 		} else if len(TelegramWebhookSecret) < 8 || len(TelegramWebhookSecret) > 256 {
 			missing = append(missing, "TELEGRAM_WEBHOOK_SECRET (deve ter entre 8 e 256 caracteres)")
+		} else if !isValidWebhookSecret(TelegramWebhookSecret) {
+			missing = append(missing, "TELEGRAM_WEBHOOK_SECRET (deve conter apenas caracteres permitidos A-Z, a-z, 0-9, _ ou -)")
 		}
 	}
 

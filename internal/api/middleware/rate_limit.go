@@ -17,30 +17,49 @@ type memoryLimiterEntry struct {
 	resetAt time.Time
 }
 
+type memoryRateLimiter struct {
+	mu          sync.Mutex
+	store       map[string]*memoryLimiterEntry
+	lastCleanup time.Time
+}
+
 var (
-	memStore sync.Map // map[string]*memoryLimiterEntry
+	globalMemoryLimiter = &memoryRateLimiter{
+		store: make(map[string]*memoryLimiterEntry),
+	}
 )
 
-func checkMemoryRateLimit(key string, limit int, window time.Duration) bool {
-	now := time.Now()
-	val, ok := memStore.Load(key)
+func (m *memoryRateLimiter) Allow(key string, limit int, window time.Duration) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
 
-	var entry *memoryLimiterEntry
-	if !ok || now.After(val.(*memoryLimiterEntry).resetAt) {
-		entry = &memoryLimiterEntry{
+	now := time.Now()
+
+	// Limpeza oportunística a cada 1 minuto para evitar acúmulo de chaves na memória
+	if now.Sub(m.lastCleanup) > time.Minute {
+		for k, v := range m.store {
+			if now.After(v.resetAt) {
+				delete(m.store, k)
+			}
+		}
+		m.lastCleanup = now
+	}
+
+	entry, ok := m.store[key]
+	if !ok || now.After(entry.resetAt) {
+		m.store[key] = &memoryLimiterEntry{
 			count:   1,
 			resetAt: now.Add(window),
 		}
-		memStore.Store(key, entry)
 		return true
 	}
 
-	entry = val.(*memoryLimiterEntry)
 	entry.count++
-	if entry.count > limit {
-		return false
-	}
-	return true
+	return entry.count <= limit
+}
+
+func checkMemoryRateLimit(key string, limit int, window time.Duration) bool {
+	return globalMemoryLimiter.Allow(key, limit, window)
 }
 
 // RateLimit limita a taxa de requisições por IP usando o Redis, com fallback em memória para rotas sensíveis.
