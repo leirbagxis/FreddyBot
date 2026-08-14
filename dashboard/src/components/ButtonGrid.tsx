@@ -249,6 +249,8 @@ export function ButtonGrid({ buttons, reactions, reactionPosition, channelId, hi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dragBtnId, dragOverKey, buttons, onMove, onMoveReactions, cleanTouch]);
 
+  useEffect(() => () => cleanTouch(), [cleanTouch]);
+
   const onCellClick = (x: number, y: number) => {
     if (isDragging.current) return;
     const b = btnAt(x, y);

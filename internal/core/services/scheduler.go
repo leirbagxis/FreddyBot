@@ -423,7 +423,7 @@ func parseHHMM(s string) (int, int) {
 
 func validateScheduleTime(s string) (int, int, error) {
 	parts := strings.Split(strings.TrimSpace(s), ":")
-	if len(parts) != 2 || len(parts[0]) < 1 || len(parts[0]) > 2 || len(parts[1]) < 1 || len(parts[1]) > 2 {
+	if len(parts) != 2 || len(parts[0]) != 2 || len(parts[1]) != 2 {
 		return 0, 0, fmt.Errorf("horário inválido, use HH:MM")
 	}
 	hour, err := strconv.Atoi(parts[0])

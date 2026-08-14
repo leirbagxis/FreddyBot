@@ -81,9 +81,10 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, 
 			return nil, nil, nil, fmt.Errorf("delete webhook for polling: %w", err)
 		}
 
-		// Iniciar Long Polling em paralelo para alimentar o channel de updates
-		// Importante: AllowedUpdates explicito para incluir channel_post (o default pode nao incluir)
-		pollingUpdates, err := tb.UpdatesViaLongPolling(context.Background(), &telego.GetUpdatesParams{
+		pollCtx, pollCancel := context.WithCancel(context.Background())
+		_ = pollCancel
+
+		pollingUpdates, err := tb.UpdatesViaLongPolling(pollCtx, &telego.GetUpdatesParams{
 			Timeout: 8,
 			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query",
 				"chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post",
@@ -98,7 +99,11 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, 
 					logger.Bot("📥 LongPolling recebeu ChannelPost #%d do canal %d",
 						u.ChannelPost.MessageID, u.ChannelPost.Chat.ID)
 				}
-				updates <- u
+				select {
+				case updates <- u:
+				case <-pollCtx.Done():
+					return
+				}
 			}
 			logger.Bot("⚠️ LongPolling channel fechou!")
 		}()

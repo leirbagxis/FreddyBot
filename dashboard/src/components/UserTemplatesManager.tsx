@@ -435,7 +435,7 @@ function TemplateEditor({
     setCode(template.code);
     setCaption(template.caption);
     setSavedNotice(false);
-  }, [template]);
+  }, [template.id]);
 
   const handleSaveAll = async () => {
     if (!code.trim()) {

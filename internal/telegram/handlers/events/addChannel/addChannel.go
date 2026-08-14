@@ -91,13 +91,7 @@ func UpdateChannelInfoHandlerTelego(c *container.AppContainer) telegohandler.Han
 		usernameChanged := update.MyChatMember.Chat.Username != "" && usernameURL != channelURL && !strings.HasPrefix(channelURL, "https://t.me/+")
 
 		if titleChanged || usernameChanged {
-			go func() {
-				// Utiliza UpdateChannelBasicInfoTelego (já implementada em metadata.go)
-				// Note: precisamos importar channelpost ou mover UpdateChannelBasicInfoTelego
-				// Para evitar dependência cíclica, vou assumir que ela está acessível ou duplicar a lógica básica aqui.
-				// Por simplicidade, vou apenas logar por enquanto, a sincronização real acontece no pipeline.
-				logger.Bot("Metadados do canal %d mudaram, sincronização agendada.", chatID)
-			}()
+			logger.Bot("Metadados do canal %d mudaram, sincronização agendada.", chatID)
 		}
 
 		return nil

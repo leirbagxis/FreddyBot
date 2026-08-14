@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { UserCheck, UserX, Clock, Calendar, RefreshCw, Trash2 } from 'lucide-react';
 import { AccountStatus } from '../types';
 import { Button } from './ui/button';
@@ -26,8 +27,9 @@ export function ConnectedAccountCard({
   onReconnect,
   onDisconnect,
 }: ConnectedAccountCardProps) {
+  const [imgError, setImgError] = useState(false);
   const isConnected = status.status === 'connected';
-  const hasPhoto = isConnected && status.avatarUrl;
+  const hasPhoto = isConnected && status.avatarUrl && !imgError;
   const initials = status.firstName
     ? status.firstName[0].toUpperCase()
     : status.username
@@ -49,13 +51,7 @@ export function ConnectedAccountCard({
               src={status.avatarUrl}
               alt=""
               className="w-full h-full object-cover"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = 'none';
-                (e.target as HTMLImageElement).parentElement!.innerText = initials;
-                ((e.target as HTMLImageElement).parentElement!).style.fontWeight = '700';
-                ((e.target as HTMLImageElement).parentElement!).style.fontSize = '20px';
-                ((e.target as HTMLImageElement).parentElement!).style.color = 'var(--accent)';
-              }}
+              onError={() => setImgError(true)}
             />
           ) : isConnected ? (
             <span className="font-bold text-[20px]" style={{ color: 'var(--accent)' }}>

@@ -282,11 +282,8 @@ export const updateServerConfig = async (payload: {
 };
 
 export const disconnectChannel = async (channelId: number) => {
-    // Retorna a promessa Response inteira para podermos conferir o status 204
-    // Agora usando a nova rota RESTful: DELETE /api/channel/:id
-    return fetch(`/api/channel/${channelId}`, {
+    return apiFetch(`/api/channel/${channelId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
     });
 };
 

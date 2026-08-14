@@ -450,19 +450,19 @@ const DashboardContent = memo(function DashboardContent() {
 
       const finalButton = { ...button, buttonId: realId };
 
+      let nextButtons: Button[] = [];
       setData(p => {
         if (!p) return p;
-        return { ...p, channel: { ...p.channel, buttons: [...p.channel.buttons, finalButton] } };
+        nextButtons = [...p.channel.buttons, finalButton];
+        return { ...p, channel: { ...p.channel, buttons: nextButtons } };
       });
       toast(`"${button.nameButton}" adicionado`, 'success');
 
-      setData(p => {
-        if (!p) return p;
-        const allButtons = p.channel.buttons;
+      if (nextButtons.length > 0) {
         const layout: any[][] = [];
-        const maxRow = allButtons.reduce((max, b) => Math.max(max, b.positionY), 0);
+        const maxRow = nextButtons.reduce((max, b) => Math.max(max, b.positionY), 0);
         for (let currentY = 0; currentY <= maxRow; currentY++) {
-          const rowButtons = allButtons
+          const rowButtons = nextButtons
             .filter(b => b.positionY === currentY)
             .sort((a, b) => a.positionX - b.positionX)
             .map(b => ({
@@ -475,8 +475,7 @@ const DashboardContent = memo(function DashboardContent() {
           layout.push(rowButtons);
         }
         updateLayoutButtons(cid, layout).catch(console.error);
-        return p;
-      });
+      }
     } catch (err) {
       console.error(err);
       toast(`Erro ao adicionar botão`, 'error');

@@ -53,8 +53,7 @@ export function AdminConfigTab() {
 
     // ── Auto-refresh PostBuilder cache on mount + periodic ──
     useEffect(() => {
-        if (loading || !config || !fixedPostEnabled || autoRefreshed.current) return;
-        autoRefreshed.current = true;
+        if (loading || !config || !fixedPostEnabled) return;
 
         const refresh = async () => {
             try {
@@ -72,10 +71,9 @@ export function AdminConfigTab() {
             }
         };
 
-        refresh();
         const interval = setInterval(refresh, REFRESH_INTERVAL);
         return () => clearInterval(interval);
-    }, [loading, config, fixedPostEnabled, fixedPostKey, fixedPostPayload, globalDefault, globalNewPack]);
+    }, [loading, !!config, fixedPostEnabled]);
 
     const handleSave = async (overrides: Partial<ServerConfig> = {}) => {
         if (!config) return;
