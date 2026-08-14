@@ -42,7 +42,7 @@ func (r *SeparatorRepository) SaveSeparator(ctx context.Context, separator *mode
 
 	err := r.db.WithContext(ctx).
 		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "owner_channel_id"}},
+			Columns: []clause.Column{{Name: "owner_channel_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{
 				"type",
 				"separator_id",

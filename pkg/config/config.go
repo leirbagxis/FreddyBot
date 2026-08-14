@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -37,33 +36,74 @@ var (
 	CORSAllowOrigins      []string
 
 	// StarsTestMode define se as invoices usam precos de teste (1 star).
-	// Quando true, ?test=true faz todas as invoices custarem apenas 1 star
-	// (em vez do preco real), permitindo testar o fluxo completo de pagamento.
 	StarsTestMode bool
 
 	// MTProto
-	MTProtoAppID   int
-	MTProtoAppHash string
+	MTProtoAppID         int
+	MTProtoAppHash       string
+	MTProtoEncryptionKey string
 )
 
 func init() {
+	Load()
+}
+
+// Load recarrega as variáveis de ambiente para a estrutura global do pacote.
+func Load() {
 	if os.Getenv("GO_ENV") != "production" {
 		if err := godotenv.Load(); err != nil {
 			logger.Warn("CONFIG", "⚠️  .env não encontrado — usando variáveis de ambiente do container")
 		}
 	}
 
-	TelegramBotToken = mustGetEnv("TELEGRAM_BOT_TOKEN")
-	RedisAddr = mustGetEnv("REDIS_HOST")
-	DatabaseFile = os.Getenv("DATABASE_FILE") // opcional
-	OwnerID = mustGetEnvInt64("OWNER_ID")
+	TelegramBotToken = os.Getenv("TELEGRAM_BOT_TOKEN")
+	if TelegramBotToken == "" && isTestMode() {
+		TelegramBotToken = "test_TELEGRAM_BOT_TOKEN"
+	}
+
+	RedisAddr = os.Getenv("REDIS_HOST")
+	if RedisAddr == "" && isTestMode() {
+		RedisAddr = "test_REDIS_HOST"
+	}
+
+	DatabaseFile = os.Getenv("DATABASE_FILE") // opcional em dev (default sqlite local)
+	if DatabaseFile == "" && isTestMode() {
+		DatabaseFile = "test_database.db"
+	}
+
+	ownerStr := os.Getenv("OWNER_ID")
+	if ownerStr != "" {
+		if id, err := strconv.ParseInt(ownerStr, 10, 64); err == nil {
+			OwnerID = id
+		}
+	} else if isTestMode() {
+		OwnerID = 123456789
+	}
+
 	AppPort = os.Getenv("APP_PORT")
-	SecreteKey = mustGetEnv("SECRET_KEY")
-	SecretKey = SecreteKey
-	WebAppURL = mustGetEnv("WEBAPP_URL")
-	WebhookURL = os.Getenv("WEBHOOK_URL")                        // opcional
-	TelegramWebhookSecret = os.Getenv("TELEGRAM_WEBHOOK_SECRET") // obrigatorio apenas no modo webhook
-	AppEnv = os.Getenv("APP_ENV")                                // dev ou prod
+	if AppPort == "" {
+		AppPort = "7000"
+	}
+
+	SecretKey = os.Getenv("SECRET_KEY")
+	if SecretKey == "" && isTestMode() {
+		SecretKey = "test_secret_key_must_be_at_least_32_bytes_long_for_hs256!"
+	}
+	SecreteKey = SecretKey
+
+	WebAppURL = os.Getenv("WEBAPP_URL")
+	if WebAppURL == "" && isTestMode() {
+		WebAppURL = "https://example.com"
+	}
+
+	WebhookURL = os.Getenv("WEBHOOK_URL")
+	TelegramWebhookSecret = os.Getenv("TELEGRAM_WEBHOOK_SECRET")
+
+	AppEnv = os.Getenv("APP_ENV")
+	if AppEnv == "" {
+		AppEnv = "dev"
+	}
+
 	StarsTestMode = os.Getenv("STARS_TEST_MODE") == "true"
 	if StarsTestMode && (AppEnv == "prod" || os.Getenv("GO_ENV") == "production") {
 		logger.Error("CONFIG", "⛔ STARS_TEST_MODE=true em ambiente de produção! Desativando por segurança.")
@@ -74,40 +114,26 @@ func init() {
 	} else {
 		logger.Bot("⭐ Modo teste Stars DESATIVADO — assinaturas usam precos reais")
 	}
+
 	JWTIssuer = getEnvDefault("JWT_ISSUER", "t.me/legendasbrbot")
 	CORSAllowOrigins = parseOrigins(os.Getenv("CORS_ALLOW_ORIGINS"), WebAppURL)
 
-	// MTProto credentials (optional for now, required when MTProto client is active)
 	mtprotoAppIDStr := os.Getenv("MTPROTO_APP_ID")
+	MTProtoAppID = 0
 	if mtprotoAppIDStr != "" {
 		if id, err := strconv.Atoi(mtprotoAppIDStr); err == nil {
 			MTProtoAppID = id
 		}
 	}
 	MTProtoAppHash = os.Getenv("MTPROTO_APP_HASH")
-}
 
-func mustGetEnv(key string) string {
-	v := os.Getenv(key)
-	if v == "" {
-		if isTestMode() {
-			return "test_" + key
+	MTProtoEncryptionKey = os.Getenv("MTPROTO_ENCRYPTION_KEY")
+	if MTProtoEncryptionKey == "" {
+		MTProtoEncryptionKey = SecretKey
+		if MTProtoAppID > 0 {
+			logger.Warn("CONFIG", "⚠️ MTPROTO_ENCRYPTION_KEY não configurada. Usando SECRET_KEY como fallback para criptografia MTProto.")
 		}
-		log.Fatalf("Environment variable %s is required", key)
 	}
-	return v
-}
-
-func mustGetEnvInt64(key string) int64 {
-	v := mustGetEnv(key)
-	n, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		if isTestMode() {
-			return 0
-		}
-		log.Fatalf("Environment variable %s must be an integer: %v", key, err)
-	}
-	return n
 }
 
 func getEnvDefault(key, fallback string) string {
@@ -144,20 +170,45 @@ func parseOrigins(raw string, fallback string) []string {
 // Validate verifica se todas as configurações obrigatórias foram carregadas corretamente.
 func Validate() error {
 	var missing []string
+
 	if TelegramBotToken == "" {
 		missing = append(missing, "TELEGRAM_BOT_TOKEN")
 	}
 	if RedisAddr == "" {
 		missing = append(missing, "REDIS_HOST")
 	}
-	if OwnerID == 0 && !isTestMode() {
-		missing = append(missing, "OWNER_ID")
+	if OwnerID <= 0 {
+		missing = append(missing, "OWNER_ID (deve ser um inteiro positivo > 0)")
 	}
 	if SecretKey == "" {
 		missing = append(missing, "SECRET_KEY")
+	} else if len(SecretKey) < 32 {
+		missing = append(missing, "SECRET_KEY (deve ter pelo menos 32 caracteres/bytes)")
 	}
+
+	if AppEnv != "dev" && AppEnv != "prod" {
+		missing = append(missing, "APP_ENV (deve ser 'dev' ou 'prod')")
+	}
+
+	dbDriver := os.Getenv("DATABASE_DRIVER")
+	if (AppEnv == "prod" || dbDriver == "postgres") && dbDriver != "sqlite" && DatabaseFile == "" {
+		missing = append(missing, "DATABASE_FILE (DSN de conexão com PostgreSQL é obrigatório em produção ou quando DATABASE_DRIVER=postgres)")
+	}
+
+	if WebhookURL != "" {
+		if TelegramWebhookSecret == "" {
+			missing = append(missing, "TELEGRAM_WEBHOOK_SECRET (obrigatório quando WEBHOOK_URL está configurado)")
+		} else if len(TelegramWebhookSecret) < 8 || len(TelegramWebhookSecret) > 256 {
+			missing = append(missing, "TELEGRAM_WEBHOOK_SECRET (deve ter entre 8 e 256 caracteres)")
+		}
+	}
+
+	if (MTProtoAppID > 0 && MTProtoAppHash == "") || (MTProtoAppID == 0 && MTProtoAppHash != "") {
+		missing = append(missing, "MTPROTO_APP_ID e MTPROTO_APP_HASH (ambos devem ser configurados para habilitar MTProto)")
+	}
+
 	if len(missing) > 0 {
-		return fmt.Errorf("variáveis de ambiente obrigatórias ausentes ou inválidas: %s", strings.Join(missing, ", "))
+		return fmt.Errorf("configuração de ambiente inválida: %s", strings.Join(missing, "; "))
 	}
 	return nil
 }

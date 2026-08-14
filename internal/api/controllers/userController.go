@@ -105,7 +105,12 @@ func (c *UserController) TransferChannelController(ctx *gin.Context) {
 	}
 
 	// Verifica se o novo dono é um bot
-	botInfo, _ := c.container.TelegoBot.GetMe(context.Background())
+	botInfo, err := c.container.TelegoBot.GetMe(ctx)
+	if err != nil || botInfo == nil {
+		logger.Error("API", "Erro ao obter dados do bot via GetMe: %v", err)
+		ctx.Error(errors.New(http.StatusInternalServerError, "Erro ao obter dados do bot"))
+		return
+	}
 	if body.NewOwnerID == botInfo.ID {
 		ctx.Error(errors.BadRequest("O novo dono não pode ser eu."))
 		return

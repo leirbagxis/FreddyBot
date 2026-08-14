@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 	"gopkg.in/yaml.v3"
 )
 

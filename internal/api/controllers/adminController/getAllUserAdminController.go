@@ -114,6 +114,11 @@ func (c *UsersAdminController) SendNoticeAdminController(ctx *gin.Context) {
 }
 
 func (c *UsersAdminController) dispatchNotice(notice NoticeRequest) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("ADMIN", "Panic recuperado em dispatchNotice: %v", r)
+		}
+	}()
 	ctx := context.Background()
 
 	var buttons []container.BroadcastButton

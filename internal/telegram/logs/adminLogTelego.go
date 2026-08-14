@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/leirbagxis/FreddyBot/internal/utils"
-	"github.com/mymmrac/telego"
 	usermodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 func LogAdminTelego(b *telego.Bot, channel *usermodels.Channel) {

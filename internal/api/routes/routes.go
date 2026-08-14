@@ -20,6 +20,11 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	api.Use(middleware.BodyLimit(middleware.MaxAPIRequestBodyBytes))
 	api.Use(middleware.RateLimit(120, time.Minute))
 
+	// --- Health & Readiness Check Endpoints (Sem Auth) ---
+	healthController := controllers.NewHealthController(c)
+	r.GET("/healthz", healthController.Healthz)
+	r.GET("/readyz", healthController.Readyz)
+
 	// Controladores
 	authController := controllers.NewAuthController(c)
 	captionController := controllers.NewCaptionController(c)
@@ -43,7 +48,7 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 	schedulerController := controllers.NewSchedulerController(c)
 
 	// --- Rota de Login Unificada ---
-	api.POST("/login", middleware.RateLimit(15, time.Minute), authController.Login)
+	api.POST("/login", middleware.RateLimitStrict(15, time.Minute, true), authController.Login)
 
 	// --- Log de erros do frontend (sem auth - captura erros antes do login) ---
 	api.POST("/log/client-error", handlers.ClientErrorHandler(c))

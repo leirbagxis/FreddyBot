@@ -1,8 +1,8 @@
 // Package encryption fornece metodos para criptografar e descriptografar
-// sessoes MTProto antes de persisti-las no PostgreSQL.
+// sessoes MTProto antes de persisti-las no banco de dados.
 //
-// Usa AES-256-GCM com chave derivada da ENCRYPTION_KEY definida em
-// variavel de ambiente.
+// Usa AES-256-GCM com chave derivada da MTPROTO_ENCRYPTION_KEY definida em
+// variavel de ambiente (com fallback retrocompativel para SECRET_KEY).
 package encryption
 
 import (
@@ -14,7 +14,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
+
+	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
+
+// GetKey retorna os 256 bits de chave derivadas de MTPROTO_ENCRYPTION_KEY (ou SecretKey fallback).
+func GetKey() []byte {
+	return DeriveKey(config.MTProtoEncryptionKey)
+}
 
 // DeriveKey deriva uma chave de 256 bits (32 bytes) a partir da chave
 // fornecida usando SHA-256. Isso garante que qualquer tamanho de chave

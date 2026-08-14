@@ -4,17 +4,17 @@ import "errors"
 
 // Erros especificos do MTProto.
 var (
-	ErrCodeInvalid       = errors.New("código inválido")
-	ErrCodeExpired       = errors.New("código expirado")
-	ErrPasswordIncorrect = errors.New("senha incorreta")
-	ErrFloodWait         = errors.New("FloodWait: muitas requisições")
-	ErrSessionInvalid    = errors.New("sessão inválida")
-	ErrSessionExpired    = errors.New("sessão expirada")
-	ErrAccountBanned     = errors.New("conta banida")
-	ErrAccountRemoved    = errors.New("conta removida")
-	ErrNetworkFailure    = errors.New("falha de rede")
-	ErrPhoneNumberInvalid = errors.New("número de telefone inválido")
-	ErrPhoneNumberBanned = errors.New("número de telefone banido")
+	ErrCodeInvalid         = errors.New("código inválido")
+	ErrCodeExpired         = errors.New("código expirado")
+	ErrPasswordIncorrect   = errors.New("senha incorreta")
+	ErrFloodWait           = errors.New("FloodWait: muitas requisições")
+	ErrSessionInvalid      = errors.New("sessão inválida")
+	ErrSessionExpired      = errors.New("sessão expirada")
+	ErrAccountBanned       = errors.New("conta banida")
+	ErrAccountRemoved      = errors.New("conta removida")
+	ErrNetworkFailure      = errors.New("falha de rede")
+	ErrPhoneNumberInvalid  = errors.New("número de telefone inválido")
+	ErrPhoneNumberBanned   = errors.New("número de telefone banido")
 	ErrPhoneNumberOccupied = errors.New("número já está em uso em outra conta")
 )
 

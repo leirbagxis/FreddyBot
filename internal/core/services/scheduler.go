@@ -102,6 +102,11 @@ func (s *SchedulerService) processDuePosts() {
 }
 
 func (s *SchedulerService) sendScheduledPost(ctx context.Context, post *models.ScheduledPost) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("SCHEDULER", "Panic recuperado em sendScheduledPost (post %s): %v", post.ID, r)
+		}
+	}()
 	logger.Info("SCHEDULER", "Enviando post agendado %s no canal %d", post.ID, post.ChannelID)
 
 	var state cache.PostBuilderState

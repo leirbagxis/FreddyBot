@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
@@ -21,8 +22,11 @@ func NewAccountController(container *container.AppContainer) *AccountController 
 
 // GetAccountStatus retorna o status da conta conectada do usuario.
 func (c *AccountController) GetAccountStatus(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
-	uid := userID.(int64)
+	uid := auth.GetUserID(ctx)
+	if uid == 0 {
+		ctx.Error(errors.ErrUnauthorized)
+		return
+	}
 
 	account, err := c.container.ConnectedAccountService.GetAccount(ctx, uid)
 	if err != nil {
@@ -63,8 +67,11 @@ func (c *AccountController) GetAccountStatus(ctx *gin.Context) {
 
 // ConnectAccount inicia o fluxo de autenticacao.
 func (c *AccountController) ConnectAccount(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
-	uid := userID.(int64)
+	uid := auth.GetUserID(ctx)
+	if uid == 0 {
+		ctx.Error(errors.ErrUnauthorized)
+		return
+	}
 
 	var req types.ConnectRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -90,8 +97,11 @@ func (c *AccountController) ConnectAccount(ctx *gin.Context) {
 
 // VerifyCode verifica o codigo de autenticacao.
 func (c *AccountController) VerifyCode(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
-	uid := userID.(int64)
+	uid := auth.GetUserID(ctx)
+	if uid == 0 {
+		ctx.Error(errors.ErrUnauthorized)
+		return
+	}
 
 	var req types.VerifyRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil || req.Code == "" {
@@ -110,8 +120,11 @@ func (c *AccountController) VerifyCode(ctx *gin.Context) {
 
 // SendPassword envia a senha 2FA.
 func (c *AccountController) SendPassword(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
-	uid := userID.(int64)
+	uid := auth.GetUserID(ctx)
+	if uid == 0 {
+		ctx.Error(errors.ErrUnauthorized)
+		return
+	}
 
 	var req types.PasswordRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil || req.Password == "" {
@@ -130,8 +143,11 @@ func (c *AccountController) SendPassword(ctx *gin.Context) {
 
 // DisconnectAccount remove a conta conectada do usuario.
 func (c *AccountController) DisconnectAccount(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
-	uid := userID.(int64)
+	uid := auth.GetUserID(ctx)
+	if uid == 0 {
+		ctx.Error(errors.ErrUnauthorized)
+		return
+	}
 
 	// Limpar cache do factory
 	if c.container.ExecutorFactory != nil {
@@ -150,8 +166,11 @@ func (c *AccountController) DisconnectAccount(ctx *gin.Context) {
 
 // GetAuthStatus returns the current auth step status for the user.
 func (c *AccountController) GetAuthStatus(ctx *gin.Context) {
-	userID, _ := ctx.Get("userID")
-	uid := userID.(int64)
+	uid := auth.GetUserID(ctx)
+	if uid == 0 {
+		ctx.Error(errors.ErrUnauthorized)
+		return
+	}
 
 	status, err := c.container.MTProtoAuthService.GetStatus(ctx, uid)
 	if err != nil {

@@ -4,26 +4,84 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/cache"
+	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
 
-// RateLimit limita a taxa de requisições por IP usando o Redis.
+type memoryLimiterEntry struct {
+	count   int
+	resetAt time.Time
+}
+
+var (
+	memStore sync.Map // map[string]*memoryLimiterEntry
+)
+
+func checkMemoryRateLimit(key string, limit int, window time.Duration) bool {
+	now := time.Now()
+	val, ok := memStore.Load(key)
+
+	var entry *memoryLimiterEntry
+	if !ok || now.After(val.(*memoryLimiterEntry).resetAt) {
+		entry = &memoryLimiterEntry{
+			count:   1,
+			resetAt: now.Add(window),
+		}
+		memStore.Store(key, entry)
+		return true
+	}
+
+	entry = val.(*memoryLimiterEntry)
+	entry.count++
+	if entry.count > limit {
+		return false
+	}
+	return true
+}
+
+// RateLimit limita a taxa de requisições por IP usando o Redis, com fallback em memória para rotas sensíveis.
 func RateLimit(limit int, window time.Duration) gin.HandlerFunc {
+	return RateLimitStrict(limit, window, false)
+}
+
+// RateLimitStrict permite forçar o uso do rate limiter em memória caso o Redis esteja fora.
+func RateLimitStrict(limit int, window time.Duration, strictMemoryFallback bool) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		client := cache.GetRedisClient()
+		ip := c.ClientIP()
+		key := fmt.Sprintf("rl:%s:%s", c.FullPath(), ip)
+
 		if client == nil {
+			if strictMemoryFallback || c.FullPath() == "/api/login" {
+				logger.Warn("RATELIMIT", "⚠️ Redis indisponível — usando rate limiter em memória para %s (IP: %s)", c.FullPath(), ip)
+				if !checkMemoryRateLimit(key, limit, window) {
+					c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+						"success": false,
+						"message": "Muitas requisições. Tente novamente mais tarde.",
+					})
+					return
+				}
+			}
 			c.Next()
 			return
 		}
 
-		ip := c.ClientIP()
-		key := fmt.Sprintf("rl:%s:%s", c.FullPath(), ip)
-
 		count, err := client.Incr(c.Request.Context(), key).Result()
 		if err != nil {
+			if strictMemoryFallback || c.FullPath() == "/api/login" {
+				logger.Warn("RATELIMIT", "⚠️ Erro no Redis — usando rate limiter em memória para %s: %v", c.FullPath(), err)
+				if !checkMemoryRateLimit(key, limit, window) {
+					c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{
+						"success": false,
+						"message": "Muitas requisições. Tente novamente mais tarde.",
+					})
+					return
+				}
+			}
 			c.Next()
 			return
 		}

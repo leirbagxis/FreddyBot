@@ -10,7 +10,7 @@ import (
 type UserExecutor struct {
 	userID  int64
 	mtproto *MTProtoExecutor // pode ser nil
-	botAPI  TelegramExecutor  // sempre disponivel
+	botAPI  TelegramExecutor // sempre disponivel
 }
 
 // NewUserExecutor cria um wrapper que vincula um usuario a um executor.

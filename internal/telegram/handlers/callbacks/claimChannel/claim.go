@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func HandlerTelego(c *container.AppContainer) telegohandler.InlineQueryHandler {
@@ -151,7 +151,7 @@ func AcceptClaimHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		if update.CallbackQuery == nil {
 			return nil
 		}
-		
+
 		bot := ctx.Bot()
 		callback := update.CallbackQuery
 		from := callback.From

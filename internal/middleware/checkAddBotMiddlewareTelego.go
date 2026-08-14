@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	botUserCache   *telego.User
+	botUserCache     *telego.User
 	botUserCacheOnce sync.Once
 )
 

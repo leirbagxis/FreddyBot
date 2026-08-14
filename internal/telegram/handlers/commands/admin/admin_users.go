@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func GetAllUsersHandlerTelego(app *container.AppContainer) telegohandler.Handler {

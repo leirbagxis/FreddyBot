@@ -2,13 +2,13 @@ package types
 
 // AccountStatusResponse representa o status da conta conectada.
 type AccountStatusResponse struct {
-	Status       string  `json:"status"`       // "connected", "disconnected"
-	TelegramID   *int64  `json:"telegramId,omitempty"`
-	Username     *string `json:"username,omitempty"`
-	FirstName    *string `json:"firstName,omitempty"`
-	AvatarURL    *string `json:"avatarUrl,omitempty"`
-	ConnectedAt  *string `json:"connectedAt,omitempty"`
-	LastUsedAt   *string `json:"lastUsedAt,omitempty"`
+	Status      string  `json:"status"` // "connected", "disconnected"
+	TelegramID  *int64  `json:"telegramId,omitempty"`
+	Username    *string `json:"username,omitempty"`
+	FirstName   *string `json:"firstName,omitempty"`
+	AvatarURL   *string `json:"avatarUrl,omitempty"`
+	ConnectedAt *string `json:"connectedAt,omitempty"`
+	LastUsedAt  *string `json:"lastUsedAt,omitempty"`
 }
 
 // ConnectRequest representa o request de inicio de autenticacao.

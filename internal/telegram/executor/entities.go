@@ -123,10 +123,10 @@ func entitiesJSONToTelego(entitiesJSON string) ([]telego.MessageEntity, error) {
 	entities := make([]telego.MessageEntity, 0, len(dtos))
 	for _, dto := range dtos {
 		entity := telego.MessageEntity{
-			Type:   dto.Type,
-			Offset: dto.Offset,
-			Length: dto.Length,
-			URL:    dto.URL,
+			Type:     dto.Type,
+			Offset:   dto.Offset,
+			Length:   dto.Length,
+			URL:      dto.URL,
 			Language: dto.Language,
 		}
 		if dto.CustomEmojiID != "" {

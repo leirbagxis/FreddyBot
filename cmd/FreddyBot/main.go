@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/leirbagxis/FreddyBot/internal/api"
@@ -13,8 +14,6 @@ import (
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 )
-
-// Send any text message to the bot after the bot has been started
 
 func main() {
 	if err := config.Validate(); err != nil {
@@ -27,32 +26,24 @@ func main() {
 		logger.Error("APP", "Erro ao inicializar banco de dados: %v", err)
 		os.Exit(1)
 	}
-	defer func() {
-		sqlDB, err := db.DB()
-		if err == nil && sqlDB != nil {
-			_ = sqlDB.Close()
-		}
-	}()
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	webhookHandler, _, app, err := telegram.StartBot(db)
+	webhookHandler, _, app, cleanupBot, err := telegram.StartBot(ctx, db)
 	if err != nil {
 		logger.Error("APP", "Erro ao iniciar bot: %v", err)
-		return
+		os.Exit(1)
 	}
-	defer func() {
-		if err := cache.CloseRedis(); err != nil {
-			logger.Error("APP", "Erro ao fechar Redis: %v", err)
-		}
-	}()
 
 	app.StartBackground(ctx)
 
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		if err := api.StartApi(ctx, app, webhookHandler); err != nil {
-			logger.Error("APP", "Erro ao iniciar API: %v", err)
+			logger.Error("APP", "Erro no servidor de API: %v", err)
 			stop()
 		}
 	}()
@@ -60,4 +51,25 @@ func main() {
 	<-ctx.Done()
 	logger.Info("APP", "🧹 Encerrando app com segurança...")
 
+	// 1. Para recebimento de novos updates/webhooks do Telegram
+	if cleanupBot != nil {
+		cleanupBot()
+	}
+
+	// 2. Aguarda o encerramento gracioso do servidor HTTP (srv.Shutdown com 5s timeout)
+	wg.Wait()
+
+	// 3. Fecha conexões com o Redis
+	if err := cache.CloseRedis(); err != nil {
+		logger.Error("APP", "Erro ao fechar Redis: %v", err)
+	}
+
+	// 4. Fecha conexões do banco de dados por último
+	sqlDB, err := db.DB()
+	if err == nil && sqlDB != nil {
+		_ = sqlDB.Close()
+		logger.Info("APP", "✅ Conexão com banco de dados encerrada")
+	}
+
+	logger.Info("APP", "✨ FreddyBot encerrado com sucesso!")
 }

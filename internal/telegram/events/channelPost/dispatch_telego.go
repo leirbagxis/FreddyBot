@@ -316,6 +316,11 @@ func HandleSeparatorAfterDispatchTelego(pCtx *ProcessingContextTelego) {
 	}
 
 	time.AfterFunc(1*time.Second, func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logger.Error("SEPARATOR", "Panic recuperado no timer do separador: %v", r)
+			}
+		}()
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 		err := ProcessSeparatorTelego(ctx, pCtx.Bot, pCtx.Channel, nil, exec)

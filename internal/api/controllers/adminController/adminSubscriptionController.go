@@ -70,8 +70,8 @@ func (ctrl *AdminSubscriptionController) Cancel(ctx *gin.Context) {
 }
 
 type refundRequest struct {
-	UserID    int64  `json:"userId"`
-	ChargeID  string `json:"telegramPaymentChargeId"`
+	UserID   int64  `json:"userId"`
+	ChargeID string `json:"telegramPaymentChargeId"`
 }
 
 // Refund reembolsa o pagamento Stars de um usuario e expira a assinatura.
@@ -79,7 +79,7 @@ type refundRequest struct {
 func (ctrl *AdminSubscriptionController) Refund(ctx *gin.Context) {
 	var req refundRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, types.NewErrorResponse("Dados invalidos: " + err.Error()))
+		ctx.JSON(http.StatusBadRequest, types.NewErrorResponse("Dados invalidos: "+err.Error()))
 		return
 	}
 

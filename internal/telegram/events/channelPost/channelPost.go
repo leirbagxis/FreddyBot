@@ -88,6 +88,11 @@ func (mq *MessageQueue) worker() {
 }
 
 func (mq *MessageQueue) processJob(job Job, channelID int64) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("BOT", "Panic recuperado no processJob da MessageQueue (canal %d): %v", channelID, r)
+		}
+	}()
 	if channelID != 0 {
 		last, ok := mq.lastProcess.Load(channelID)
 		if ok {

@@ -7,9 +7,9 @@ type CaptionButtonSnapshot struct {
 }
 
 type CustomCaptionSnapshot struct {
-	Code        string                 `json:"code"`
-	Caption     string                 `json:"caption"`
-	LinkPreview bool                   `json:"linkPreview"`
+	Code        string                  `json:"code"`
+	Caption     string                  `json:"caption"`
+	LinkPreview bool                    `json:"linkPreview"`
 	Buttons     []CaptionButtonSnapshot `json:"buttons,omitempty"`
 }
 

@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -77,36 +78,47 @@ func InitDB() (*gorm.DB, error) {
 
 	// Habilitar Foreign Keys no SQLite
 	if isSQLite {
-		db.Exec("PRAGMA foreign_keys = ON;")
+		if err := db.Exec("PRAGMA foreign_keys = ON;").Error; err != nil {
+			customLogger.Error("DATABASE", "Erro ao habilitar foreign keys no SQLite: %v", err)
+			return nil, fmt.Errorf("enable foreign keys: %w", err)
+		}
 	}
 
 	// Configurar Pool de Conexões (Crucial para produção)
 	sqlDB, err := db.DB()
-	if err == nil {
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetConnMaxLifetime(time.Hour)
-		sqlDB.SetConnMaxIdleTime(5 * time.Minute)
-		customLogger.DB("⚙️ Pool de conexões configurado (Idle: 10, Open: 100)")
+	if err != nil {
+		return nil, fmt.Errorf("get underlying sql.DB: %w", err)
 	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	customLogger.DB("⚙️ Pool de conexões configurado (Idle: 10, Open: 100)")
 
 	if !isSQLite {
+		customLogger.DB("⚙️ Executando migrações DDL manuais do PostgreSQL...")
 		// Forçar recriação de índices que mudaram de estrutura
-		db.Exec("DROP INDEX IF EXISTS idx_vote_user")
+		if err := db.Exec("DROP INDEX IF EXISTS idx_vote_user").Error; err != nil {
+			return nil, fmt.Errorf("drop index idx_vote_user: %w", err)
+		}
 
 		// Migração: ScheduledPost.ID mudou de uuid para text
-		db.Exec(`DO $$ BEGIN
+		if err := db.Exec(`DO $$ BEGIN
 			IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
 				ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
 			END IF;
-		END $$;`)
+		END $$;`).Error; err != nil {
+			return nil, fmt.Errorf("migrate scheduled_posts.id: %w", err)
+		}
 
 		// Migração: adicionar coluna pin_message se não existir
-		db.Exec(`DO $$ BEGIN
+		if err := db.Exec(`DO $$ BEGIN
 			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
 				ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
 			END IF;
-		END $$;`)
+		END $$;`).Error; err != nil {
+			return nil, fmt.Errorf("migrate scheduled_posts.pin_message: %w", err)
+		}
 	}
 
 	err = db.AutoMigrate(

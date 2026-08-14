@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 // MessageEntityDTO representa uma entidade do Telegram serializavel via JSON.
@@ -228,9 +228,9 @@ func SetCaptionHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 		})
 		if kb != nil {
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-				ChatID:    telego.ChatID{ID: userID},
-				Text:      "⚙️ O que deseja fazer agora?",
-				ParseMode: telego.ModeHTML,
+				ChatID:      telego.ChatID{ID: userID},
+				Text:        "⚙️ O que deseja fazer agora?",
+				ParseMode:   telego.ModeHTML,
 				ReplyMarkup: kb,
 			})
 		}

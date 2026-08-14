@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 // PremiumFeaturesHandlerTelego mostra a tela de recursos premium.

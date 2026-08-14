@@ -9,38 +9,38 @@ import (
 
 func TestEncryptDecrypt_Roundtrip(t *testing.T) {
 	tests := []struct {
-		name     string
-		key      string
+		name      string
+		key       string
 		plaintext []byte
 	}{
 		{
-			name:     "short key with text data",
-			key:      "my-secret-key-123",
+			name:      "short key with text data",
+			key:       "my-secret-key-123",
 			plaintext: []byte("Hello, World! This is a test message."),
 		},
 		{
-			name:     "long hex key with binary data",
-			key:      "75d1ffcbc272c0829d35cf7dd59e55f2b5bb78a24e13fdbae08cbdf88863a04e2f51f79051286e09a7f9c0aca070e7e9a66287d572982dc951659ca9b8ee9dec",
+			name:      "long hex key with binary data",
+			key:       "75d1ffcbc272c0829d35cf7dd59e55f2b5bb78a24e13fdbae08cbdf88863a04e2f51f79051286e09a7f9c0aca070e7e9a66287d572982dc951659ca9b8ee9dec",
 			plaintext: []byte("{\"session_key\":\"abc123\",\"dc\":2,\"auth_key\":\"some_auth_key_data_here\"}"),
 		},
 		{
-			name:     "empty plaintext",
-			key:      "test-key",
+			name:      "empty plaintext",
+			key:       "test-key",
 			plaintext: []byte{},
 		},
 		{
-			name:     "single byte",
-			key:      "a",
+			name:      "single byte",
+			key:       "a",
 			plaintext: []byte{0x42},
 		},
 		{
-			name:     "large data (10KB)",
-			key:      "large-test-key",
+			name:      "large data (10KB)",
+			key:       "large-test-key",
 			plaintext: randomBytes(t, 10240),
 		},
 		{
-			name:     "session-like data with null bytes",
-			key:      "session-encryption-key-2024",
+			name:      "session-like data with null bytes",
+			key:       "session-encryption-key-2024",
 			plaintext: []byte{0x00, 0x01, 0x02, 0xFF, 0xFE, 0x00, 0x7F, 0x80},
 		},
 	}

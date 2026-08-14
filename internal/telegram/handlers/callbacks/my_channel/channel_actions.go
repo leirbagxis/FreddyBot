@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	separatorModels "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/executor"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 // --- Sticker Separator ---
@@ -255,7 +255,7 @@ func SetSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler 
 		_ = c.CacheService.InvalidateChannel(context.Background(), channelId)
 
 		c.CacheService.DeleteAwaitingStickerSeparator(context.Background(), userId)
-		
+
 		channelName := channel.Title
 		if channelName == "" {
 			channelName = fmt.Sprintf("Canal %d", channelId)

@@ -12,49 +12,61 @@ import (
 
 var (
 	redisClient *redis.Client
-	once        sync.Once
+	redisMu     sync.Mutex
 )
 
 func GetRedisClient() *redis.Client {
-	once.Do(func() {
-		var err error
+	redisMu.Lock()
+	defer redisMu.Unlock()
 
-		opt, err := redis.ParseURL(config.RedisAddr)
-		if err != nil {
-			logger.Error("REDIS", "URL do Redis inválida: %v", err)
-			return
-		}
-		opt.PoolSize = 10
-		opt.MinIdleConns = 5
-		opt.MaxRetries = 5
-		opt.DialTimeout = 5 * time.Second
-		opt.ReadTimeout = 5 * time.Second
-		opt.WriteTimeout = 3 * time.Second
+	if redisClient != nil {
+		return redisClient
+	}
 
-		redisClient = redis.NewClient(opt)
+	opt, err := redis.ParseURL(config.RedisAddr)
+	if err != nil {
+		logger.Error("REDIS", "URL do Redis inválida (%s): %v", config.RedisAddr, err)
+		return nil
+	}
+	opt.PoolSize = 10
+	opt.MinIdleConns = 5
+	opt.MaxRetries = 5
+	opt.DialTimeout = 5 * time.Second
+	opt.ReadTimeout = 5 * time.Second
+	opt.WriteTimeout = 3 * time.Second
 
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	client := redis.NewClient(opt)
 
-		if err := redisClient.Ping(ctx).Err(); err != nil {
-			logger.Error("REDIS", "Falha ao conectar no Redis: %v", err)
-			return
-		}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
-		logger.Bot("✅ Redis conectado com sucesso")
+	if err := client.Ping(ctx).Err(); err != nil {
+		logger.Error("REDIS", "Falha ao conectar no Redis (%s): %v", config.RedisAddr, err)
+		_ = client.Close()
+		return nil
+	}
 
-	})
+	redisClient = client
+	logger.Bot("✅ Redis conectado com sucesso")
 	return redisClient
 }
 
 func CloseRedis() error {
+	redisMu.Lock()
+	defer redisMu.Unlock()
+
 	if redisClient != nil {
-		return redisClient.Close()
+		err := redisClient.Close()
+		redisClient = nil
+		return err
 	}
 	return nil
 }
 
 func HealthCheck(ctx context.Context) error {
 	client := GetRedisClient()
+	if client == nil {
+		return redis.Nil
+	}
 	return client.Ping(ctx).Err()
 }

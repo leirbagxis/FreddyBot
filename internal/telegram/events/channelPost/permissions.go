@@ -55,7 +55,7 @@ func (pm *PermissionManager) computePermissions(channel *dbmodels.Channel, messa
 	if channel.DefaultCaption != nil && channel.DefaultCaption.MessagePermission != nil {
 		perm := channel.DefaultCaption.MessagePermission
 		canAddReactions = perm.Reactions
-		
+
 		switch messageType {
 		case MessageTypeText:
 			canEdit = perm.Message

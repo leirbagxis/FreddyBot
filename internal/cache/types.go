@@ -34,7 +34,7 @@ type PostBuilderState struct {
 }
 
 type ScheduleState struct {
-	SessionID   string `json:"session_id"`
-	ChannelID   string `json:"channel_id"`
+	SessionID    string `json:"session_id"`
+	ChannelID    string `json:"channel_id"`
 	ScheduleType string `json:"schedule_type"`
 }

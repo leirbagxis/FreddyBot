@@ -16,17 +16,17 @@ const (
 
 // Subscription representa uma assinatura premium de um usuario.
 type Subscription struct {
-	ID                    string    `gorm:"type:text;primaryKey" json:"id"`
-	UserID                int64     `gorm:"index;not null" json:"userId"`
-	Status                string    `gorm:"type:text;default:active" json:"status"`
-	CurrentPeriodStart    time.Time          `json:"currentPeriodStart"`
-	CurrentPeriodEnd      time.Time          `json:"currentPeriodEnd"`
-	ExtraChannels         int                `gorm:"default:0" json:"extraChannels"`
-	CancelAtPeriodEnd     bool               `gorm:"default:false" json:"cancelAtPeriodEnd"`
-	TelegramPaymentID     string             `gorm:"type:text" json:"telegramPaymentId"`      // charge_id da assinatura principal
-	ExtraChannelPayments  string             `gorm:"type:text;default:''" json:"extraChannelPayments"` // charge IDs dos canais extras (separados por virgula)
-	CreatedAt             time.Time          `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt             time.Time          `gorm:"autoUpdateTime" json:"updatedAt"`
+	ID                   string    `gorm:"type:text;primaryKey" json:"id"`
+	UserID               int64     `gorm:"index;not null" json:"userId"`
+	Status               string    `gorm:"type:text;default:active" json:"status"`
+	CurrentPeriodStart   time.Time `json:"currentPeriodStart"`
+	CurrentPeriodEnd     time.Time `json:"currentPeriodEnd"`
+	ExtraChannels        int       `gorm:"default:0" json:"extraChannels"`
+	CancelAtPeriodEnd    bool      `gorm:"default:false" json:"cancelAtPeriodEnd"`
+	TelegramPaymentID    string    `gorm:"type:text" json:"telegramPaymentId"`               // charge_id da assinatura principal
+	ExtraChannelPayments string    `gorm:"type:text;default:''" json:"extraChannelPayments"` // charge IDs dos canais extras (separados por virgula)
+	CreatedAt            time.Time `gorm:"autoCreateTime" json:"createdAt"`
+	UpdatedAt            time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
 }
 
 // TableName returns the table name for Subscription.

@@ -9,9 +9,9 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/cache"
 	"github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/internal/database/repositories"
-	"gorm.io/gorm"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"gorm.io/gorm"
 )
 
 type CustomCaptionService struct {

@@ -10,10 +10,10 @@ import (
 	callbackAbout "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/about"
 	callbackClaim "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/claimChannel"
 	callbackMyChannel "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_channel"
+	callbackMySchedules "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_schedules"
 	callbackProfile "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/profile_info"
 	callbackStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/start"
 	callbackVote "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/vote"
-	callbackMySchedules "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_schedules"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/admin"
 	"github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/help"
 	commandStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/commands/start"
@@ -182,8 +182,6 @@ func matchAwaitingCaptionTelego(c *container.AppContainer) telegohandler.Predica
 		return id != 0
 	}
 }
-
-
 
 func matchOwnerTelego() telegohandler.Predicate {
 	return func(ctx context.Context, update telego.Update) bool {

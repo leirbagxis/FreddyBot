@@ -19,20 +19,20 @@ import (
 
 const maxWebhookBodyBytes int64 = 1 << 20
 
-func StartBot(db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, error) {
+func StartBot(ctx context.Context, db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, func(), error) {
 	cache.GetRedisClient()
 
 	// Inicializar telego
 	tb, err := telego.NewBot(config.TelegramBotToken)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create Telegram bot: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create Telegram bot: %w", err)
 	}
 
 	app := container.NewAppContainer(db, tb)
 
-	botInfo, err := tb.GetMe(context.Background())
+	botInfo, err := tb.GetMe(ctx)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("get Telegram bot info: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("get Telegram bot info: %w", err)
 	}
 	logger.Bot("🤖 Bot iniciado (Telego): %s", botInfo.Username)
 
@@ -40,7 +40,7 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, 
 	updates := make(chan telego.Update, 1000)
 	bh, err := telegohandler.NewBotHandler(tb, updates)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("create Telegram handler: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("create Telegram handler: %w", err)
 	}
 
 	// Custom HTTP Handler for Webhook
@@ -49,24 +49,29 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, 
 	// Load Handlers
 	LoadHandlersTelegoWithBH(bh, app)
 
+	cleanupFunc := func() {
+		logger.Bot("🧹 Encerrando bot handler do Telegram...")
+		bh.Stop()
+	}
+
 	webhookUrl := config.WebhookURL
 	if webhookUrl != "" {
 		if config.TelegramWebhookSecret == "" {
-			return nil, nil, nil, fmt.Errorf("TELEGRAM_WEBHOOK_SECRET is required when WEBHOOK_URL is configured")
+			return nil, nil, nil, nil, fmt.Errorf("TELEGRAM_WEBHOOK_SECRET is required when WEBHOOK_URL is configured")
 		}
 		logger.Bot("🔗 Bot configurado para modo webhook: %s", webhookUrl)
 
-		if err := tb.SetWebhook(context.Background(), &telego.SetWebhookParams{
+		if err := tb.SetWebhook(ctx, &telego.SetWebhookParams{
 			URL:            webhookUrl,
 			SecretToken:    config.TelegramWebhookSecret,
 			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query", "chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post", "pre_checkout_query", "successful_payment"},
 		}); err != nil {
-			return nil, nil, nil, fmt.Errorf("set webhook: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("set webhook: %w", err)
 		}
 
 		logger.Bot("✅ Webhook configurado com sucesso")
 
-		webhookInfo, err := tb.GetWebhookInfo(context.Background())
+		webhookInfo, err := tb.GetWebhookInfo(ctx)
 		if err == nil {
 			logger.Bot("📊 Webhook Info - URL: %s, Pending: %d",
 				webhookInfo.URL, webhookInfo.PendingUpdateCount)
@@ -77,41 +82,47 @@ func StartBot(db *gorm.DB) (http.Handler, *telego.Bot, *container.AppContainer, 
 
 	} else {
 		logger.Bot("🔄 Bot iniciado em modo polling")
-		if err := tb.DeleteWebhook(context.Background(), &telego.DeleteWebhookParams{}); err != nil {
-			return nil, nil, nil, fmt.Errorf("delete webhook for polling: %w", err)
+		if err := tb.DeleteWebhook(ctx, &telego.DeleteWebhookParams{}); err != nil {
+			return nil, nil, nil, nil, fmt.Errorf("delete webhook for polling: %w", err)
 		}
 
-		pollCtx, pollCancel := context.WithCancel(context.Background())
-		_ = pollCancel
-
-		pollingUpdates, err := tb.UpdatesViaLongPolling(pollCtx, &telego.GetUpdatesParams{
+		pollingUpdates, err := tb.UpdatesViaLongPolling(ctx, &telego.GetUpdatesParams{
 			Timeout: 8,
 			AllowedUpdates: []string{"message", "edited_message", "callback_query", "inline_query",
 				"chosen_inline_result", "my_chat_member", "channel_post", "edited_channel_post",
 				"pre_checkout_query", "successful_payment"},
 		})
 		if err != nil {
-			return nil, nil, nil, fmt.Errorf("start long polling: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("start long polling: %w", err)
 		}
 		go func() {
-			for u := range pollingUpdates {
-				if u.ChannelPost != nil {
-					logger.Bot("📥 LongPolling recebeu ChannelPost #%d do canal %d",
-						u.ChannelPost.MessageID, u.ChannelPost.Chat.ID)
-				}
+			for {
 				select {
-				case updates <- u:
-				case <-pollCtx.Done():
+				case <-ctx.Done():
+					logger.Bot("⚠️ LongPolling cancelado via contexto!")
 					return
+				case u, ok := <-pollingUpdates:
+					if !ok {
+						logger.Bot("⚠️ LongPolling channel fechou!")
+						return
+					}
+					if u.ChannelPost != nil {
+						logger.Bot("📥 LongPolling recebeu ChannelPost #%d do canal %d",
+							u.ChannelPost.MessageID, u.ChannelPost.Chat.ID)
+					}
+					select {
+					case updates <- u:
+					case <-ctx.Done():
+						return
+					}
 				}
 			}
-			logger.Bot("⚠️ LongPolling channel fechou!")
 		}()
 
 		go bh.Start()
 	}
 
-	return webhookHandler, tb, app, nil
+	return webhookHandler, tb, app, cleanupFunc, nil
 }
 
 func newWebhookHandler(secret string, updates chan<- telego.Update) http.Handler {

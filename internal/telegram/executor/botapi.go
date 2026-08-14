@@ -202,7 +202,7 @@ func (e *BotAPIExecutor) SendMessage(
 	}
 
 	// Se tiver entities explicitas, usar ao inves de parse_mode
-		if opts != nil && opts.Entities != "" {
+	if opts != nil && opts.Entities != "" {
 		params.ParseMode = ""
 		entities, err := entitiesJSONToTelego(opts.Entities)
 		if err != nil {
@@ -254,13 +254,13 @@ func isRateLimit(err error) bool {
 }
 
 func extractRetryAfter(errMsg string) int {
-	// Tenta extrair o tempo de espera de mensagens como:
-	// "Too Many Requests: retry after 5"
-	// "429 Too Many Requests"
-	for _, part := range strings.Fields(errMsg) {
-		var n int
-		if _, err := fmt.Sscanf(part, "%d", &n); err == nil && n > 0 {
-			return n
+	fields := strings.Fields(errMsg)
+	for i, field := range fields {
+		if strings.EqualFold(field, "after") && i+1 < len(fields) {
+			var n int
+			if _, err := fmt.Sscanf(fields[i+1], "%d", &n); err == nil && n > 0 {
+				return n
+			}
 		}
 	}
 	return 0

@@ -3,14 +3,14 @@ package models
 import "time"
 
 type UserCaptionTemplate struct {
-	ID        string    `gorm:"type:text;primaryKey" json:"id"`
-	UserID    int64     `gorm:"index:idx_user_template_code,unique" json:"userId"`
-	Code      string    `gorm:"index:idx_user_template_code,unique" json:"code"`
-	Caption   string    `gorm:"type:text" json:"caption"`
-	Reactions string    `gorm:"type:text" json:"reactions"`
+	ID        string                      `gorm:"type:text;primaryKey" json:"id"`
+	UserID    int64                       `gorm:"index:idx_user_template_code,unique" json:"userId"`
+	Code      string                      `gorm:"index:idx_user_template_code,unique" json:"code"`
+	Caption   string                      `gorm:"type:text" json:"caption"`
+	Reactions string                      `gorm:"type:text" json:"reactions"`
 	Buttons   []UserCaptionTemplateButton `gorm:"foreignKey:OwnerTemplateID;constraint:OnDelete:CASCADE;" json:"buttons"`
-	CreatedAt time.Time `gorm:"autoCreateTime" json:"createdAt"`
-	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updatedAt"`
+	CreatedAt time.Time                   `gorm:"autoCreateTime" json:"createdAt"`
+	UpdatedAt time.Time                   `gorm:"autoUpdateTime" json:"updatedAt"`
 }
 
 type UserCaptionTemplateButton struct {
