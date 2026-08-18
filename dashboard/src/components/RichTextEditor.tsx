@@ -1,9 +1,11 @@
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import {
   Bold, Italic, Underline, Strikethrough, Code, Terminal,
   EyeOff, Link2, List, Quote, Undo2, Redo2, Copy, Eraser,
-  AlignLeft, Type, ChevronDown
+  AlignLeft, ChevronDown
 } from 'lucide-react';
+import { Button } from './ui/button';
+import { EmojiRenderer } from './EmojiRenderer';
 
 interface Props {
   value: string;
@@ -19,8 +21,8 @@ interface HistoryEntry {
 }
 
 const FORMATS = [
-  { key: 'bold', icon: Bold, label: 'Negrito', wrap: ['**', '**'], placeholder: 'negrito' },
-  { key: 'italic', icon: Italic, label: 'Itálico', wrap: ['__', '__'], placeholder: 'itálico' },
+  { key: 'bold', icon: Bold, label: 'Negrito', wrap: ['*', '*'], placeholder: 'negrito' },
+  { key: 'italic', icon: Italic, label: 'Itálico', wrap: ['_', '_'], placeholder: 'itálico' },
   { key: 'underline', icon: Underline, label: 'Sublinhado', wrap: ['<u>', '</u>'], placeholder: 'sublinhado' },
   { key: 'strike', icon: Strikethrough, label: 'Tachado', wrap: ['~~', '~~'], placeholder: 'tachado' },
   { key: 'mono', icon: Code, label: 'Monoespaço', wrap: ['`', '`'], placeholder: 'código' },
@@ -35,6 +37,17 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
   const [linkMode, setLinkMode] = useState(false);
   const [linkUrl, setLinkUrl] = useState('');
   const [linkText, setLinkText] = useState('');
+  const [recentEmojiIds, setRecentEmojiIds] = useState<string[]>([]);
+
+  // Carrega histórico de emojis do usuário
+  useEffect(() => {
+    fetch('/api/emoji/history', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => setRecentEmojiIds(data.ids || []))
+      .catch(() => {
+        // Falha silenciosa — emojis recentes são um recurso opcional
+      });
+  }, []);
 
   const pushHistory = useCallback((text: string, selStart: number, selEnd: number) => {
     setHistory(prev => {
@@ -116,6 +129,19 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
     }
   }, [value, onChange, pushHistory, linkMode, linkUrl, linkText]);
 
+  const insertEmoji = useCallback((emojiId: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.focus();
+
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const tag = `<tg-emoji emoji-id="${emojiId}"> </tg-emoji>`;
+    const newValue = value.substring(0, start) + tag + value.substring(end);
+    onChange(newValue);
+    pushHistory(newValue, start, start + tag.length);
+  }, [value, onChange, pushHistory]);
+
   const insertQuote = useCallback(() => {
     const ta = textareaRef.current;
     if (!ta) return;
@@ -155,8 +181,8 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
 
     let selected = value.substring(start, end);
     // Remove common formatting markers
-    selected = selected.replace(/\*\*(.*?)\*\*/g, '$1');
-    selected = selected.replace(/__(.*?)__/g, '$1');
+    selected = selected.replace(/\*(.*?)\*/g, '$1');
+    selected = selected.replace(/_(.*?)_/g, '$1');
     selected = selected.replace(/~~(.*?)~~/g, '$1');
     selected = selected.replace(/\|\|(.*?)\|\|/g, '$1');
     selected = selected.replace(/`([^`]+)`/g, '$1');
@@ -216,11 +242,11 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
       e.preventDefault();
-      applyFormat('**', '**', 'negrito');
+      applyFormat('*', '*', 'negrito');
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
       e.preventDefault();
-      applyFormat('__', '__', 'itálico');
+      applyFormat('_', '_', 'itálico');
     }
     if ((e.ctrlKey || e.metaKey) && e.key === 'u') {
       e.preventDefault();
@@ -311,7 +337,7 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
           </div>
           <div className="rte-link-fields">
             <div className="rte-link-field">
-              <label className="text-[11px] font-medium" style={{ color: 'var(--hint)' }}>
+              <label className="text-[11px] font-medium text-muted-foreground">
                 <AlignLeft size={11} className="inline mr-1" />
                 Texto
               </label>
@@ -324,7 +350,7 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
               />
             </div>
             <div className="rte-link-field">
-              <label className="text-[11px] font-medium" style={{ color: 'var(--hint)' }}>
+              <label className="text-[11px] font-medium text-muted-foreground">
                 <Link2 size={11} className="inline mr-1" />
                 URL
               </label>
@@ -337,15 +363,17 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
             </div>
           </div>
           <div className="flex gap-2 mt-3">
-            <button
-              className="btn btn-secondary btn-sm flex-1"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="flex-1"
               onClick={() => { setLinkMode(false); setLinkUrl(''); setLinkText(''); }}
             >
               Cancelar
-            </button>
-            <button className="btn btn-primary btn-sm flex-1" onClick={insertLink}>
+            </Button>
+            <Button variant="default" size="sm" className="flex-1" onClick={insertLink}>
               Inserir
-            </button>
+            </Button>
           </div>
         </div>
       )}
@@ -365,19 +393,24 @@ export function RichTextEditor({ value, onChange, rows = 6, placeholder }: Props
         spellCheck={false}
       />
 
-      {/* Footer info */}
-      <div className="rte-footer">
-        <div className="flex items-center gap-1.5">
-          <Type size={11} />
-          <span>{value.length} caracteres</span>
+      {/* Emoji bar — sempre visível abaixo do input */}
+      {recentEmojiIds.length > 0 && (
+        <div className="rte-emoji-bar">
+          {recentEmojiIds.slice(-30).map(id => (
+            <button
+              key={id}
+              type="button"
+              className="rte-emoji-bar-item"
+              title="Inserir emoji"
+              onMouseDown={e => e.preventDefault()}
+              onClick={() => insertEmoji(id)}
+            >
+              <EmojiRenderer emojiId={id} size={22} />
+            </button>
+          ))}
         </div>
-        <div className="rte-shortcuts">
-          <span>Ctrl+B</span>
-          <span>Ctrl+I</span>
-          <span>Ctrl+U</span>
-          <span>Ctrl+K</span>
-        </div>
-      </div>
+      )}
+
     </div>
   );
 }

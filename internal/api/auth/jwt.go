@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 )
@@ -25,6 +26,20 @@ type Claims struct {
 	Role   Role  `json:"role"`
 	TV     int64 `json:"tv"` // token version para o usuário (se quisermos invalidar todos os tokens de um user)
 	jwt.RegisteredClaims
+}
+
+// GetUserID extrai o userID do contexto JWT do Gin.
+// Retorna 0 se nao estiver disponivel.
+func GetUserID(ctx *gin.Context) int64 {
+	userIDRaw, exists := ctx.Get("userID")
+	if !exists {
+		return 0
+	}
+	userID, ok := userIDRaw.(int64)
+	if !ok {
+		return 0
+	}
+	return userID
 }
 
 func GenerateToken(userID int64, role Role, tv int64, ttl time.Duration) (string, error) {
@@ -84,7 +99,12 @@ func ValidateToken(tokenStr string) (*Claims, error) {
 func newJTI() string {
 	b := make([]byte, 16)
 	if _, err := rand.Read(b); err != nil {
-		return fmt.Sprintf("%d", time.Now().UnixNano())
+		b2 := make([]byte, 16)
+		for i := range b2 {
+			b2[i] = byte(time.Now().UnixNano() & 0xff)
+			time.Sleep(time.Nanosecond)
+		}
+		return fmt.Sprintf("%x", b2)
 	}
 	return fmt.Sprintf("%x", b)
 }

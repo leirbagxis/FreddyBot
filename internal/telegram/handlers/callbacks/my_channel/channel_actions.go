@@ -2,19 +2,20 @@ package mychannel
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	separatorModels "github.com/leirbagxis/FreddyBot/internal/database/models"
-	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/executor"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 // --- Sticker Separator ---
@@ -130,9 +131,9 @@ func RequireStickerSeparatorHandlerTelego(c *container.AppContainer) telegohandl
 	}
 }
 
-func SetStickerSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler {
+func SetSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
-		if update.Message == nil || update.Message.From == nil || update.Message.Sticker == nil {
+		if update.Message == nil || update.Message.From == nil {
 			return nil
 		}
 
@@ -148,24 +149,86 @@ func SetStickerSeparatorHandlerTelego(c *container.AppContainer) telegohandler.H
 			return nil
 		}
 
-		stickerId := update.Message.Sticker.FileID
-		file, err := bot.GetFile(context.Background(), &telego.GetFileParams{FileID: stickerId})
-		if err != nil {
-			logger.Error("BOT", "erro ao obter sticker: %v", err)
-		}
-		
-		stickerLink := ""
-		if file != nil {
-			stickerLink = fmt.Sprintf("https://api.telegram.org/file/bot%s/%s", config.TelegramBotToken, file.FilePath)
-		}
-
 		separator := &separatorModels.Separator{
 			ID:             uuid.NewString(),
 			OwnerChannelID: channelId,
-			SeparatorID:    stickerId,
-			SeparatorURL:   stickerLink,
 			CreatedAt:      time.Now(),
 			UpdatedAt:      time.Now(),
+		}
+
+		isCustomEmoji := false
+
+		// ── Caso 1: Sticker ──
+		if update.Message.Sticker != nil {
+			separator.Type = "sticker"
+			separator.SeparatorID = update.Message.Sticker.FileID
+
+			file, err := bot.GetFile(context.Background(), &telego.GetFileParams{FileID: separator.SeparatorID})
+			if err != nil {
+				logger.Error("BOT", "erro ao obter sticker: %v", err)
+			}
+
+			if file != nil {
+				separator.SeparatorURL = file.FilePath
+			}
+		}
+
+		// ── Caso 2: Custom Emoji ──
+		if update.Message.Text != "" && len(update.Message.Entities) > 0 {
+			// Coletar TODAS as entidades custom_emoji (podem ser emojis diferentes)
+			var emojiEntities []executor.MessageEntityDTO
+			for _, entity := range update.Message.Entities {
+				if entity.Type == "custom_emoji" {
+					emojiEntities = append(emojiEntities, executor.MessageEntityDTO{
+						Type:          entity.Type,
+						Offset:        entity.Offset,
+						Length:        entity.Length,
+						CustomEmojiID: entity.CustomEmojiID,
+					})
+				}
+			}
+			if len(emojiEntities) > 0 {
+				isCustomEmoji = true
+				separator.Type = "custom_emoji"
+				separator.EmojiText = update.Message.Text
+				separator.EmojiID = emojiEntities[0].CustomEmojiID // primeiro ID para compatibilidade
+				emojiEntitiesJSON, err := json.Marshal(emojiEntities)
+				if err != nil {
+					logger.Error("HANDLER", "erro ao serializar entities: %v", err)
+				} else {
+					separator.EmojiEntitiesJSON = string(emojiEntitiesJSON)
+				}
+
+				logger.Bot("📝 Separador custom_emoji: text=%q entities=%d json=%s",
+					separator.EmojiText, len(emojiEntities), separator.EmojiEntitiesJSON)
+
+				// Custom emoji requer conta conectada ou assinatura premium
+				if !c.HasPremiumAccess(context.Background(), userId) {
+					text, kb := parser.GetMessageTelego("require-connected-account-separator", map[string]string{
+						"channelId": fmt.Sprintf("%d", channelId),
+					})
+					params := &telego.SendMessageParams{
+						ChatID:    update.Message.Chat.ChatID(),
+						Text:      text,
+						ParseMode: telego.ModeHTML,
+						ReplyParameters: &telego.ReplyParameters{
+							MessageID: update.Message.MessageID,
+						},
+					}
+					if kb != nil {
+						params.ReplyMarkup = kb
+					}
+					if _, err := bot.SendMessage(context.Background(), params); err != nil {
+						logger.Warn("BOT", "erro ao enviar mensagem de requisito de conta: %v", err)
+					}
+					return nil
+				}
+			}
+		}
+
+		// Se nao detectou nem sticker nem custom emoji, sair
+		if separator.Type == "" {
+			return nil
 		}
 
 		if err = c.SeparatorService.SaveSeparator(context.Background(), separator); err != nil {
@@ -188,14 +251,22 @@ func SetStickerSeparatorHandlerTelego(c *container.AppContainer) telegohandler.H
 			return nil
 		}
 
+		// Invalidar cache do canal para forcar recarga com o Separator
+		_ = c.CacheService.InvalidateChannel(context.Background(), channelId)
+
 		c.CacheService.DeleteAwaitingStickerSeparator(context.Background(), userId)
-		
+
 		channelName := channel.Title
 		if channelName == "" {
 			channelName = fmt.Sprintf("Canal %d", channelId)
 		}
 
-		text, kb := parser.GetMessageTelego("success-save-separator", map[string]string{
+		successKey := "success-save-separator"
+		if isCustomEmoji {
+			successKey = "success-save-custom-emoji-separator"
+		}
+
+		text, kb := parser.GetMessageTelego(successKey, map[string]string{
 			"channelId":   fmt.Sprintf("%d", channelId),
 			"channelName": channelName,
 		})
@@ -259,6 +330,9 @@ func DeleteSeparatorHandlerTelego(c *container.AppContainer) telegohandler.Handl
 			logger.Error("BOT", "Erro ao excluir separator: %v", err)
 			return nil
 		}
+
+		// Invalidar cache do canal apos remover o Separator
+		_ = c.CacheService.InvalidateChannel(context.Background(), session)
 
 		channelName := channel.Title
 		if channelName == "" {

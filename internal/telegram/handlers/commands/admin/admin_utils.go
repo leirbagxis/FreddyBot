@@ -9,19 +9,19 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	userModes "github.com/leirbagxis/FreddyBot/internal/database/models"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func GetBackUpHandlerTelego(app *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
 		bot := ctx.Bot()
 		dbPath := config.DatabaseFile
-		
+
 		file, err := os.Open(dbPath)
 		if err != nil {
 			_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{

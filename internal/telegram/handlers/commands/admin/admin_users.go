@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func GetAllUsersHandlerTelego(app *container.AppContainer) telegohandler.Handler {
@@ -44,7 +44,7 @@ func GetAllUsersHandlerTelego(app *container.AppContainer) telegohandler.Handler
 				total, (offset/chunkSize)+1))
 
 			for _, u := range users {
-				sb.WriteString(fmt.Sprintf("<a href='tg://user?id=%d'>%s</a> - %d\n", u.UserId, u.FirstName, u.UserId))
+				sb.WriteString(fmt.Sprintf("<a href='tg://user?id=%d'>%s</a> - <code>%d</code>\n", u.UserId, html.EscapeString(u.FirstName), u.UserId))
 			}
 
 			_, err = bot.SendMessage(context.Background(), &telego.SendMessageParams{

@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 	"gopkg.in/yaml.v3"
 )
 
@@ -38,7 +38,15 @@ var (
 )
 
 func loadMessages() {
-	data, err := os.ReadFile("config/messages.yml")
+	paths := []string{"config/messages.yml", "../config/messages.yml", "../../config/messages.yml"}
+	var data []byte
+	var err error
+	for _, p := range paths {
+		data, err = os.ReadFile(p)
+		if err == nil {
+			break
+		}
+	}
 	if err != nil {
 		logger.Error("PARSER", "Erro ao carregar arquivo de mensagens: %v", err)
 		return

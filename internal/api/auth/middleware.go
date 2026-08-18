@@ -74,7 +74,12 @@ func RequireRole(roles ...Role) gin.HandlerFunc {
 			return
 		}
 
-		role := userRole.(Role)
+		role, ok := userRole.(Role)
+		if !ok {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Cargo com formato inválido"})
+			return
+		}
+
 		for _, r := range roles {
 			if role == r {
 				c.Next()
@@ -107,11 +112,19 @@ func AuthorizeChannel(v *container.AppContainer) gin.HandlerFunc {
 			return
 		}
 
-		ctxUserID, _ := c.Get("userID")
-		ctxRole, _ := c.Get("role")
+		ctxUserID, userExists := c.Get("userID")
+		ctxRole, roleExists := c.Get("role")
+		if !userExists || !roleExists {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Usuário não autenticado"})
+			return
+		}
 
-		userID := ctxUserID.(int64)
-		role := ctxRole.(Role)
+		userID, okUser := ctxUserID.(int64)
+		role, okRole := ctxRole.(Role)
+		if !okUser || !okRole {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Dados de autenticação inválidos"})
+			return
+		}
 
 		c.Set("channelID", channelId)
 
@@ -176,7 +189,7 @@ func ValidateTelegramInitData(initData string, secondsToExpire int64) types.Vali
 	h.Write([]byte(dataCheckString))
 	expectedHash := hex.EncodeToString(h.Sum(nil))
 
-	if expectedHash != hash {
+	if !hmac.Equal([]byte(expectedHash), []byte(hash)) {
 		return types.ValidateResult{IsValid: false, Data: data}
 	}
 

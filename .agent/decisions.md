@@ -1,5 +1,73 @@
 # Decisões Arquiteturais
 
+## Decisão: fronteiras externas falham fechadas e registram intenção persistente
+
+### Data
+2026-08-03
+
+### Contexto
+A auditoria encontrou webhook Telegram sem autenticação, workers duplicados, pagamento sem vínculo entre invoice e compra, e sessões MTProto simuladas que pareciam válidas.
+
+### Decisão tomada
+Exigir secret token no webhook; iniciar o container e seus workers uma única vez; reivindicar postagens agendadas por transição condicional; persistir cada invoice em `payment_intents`; e rejeitar fluxos MTProto sem credenciais ou sessão real.
+
+### Motivo
+Essas fronteiras não podem conceder identidade, dinheiro ou capacidade premium por dados que não foram autenticados e persistidos de forma verificável.
+
+### Impacto
+Produção em modo webhook precisa definir `TELEGRAM_WEBHOOK_SECRET`. A migração GORM adiciona `payment_intents` e `processing_at` de modo aditivo. O compose de desenvolvimento não foi alterado.
+
+## Decisão: proxy autenticado para foto de canal e dados públicos mínimos
+
+### Data
+2026-08-03
+
+### Contexto
+A URL de download criada pela Bot API inclui o token do bot. A rota de foto a redirecionava ao navegador e a busca de usuário retornava dados em excesso de um chat Telegram.
+
+### Decisão tomada
+A foto é baixada pelo servidor com timeout e limite de 10 MiB, entregue como binário e protegida pela autorização do canal. Busca de usuário usa apenas a base local e retorna `UserLookupDTO` com ID, nome e username.
+
+### Motivo
+Evitar exposição de credencial, enumeração de dados de terceiros e vazamento de flags administrativas, sem quebrar o carregamento da imagem pelo dashboard autenticado.
+
+### Impacto
+Clientes continuam usando `/api/channel/:channelId/photo`, agora com autorização por canal. IDs que nunca iniciaram o bot não são pesquisáveis pela API.
+
+## Decisão: validação e recálculo explícitos de agendamentos recorrentes
+
+### Data
+2026-08-03
+
+### Contexto
+Editar apenas `scheduleTime` gravava o horário atual como próximo disparo, e valores de hora inválidos eram normalizados silenciosamente.
+
+### Decisão tomada
+Validar `HH:MM` estritamente. Edições de agendamento atualizam apenas os campos solicitados e recalculam o próximo disparo de tipos diário e semanal no serviço.
+
+### Motivo
+Impedir publicação antecipada e tornar inválidos de entrada erros visíveis ao cliente.
+
+### Impacto
+O banco guarda instantes em UTC, mas a regra de horário recorrente é calculada em `America/Sao_Paulo`.
+
+## Decisão: identidade neutra para o painel administrativo
+
+### Data
+2026-08-03
+
+### Contexto
+O redesenho anterior adotou verde e composição de CRM/BizLink. O usuário rejeitou explicitamente essa direção e pediu minimalismo real com redesenho das abas administrativas.
+
+### Decisão tomada
+Aplicar uma identidade editorial neutra apenas em `.admin-layout-v2`: off-white, branco, grafite, divisores sólidos e ação primária preta. A visão geral passa a ser uma central de operação com fila de revisão, e as abas mantêm seus fluxos de dados sem adotar semântica de CRM.
+
+### Motivo
+Atender à direção visual explícita sem introduzir um novo frontend, dependências ou mudanças no backend.
+
+### Impacto
+O dashboard comum e a Mini App permanecem inalterados. Busca, filtros, ações sensíveis, confirmações, rotas e chamadas de API do admin são preservados.
+
 ## Decisão: Unificação do Núcleo via Core Services
 ### Data
 2026-05-13
@@ -181,3 +249,216 @@ PostgreSQL já é a fonte operacional do projeto e atende bem o volume esperado 
 
 ## Impacto
 Admins passam a consultar histórico por canal diretamente na dashboard. O logging é best-effort e não bloqueia o bot. A primeira retenção padrão remove eventos com mais de 90 dias durante a inicialização.
+
+# Decisão: Implementação de Contas Conectadas via MTProto
+
+## Data
+2026-07-04
+
+## Contexto
+Implementar suporte a contas Telegram dos próprios usuários via protocolo MTProto (gotd/td), permitindo recursos Premium. A funcionalidade deve coexistir com a Bot API existente.
+
+## Decisão tomada
+1. Criar interface `TelegramExecutor` abstraindo BotAPI e MTProto
+2. `BotAPIExecutor` encapsula chamadas telego existentes
+3. `MTProtoExecutor` usa gotd/td (ephemeral clients por operação)
+4. `UserExecutor` wrapper vincula userID ao executor
+5. Sessões criptografadas com AES-256-GCM no PostgreSQL
+6. `EditOptions.Entities` carrega JSON de entidades para rich text
+7. Factory escolhe implementação por usuário
+8. Dados sensíveis (código, senha) apenas em memória
+
+## Motivo
+- Modularidade total: nunca misturar MTProto nas regras de negócio
+- Segurança: sessões criptografadas, dados sensíveis não persistem
+- Suporte a rich text (Message Entities) via gotd/td
+- Zero breaking changes: Bot API continua como fallback
+
+## Impacto
+- 6 novos endpoints REST para gerenciamento de conta
+- 2 novas tabelas no banco (connected_accounts, connected_account_channels)
+- 5 novos componentes React
+- Pipeline refatorado para usar TelegramExecutor via ExecutorFactory
+- Criptografia AES-256-GCM adicionada como dependência
+
+# Decisão: Sistema de Legendas com Message Entities (MTProto)
+
+## Data
+2026-07-05
+
+## Contexto
+Usuários com contas conectadas precisam configurar legendas com formatação rich text (negrito, itálico, custom_emoji, blockquote, spoiler, etc.) que não são possíveis via HTML da Bot API. O sistema de legacy HTML continua para usuários sem conta conectada.
+
+## Decisão tomada
+1. Estender `DefaultCaption` com `Entities (JSON)` e `UseEntities (bool)`
+2. Entities armazenados como `MessageEntityDTO` serializado (design library-agnostic)
+3. `MTProtoExecutor` usa ephemeral gotd client por operação (mesmo pattern do auth)
+4. `UserExecutor` resolve userID para MTProto internamente na factory
+5. Post entities + caption entities combinados com offset shift UTF-16
+6. `ProcessingContextTelego` ganha `FinalEntities`, `PostEntitiesJSON`, `ExecutorFactory`
+7. Fallback automático: sem conta conectada → HTML (BotAPI)
+8. `ConnectedAccountChannel` ganha `AccessHash` para MTProto peer resolution
+
+## Motivo
+- Legacy HTML continua intacto para usuários sem conta conectada
+- Entities DTOs mantêm serialização independente da lib de dispatch
+- Design ephemeral evita gerenciamento de pool de conexões MTProto
+- Offset shift UTF-16 segue especificação oficial do Telegram
+
+## Impacto
+- `AccessHash` adicionado a `connected_account_channels` (campo novo, default 0)
+- `MTProtoExecutor` criado com suporte a todos os tipos de entity do Telegram
+- Dispatchers migrados para `ExecutorFactory.ForUser(ownerID)`
+- StageTransformTelego detecta `UseEntities + HasActiveAccount`
+- Build existente 100% preservado, zero breaking changes
+
+# Decisão: Stars Test Mode com Preço de 1 Star e Sistema de Reembolso
+
+## Data
+2026-07-10
+
+## Contexto
+O modo de teste de assinaturas Stars ativava a assinatura gratuitamente sem passar pelo fluxo real de pagamento. Além disso, não havia sistema de reembolso — o admin só conseguia cancelar assinaturas, sem devolver os Stars pagos.
+
+## Decisão tomada
+1. `STARS_TEST_MODE=true` agora faz as invoices custarem 1 star (em vez de ativar grátis)
+2. Removeu-se a ativação automática sem pagamento — o usuário sempre paga (1 star em teste, real em produção)
+3. Criou-se tabela `refunds` com modelo `Refund` no banco
+4. Implementou-se `AdminRefundPayment` que chama `bot.RefundStarPayment()` do Telegram
+5. `POST /api/admin/subscriptions/refund` aceita `{userId, telegramPaymentChargeId}`
+6. AdminSubscriptionsTab exibiu charge_id e botão "Reembolsar" com confirmação
+7. `TelegramPaymentID` (charge_id) é sempre salvo na subscription via `HandlePayment`
+
+## Motivo
+- Testar com Stars reais (mesmo que 1) valida o fluxo completo de pagamento
+- Admin pode devolver Stars sem precisar de acesso ao Telegram
+- Tabela refunds previne reembolso duplicado e mantém auditoria
+
+## Impacto
+- Test mode agora custa 1 star (não mais grátis)
+- Admin pode reembolsar qualquer pagamento via dashboard
+- Nenhuma subscription antiga perde dados
+- `bot.RefundStarPayment()` disponível na telego v1.9.0
+
+# Decisão: CRM Admin integrado e pipeline operacional derivado
+
+## Data
+2026-08-03
+
+## Contexto
+O painel administrativo precisava adotar a linguagem visual das referências BizLink sem perder as configurações e operações já existentes. Um plano anterior propunha criar um segundo frontend, mas isso duplicaria autenticação, build, deploy e manutenção. O domínio também não possui entidade de deal ou estágio comercial persistente.
+
+## Decisão tomada
+1. Redesenhar o admin existente em `/admin/dash`, dentro do projeto `dashboard/`.
+2. Preservar autenticação cookie-only, autorização `admin`/`owner` e endpoints atuais.
+3. Escopar o design system monocromático em `.admin-layout-v2`.
+4. Representar o ciclo do usuário como segmentação calculada e somente leitura: Atenção, Ativos, Novos e Em ativação.
+5. Não implementar drag-and-drop nem persistência de estágio nesta fase.
+6. Substituir controles fictícios da referência por ações reais, como Broadcast.
+
+## Motivo
+- Evita duplicação arquitetural e riscos de autenticação divergente.
+- Mantém todas as funções administrativas no mesmo fluxo.
+- Exibe apenas métricas e estados sustentados pelos dados reais do FreddyBot.
+- Permite adicionar um CRM comercial persistente futuramente como mudança de domínio explícita.
+
+## Impacto
+- Novo overview com gráfico, taxa de ativação, KPIs e quadro operacional.
+- Busca, filtros, ordenação e URL das abas passam a funcionar sem reload.
+- Nenhuma migration, endpoint ou regra de negócio foi adicionada.
+- A Mini App de usuários não recebe os tokens visuais do CRM.
+
+# Decisão: Fidelidade BizLink com tema claro fixo no admin
+
+## Data
+2026-08-03
+
+## Contexto
+O primeiro redesenho preservou a arquitetura e a linguagem monocromática, mas ainda se afastava da referência: o tema automático podia abrir o admin escuro, a faixa de analytics tinha quatro KPIs em grade, o gauge era um arco grosso e os espaçamentos lembravam um dashboard genérico.
+
+## Decisão tomada
+1. Tornar a paleta clara da referência invariável dentro de `.admin-layout-v2`, sem modificar o tema da Mini App.
+2. Tratar topbar e hero como uma única faixa creme.
+3. Usar gráfico de barras pareadas, gauge de 45 marcas radiais e somente dois KPIs reais.
+4. Iniciar o quadro imediatamente após o hero e limitar o card preto a um único administrador real.
+5. Manter todos os módulos e controles administrativos reais, substituindo apenas sua apresentação.
+
+## Motivo
+- A referência é explicitamente clara e declara os quatro tons usados.
+- A correspondência depende mais de proporção, densidade e composição do que de elementos decorativos.
+- Um tema administrativo invariável elimina diferenças causadas por horário, preferência do sistema ou Telegram.
+- Dados comerciais fictícios continuariam incompatíveis com o domínio do FreddyBot.
+
+## Impacto
+- O admin mantém a mesma aparência em qualquer tema global.
+- A primeira dobra em 1024×768 corresponde à estrutura visual da referência.
+- Busca, filtros, ordenação, broadcast, configurações e demais módulos continuam funcionais.
+- Não há alteração de backend, banco ou deploy.
+
+# Decisão: Sistema visual Minimal UI unificado no admin
+
+## Data
+2026-08-03
+
+## Contexto
+O usuário não aprovou a direção BizLink. Embora o overview tivesse sido redesenhado, Broadcast, Auditoria, Logs, Configurações, MTProto, Features e Assinaturas ainda empregavam layouts e superfícies visualmente desconectados.
+
+## Decisão tomada
+1. Adotar a linguagem do Minimal UI apenas como direção visual, sem instalar Material UI nem copiar componentes ou assets do kit.
+2. Escopar os tokens ao admin: canvas neutro, paper branco, bordas discretas, sombras baixas, raio de 16 px, sidebar de 300 px e header de 72 px.
+3. Usar `#007867` como ação primária em vez do verde mais claro do kit, pois fornece contraste de 5,41:1 com texto branco em botões pequenos.
+4. Reutilizar `AdminPageHeader`, `AdminMetricCard` e `AdminEmptyState` para eliminar variações de hierarquia e estados.
+5. Preservar handlers, APIs, confirmações e permissões de todas as dez abas.
+
+## Motivo
+- O stack já fornece React, Tailwind, shadcn e Base UI; adicionar MUI aumentaria o custo e criaria um segundo sistema de componentes.
+- A coerência operacional depende de padrões compartilhados, não de trocar apenas cores no overview.
+- A variante verde escura mantém a identidade Minimal UI sem comprometer legibilidade.
+
+## Impacto
+- Todas as abas renderizam no mesmo shell responsivo e com a mesma hierarquia visual.
+- Não houve mudança de backend, banco, dependência ou efeito externo.
+- A Mini App de usuários permanece sem receber os tokens administrativos.
+
+## Decisão: Autoridade derivada da sessão e propriedade persistida
+
+### Data
+2026-08-03
+
+### Contexto
+A auditoria identificou que login, transferência de canal e agendamento aceitavam identificadores informados pelo cliente como fonte de autoridade. Isso permitia comparação parcial de IDs Telegram, transferência por terceiro e criação de posts para canais alheios.
+
+### Decisão tomada
+1. Validar o `user.id` do initData Telegram por JSON e igualdade numérica exata.
+2. Remover `oldOwnerId` do contrato de transferência; o ator vem do JWT e a posse atual vem do banco.
+3. Validar posse do canal dentro do `SchedulerService`, cobrindo Dashboard e PostBuilder.
+4. Invalidar o cache do canal após transferência e limitar/rate-limit o endpoint público de logs do cliente.
+
+### Motivo
+Campos de requisição expressam intenção, não autorização. A fonte de verdade para identidade é a sessão autenticada e a fonte de verdade para propriedade é o banco de dados.
+
+### Impacto
+- Usuários comuns não transferem nem agendam em canais de terceiros.
+- Admins e owner mantêm o bypass administrativo explícito de transferência.
+- O cache deixa de manter autorização desatualizada depois da migração de dono.
+- Testes de regressão cobrem prefixos de ID, transferência indevida, agendamento indevido e abuso do endpoint de logs.
+
+# Decisão: Alertas administrativos derivados e Broadcast com alcance estimado
+
+## Data
+2026-08-03
+
+## Contexto
+O painel administrativo já recebe usuários e canais por `/api/admin/overview`, mas não possui tabela de notificações, API de fila de broadcast, telemetria de entrega ou mecanismo de push para owner/admin.
+
+## Decisão tomada
+1. Derivar alertas in-app de blacklist, ativação pendente e novos cadastros a partir da resposta real da visão geral.
+2. Exibir essas notificações na visão geral e na barra superior, com navegação para a revisão de usuários.
+3. Calcular o alcance do Broadcast no cliente apenas como estimativa da base carregada ou dos IDs fornecidos.
+4. Informar que o backend confirma o início do processamento, não a entrega individual.
+
+## Motivo
+Evitar métricas, histórico ou notificações externas fictícias enquanto o backend não persistir e não expuser esses eventos.
+
+## Impacto
+O owner ganha contexto acionável sem nova migration, endpoint ou efeito externo. Push por Telegram/e-mail e histórico de execução continuam sendo uma evolução de domínio separada.

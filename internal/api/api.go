@@ -3,26 +3,18 @@ package api
 import (
 	"context"
 	"net/http"
-	"os"
-	"os/signal"
 	"time"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/mymmrac/telego"
 	"github.com/leirbagxis/FreddyBot/internal/api/routes"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
-	"gorm.io/gorm"
 )
 
-func StartApi(db *gorm.DB, webhookHandler http.Handler, tb *telego.Bot) error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
-	defer stop()
-
-	app := container.NewAppContainer(db, tb)
+func StartApi(ctx context.Context, app *container.AppContainer, webhookHandler http.Handler) error {
 	router := gin.Default() // Usar Default para ter Logger e Recovery
 
 	router.Use(cors.New(cors.Config{
@@ -54,11 +46,11 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, tb *telego.Bot) error {
 	dashboardHandler := func(c *gin.Context) {
 		// Proteção contra caminhos curtos para evitar panic no slice
 		path := c.Request.URL.Path
-		
+
 		// Se for um asset que não foi encontrado pelo Static handler, retornamos 404 real
 		// em vez de servir o index.html (evita loops e erros de parsing no navegador)
-		if (len(path) >= 8 && path[:8] == "/assets/") || 
-		   (len(path) >= 18 && path[:18] == "/dashboard/assets/") {
+		if (len(path) >= 8 && path[:8] == "/assets/") ||
+			(len(path) >= 18 && path[:18] == "/dashboard/assets/") {
 			c.AbortWithStatus(http.StatusNotFound)
 			return
 		}
@@ -99,15 +91,19 @@ func StartApi(db *gorm.DB, webhookHandler http.Handler, tb *telego.Bot) error {
 		IdleTimeout:  60 * time.Second,
 	}
 
+	serverErrors := make(chan error, 1)
 	go func() {
 		logger.API("🌐 API REST rodando em http://localhost%s", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("API", "Erro ao iniciar servidor: %v", err)
-			os.Exit(1)
+			serverErrors <- err
 		}
 	}()
 
-	<-ctx.Done()
+	select {
+	case err := <-serverErrors:
+		return err
+	case <-ctx.Done():
+	}
 	logger.API("🔻 Encerrando API...")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

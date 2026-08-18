@@ -1,8 +1,6 @@
 package controllers
 
 import (
-	"bytes"
-	"io"
 	"net/http"
 	"strconv"
 
@@ -11,6 +9,13 @@ import (
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/errors"
 )
+
+const maxPermissionRequestBytes = 64 << 10
+
+func bindLimitedJSON(c *gin.Context, target any) error {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxPermissionRequestBytes)
+	return c.ShouldBindJSON(target)
+}
 
 type PermissionController struct {
 	container *container.AppContainer
@@ -30,11 +35,8 @@ func (ctrl *PermissionController) UpdateMessagePermissionController(c *gin.Conte
 		return
 	}
 
-	bodyRaw, _ := io.ReadAll(c.Request.Body)
-
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyRaw))
 	var body types.UpdateMessagePermissionRequest
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := bindLimitedJSON(c, &body); err != nil {
 		c.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}
@@ -57,11 +59,8 @@ func (ctrl *PermissionController) UpdateButtonsPermissionController(c *gin.Conte
 		return
 	}
 
-	bodyRaw, _ := io.ReadAll(c.Request.Body)
-
-	c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyRaw))
 	var body types.UpdateButtonsPermissionRequest
-	if err := c.ShouldBindJSON(&body); err != nil {
+	if err := bindLimitedJSON(c, &body); err != nil {
 		c.Error(errors.BadRequest("Dados inválidos: " + err.Error()))
 		return
 	}

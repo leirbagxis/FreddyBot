@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func AdminHelpHandlerTelego(app *container.AppContainer) telegohandler.Handler {

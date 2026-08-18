@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mymmrac/telego"
 	usermodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/utils"
 	"github.com/leirbagxis/FreddyBot/pkg/config"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 func LogAdminTelego(b *telego.Bot, channel *usermodels.Channel) {
@@ -35,7 +36,7 @@ func LogAdminTelego(b *telego.Bot, channel *usermodels.Channel) {
 		channel.InviteURL,
 		ownerName,
 		channel.OwnerID,
-		channel.CreatedAt.Format("02/01/2006 15:04:05"),
+		channel.CreatedAt.In(utils.BrazilTZ()).Format("02/01/2006 15:04:05"),
 	)
 
 	_, _ = b.SendMessage(context.Background(), &telego.SendMessageParams{

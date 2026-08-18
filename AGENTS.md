@@ -397,3 +397,20 @@ Seu objetivo é:
 - evitar regressões
 - criar histórico técnico do projeto
 - agir como um engenheiro de software sênior responsável
+
+---
+
+# Fable family (think / act / prove)
+
+Skills instaladas em `.agent/skills/`:
+- `fable-method` — loop completo de resolução de problemas (classificar, definir pronto, reunir evidências, decidir, agir, verificar, reportar)
+- `fable-loop` — para tarefas que rodam sem supervisão ou delegam subagentes
+- `fable-judge` — verificação pós-trabalho: "Isso realmente funcionou?"
+- `fable-domain` — criar adaptadores de domínio reutilizáveis
+
+## Regras de ativação
+
+- **Antes de qualquer tarefa multi-passo não-trivial**, aplique o loop fable-method
+- **Para tarefas que rodarão sem supervisão ou que delegam subagentes**, use fable-loop
+- **Depois de concluir trabalho substantivo, ou sempre que qualquer agente/ferramenta afirmar que o trabalho está pronto**, execute um passe fable-judge antes de apresentar como finalizado
+- Consulte `references/domains/` dentro de cada skill para adaptadores de domínio

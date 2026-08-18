@@ -4,9 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mymmrac/telego"
 	dbmodels "github.com/leirbagxis/FreddyBot/internal/database/models"
+	"github.com/leirbagxis/FreddyBot/internal/telegram/executor"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
+	"github.com/mymmrac/telego"
 )
 
 // ProcessingContextTelego holds the entire state of a message as it moves through the pipeline using telego.
@@ -22,11 +23,16 @@ type ProcessingContextTelego struct {
 	Permissions *PermissionCheckResult
 
 	// Transformation State
-	OriginalCaption string
-	FormattedText   string
+	OriginalCaption    string
+	FormattedText      string
 	DisableLinkPreview bool
-	FinalButtons    []dbmodels.Button
-	FinalKeyboard   *telego.InlineKeyboardMarkup
+	FinalButtons       []dbmodels.Button
+	FinalKeyboard      *telego.InlineKeyboardMarkup
+
+	// Entity-based Caption (MTProto)
+	// Quando preenchido, o dispatcher deve usar entities ao inves de parseMode HTML.
+	FinalEntities    string // JSON combinado dos MessageEntityDTO (post + caption)
+	PostEntitiesJSON string // JSON dos MessageEntityDTO do post original (para combinacao)
 
 	// Media Group State (for albums)
 	IsMediaGroup  bool
@@ -37,6 +43,9 @@ type ProcessingContextTelego struct {
 	Pipeline     *PipelineTelego
 	StopPipeline bool // If true, remaining stages are skipped
 	Error        error
+
+	// Executor
+	ExecutorFactory *executor.ExecutorFactory
 }
 
 type MediaMessageTelego struct {

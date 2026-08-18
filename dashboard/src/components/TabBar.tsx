@@ -14,18 +14,26 @@ interface Props {
 
 export const TabBar = memo(({ tabs, activeTab, onTabChange }: Props) => {
   return (
-    <nav className="bottom-nav">
-      {tabs.map((t) => (
-        <button
-          key={t.id}
-          className={`nav-item ${activeTab === t.id ? 'active' : ''}`}
-          onClick={() => onTabChange(t.id)}
-        >
-          {activeTab === t.id && <span className="nav-dot" />}
-          {t.icon}
-          <span>{t.label}</span>
-        </button>
-      ))}
+    <nav className="bottom-nav" aria-label="Navegação principal">
+      <div className="bottom-nav-container">
+        {tabs.map((t) => {
+          const isActive = activeTab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              className={`nav-item ${isActive ? 'active' : ''}`}
+              onClick={() => onTabChange(t.id)}
+              aria-current={isActive ? 'page' : undefined}
+            >
+              <span className="nav-item-content">
+                <span className="nav-icon shrink-0">{t.icon}</span>
+                <span className="nav-label truncate">{t.label}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
     </nav>
   );
 });
