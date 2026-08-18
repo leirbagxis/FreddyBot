@@ -995,15 +995,31 @@ const DashboardContent = memo(function DashboardContent() {
   return (
     <div className={`app-layout ${isAdmin ? 'admin-layout' : ''} ${!isChannels && !isAdmin ? 'channel-dashboard' : ''}`}>
       <div className={isAdmin ? 'app-main' : 'w-full flex flex-col min-h-screen'}>
-        <div className="top-bar animate-stagger-in">
-          <button
-            className="sidebar-trigger-btn mr-2"
-            onClick={() => setShowSideMenu(true)}
-            title="Abrir Menu"
-          >
-            <Menu size={22} />
-          </button>
+        <div className="top-bar animate-stagger-in flex items-center justify-between">
+          <div className="flex items-center">
+            <button
+              className="sidebar-trigger-btn mr-2"
+              onClick={() => setShowSideMenu(true)}
+              title="Abrir Menu"
+            >
+              <Menu size={22} />
+            </button>
+          </div>
 
+          {(sessionStorage.getItem('navSource') === 'admin' || data?.user?.is_admin) && (
+            <button
+              type="button"
+              onClick={() => {
+                sessionStorage.removeItem('navSource');
+                window.location.href = '/admin/dash?tab=channels';
+              }}
+              className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors py-1.5 px-2.5 rounded-lg hover:bg-white/10 cursor-pointer ml-auto"
+              title="Voltar ao Painel Admin"
+            >
+              <ArrowLeft size={14} />
+              <span>Painel Admin</span>
+            </button>
+          )}
         </div>
 
         <div className="main-content">

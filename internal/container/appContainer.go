@@ -96,8 +96,9 @@ type AppContainer struct {
 	SubscriptionService   *services.SubscriptionService
 	PremiumFeatureService *services.PremiumFeatureService
 
-	// ## SCHEDULER ## \\
+	// ## SCHEDULER & AUTODELETE ## \\
 	SchedulerService           *services.SchedulerService
+	AutoDeleteService          *services.AutoDeleteService
 	PostTemplateService        *services.UserPostTemplateService
 	UserCaptionTemplateService *services.UserCaptionTemplateService
 
@@ -164,9 +165,14 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 	paymentIntentRepo := repositories.NewPaymentIntentRepository(db)
 	subscriptionService := services.NewSubscriptionService(subscriptionRepo, paymentIntentRepo, userRepo, telegoClient, premiumFeatureService)
 
+	// AutoDelete Service
+	autoDeleteRepo := repositories.NewAutoDeleteRepository(db)
+	autoDeleteService := services.NewAutoDeleteService(autoDeleteRepo, telegoClient)
+
 	// Scheduler Service
 	scheduledPostRepo := repositories.NewScheduledPostRepository(db)
 	schedulerService := services.NewSchedulerService(scheduledPostRepo, channelRepo, cacheService, telegoClient)
+	schedulerService.SetAutoDeleteService(autoDeleteService)
 
 	postTemplateRepo := repositories.NewUserPostTemplateRepository(db)
 	postTemplateService := services.NewUserPostTemplateService(postTemplateRepo)
@@ -230,8 +236,9 @@ func NewAppContainer(db *gorm.DB, telegoClient *telego.Bot) *AppContainer {
 		SubscriptionService:   subscriptionService,
 		PremiumFeatureService: premiumFeatureService,
 
-		// Scheduler
+		// Scheduler & AutoDelete
 		SchedulerService:           schedulerService,
+		AutoDeleteService:          autoDeleteService,
 		PostTemplateService:        postTemplateService,
 		UserCaptionTemplateService: userCaptionTemplateService,
 
@@ -251,6 +258,7 @@ func (c *AppContainer) StartBackground(ctx context.Context) {
 		go c.ChannelEventService.CleanupOld(ctx, services.ChannelEventRetentionDays)
 		c.startBroadcastWorkers(ctx, 5)
 		go c.SchedulerService.Start(ctx)
+		go c.AutoDeleteService.Start(ctx)
 		go c.SubscriptionService.StartMaintenance(ctx)
 	})
 }

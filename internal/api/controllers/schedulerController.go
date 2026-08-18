@@ -150,6 +150,15 @@ func (ctrl *SchedulerController) EditSchedule(ctx *gin.Context) {
 		}
 	}
 
+	// Update auto delete if provided
+	if req.AutoDeleteMin != nil {
+		err := ctrl.container.SchedulerService.UpdateScheduleAutoDelete(ctx, id, userID, *req.AutoDeleteMin)
+		if err != nil {
+			ctx.Error(errors.Internal(err))
+			return
+		}
+	}
+
 	ctx.JSON(http.StatusOK, types.NewSuccessResponse[any](nil, "Agendamento atualizado"))
 }
 
@@ -176,14 +185,19 @@ func (ctrl *SchedulerController) CreateSchedule(ctx *gin.Context) {
 	postData := string(postDataBytes)
 
 	opts := services.ScheduleOptions{
-		ScheduleType: req.ScheduleType,
-		ScheduleTime: req.ScheduleTime,
-		ScheduleDays: req.ScheduleDays,
-		IntervalMin:  req.IntervalMin,
-		WindowStart:  req.WindowStart,
-		WindowEnd:    req.WindowEnd,
-		LoopQueue:    req.LoopQueue,
-		PinMessage:   req.PinMessage,
+		ScheduleType:  req.ScheduleType,
+		ScheduleTime:  req.ScheduleTime,
+		ScheduleDays:  req.ScheduleDays,
+		IntervalMin:   req.IntervalMin,
+		WindowStart:   req.WindowStart,
+		WindowEnd:     req.WindowEnd,
+		LoopQueue:     req.LoopQueue,
+		PinMessage:    req.PinMessage,
+		AutoDeleteMin: req.AutoDeleteMin,
+	}
+
+	if opts.AutoDeleteMin <= 0 && session.AutoDeleteMin > 0 {
+		opts.AutoDeleteMin = session.AutoDeleteMin
 	}
 
 	if req.ScheduledAt != "" {

@@ -168,6 +168,26 @@ export const SideMenu: React.FC<SideMenuProps> = ({
               </div>
               <ChevronRight size={16} className="text-muted-foreground/70 shrink-0" />
             </a>
+
+            {/* Item 5: Voltar ao Painel Admin */}
+            {(sessionStorage.getItem('navSource') === 'admin' || window.location.pathname.includes('/admin/')) && (
+              <div className="relative">
+                <button
+                  onClick={() => {
+                    sessionStorage.removeItem('navSource');
+                    window.location.href = '/admin/dash?tab=channels';
+                  }}
+                  className="w-full flex items-center justify-between px-4 py-3.5 text-sm font-semibold text-foreground hover:bg-white/10 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <Radio size={18} className="text-foreground/80 shrink-0" />
+                    <span>Painel Admin</span>
+                  </div>
+                  <ChevronRight size={16} className="text-muted-foreground/70 shrink-0" />
+                </button>
+                <div className="absolute bottom-0 left-[46px] right-4 h-px bg-white/10 pointer-events-none" />
+              </div>
+            )}
           </div>
 
           {/* Theme switcher button */}

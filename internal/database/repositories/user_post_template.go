@@ -38,3 +38,9 @@ func (r *UserPostTemplateRepository) GetByOwner(ctx context.Context, ownerID int
 func (r *UserPostTemplateRepository) Delete(ctx context.Context, id string, ownerID int64) error {
 	return r.db.WithContext(ctx).Where("id = ? AND owner_id = ?", id, ownerID).Delete(&models.UserPostTemplate{}).Error
 }
+
+func (r *UserPostTemplateRepository) UpdateName(ctx context.Context, id string, ownerID int64, newName string) error {
+	return r.db.WithContext(ctx).Model(&models.UserPostTemplate{}).
+		Where("id = ? AND owner_id = ?", id, ownerID).
+		Update("name", newName).Error
+}

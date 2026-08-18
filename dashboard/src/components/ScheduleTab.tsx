@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
-import { ScheduledPost } from '../types';
-import { fetchMySchedules, updateScheduleStatus, deleteSchedule, updateScheduleTime } from '../api';
+import { ScheduledPost, UserPostTemplate } from '../types';
+import { fetchMySchedules, updateScheduleStatus, deleteSchedule, updateScheduleTime, getPostTemplates, deletePostTemplate, loadPostTemplate } from '../api';
 import { useToast } from './Toast';
 import { Badge } from './ui/badge';
 import { Button } from './ui/button';
 import { ConfirmModal } from './ConfirmModal';
 import {
-  Calendar, Clock, RotateCw, Edit3, Pin, PinOff, Pause, Play, Trash2, Plus, AlertCircle, Info, Sparkles
+  Calendar, Clock, RotateCw, Edit3, Pin, PinOff, Pause, Play, Trash2, Plus, AlertCircle, Info, Sparkles, Folder
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
 
@@ -75,11 +75,48 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
   const [editIntervalMin, setEditIntervalMin] = useState<number | ''>('');
   const [editWindowStart, setEditWindowStart] = useState('');
   const [editWindowEnd, setEditWindowEnd] = useState('');
+  const [editAutoDeleteMin, setEditAutoDeleteMin] = useState<number>(0);
+  const [showDraftsModal, setShowDraftsModal] = useState(false);
+  const [drafts, setDrafts] = useState<UserPostTemplate[]>([]);
+  const [loadingDrafts, setLoadingDrafts] = useState(false);
   const [saving, setSaving] = useState(false);
   const toast = useToast();
   const activeScheduleCount = schedules.filter(schedule => (
     !inactiveStatuses.has(schedule.status.toLowerCase())
   )).length;
+
+  const openDraftsModal = async () => {
+    setShowDraftsModal(true);
+    setLoadingDrafts(true);
+    try {
+      const data = await getPostTemplates();
+      setDrafts(data);
+    } catch {
+      toast('Erro ao buscar rascunhos', 'error');
+    } finally {
+      setLoadingDrafts(false);
+    }
+  };
+
+  const handleDeleteDraft = async (id: string) => {
+    try {
+      await deletePostTemplate(id);
+      setDrafts(prev => prev.filter(d => d.id !== id));
+      toast('Rascunho excluído com sucesso', 'success');
+    } catch {
+      toast('Erro ao excluir rascunho', 'error');
+    }
+  };
+
+  const handleLoadDraft = async (id: string) => {
+    try {
+      await loadPostTemplate(id);
+      toast('Rascunho carregado no PostBuilder!', 'success');
+      setShowDraftsModal(false);
+    } catch {
+      toast('Erro ao carregar rascunho', 'error');
+    }
+  };
 
   useEffect(() => {
     loadSchedules();
@@ -150,6 +187,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
     setEditIntervalMin(schedule.intervalMin || '');
     setEditWindowStart(schedule.windowStart || '');
     setEditWindowEnd(schedule.windowEnd || '');
+    setEditAutoDeleteMin(schedule.autoDeleteMin || 0);
   };
 
   const closeEditModal = () => {
@@ -159,6 +197,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
     setEditIntervalMin('');
     setEditWindowStart('');
     setEditWindowEnd('');
+    setEditAutoDeleteMin(0);
   };
 
   const handleSaveEdit = async () => {
@@ -192,7 +231,8 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
         intervalMin?: number;
         windowStart?: string;
         windowEnd?: string;
-      } = { nextRunAt: dateStr };
+        autoDeleteMin?: number;
+      } = { nextRunAt: dateStr, autoDeleteMin: editAutoDeleteMin };
 
       if (editingSchedule.scheduleType === 'interval') {
         patchData.intervalMin = Number(editIntervalMin);
@@ -212,6 +252,7 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
               intervalMin: editingSchedule.scheduleType === 'interval' ? Number(editIntervalMin) : s.intervalMin,
               windowStart: editingSchedule.scheduleType === 'interval' ? editWindowStart : s.windowStart,
               windowEnd: editingSchedule.scheduleType === 'interval' ? editWindowEnd : s.windowEnd,
+              autoDeleteMin: editAutoDeleteMin,
             };
           }
           return s;
@@ -542,6 +583,22 @@ export function ScheduleTab({ channelId }: ScheduleTabProps) {
                   </div>
                 </>
               )}
+
+              <div>
+                <label className="block font-semibold mb-1 text-muted-foreground">⏱️ Auto-Destruição da Mensagem</label>
+                <select
+                  value={editAutoDeleteMin}
+                  onChange={(e) => setEditAutoDeleteMin(Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-border/80 rounded-xl bg-background text-foreground text-xs font-medium cursor-pointer"
+                >
+                  <option value={0}>Desativada (Mensagem permanente)</option>
+                  <option value={60}>⏱️ Apagar 1 hora após envio</option>
+                  <option value={360}>⏱️ Apagar 6 horas após envio</option>
+                  <option value={720}>⏱️ Apagar 12 horas após envio</option>
+                  <option value={1440}>⏱️ Apagar 24 horas após envio</option>
+                  <option value={2880}>⏱️ Apagar 48 horas após envio</option>
+                </select>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2">

@@ -102,22 +102,19 @@ func InitDB() (*gorm.DB, error) {
 			return nil, fmt.Errorf("drop index idx_vote_user: %w", err)
 		}
 
-		// Migração: ScheduledPost.ID mudou de uuid para text
+		// Migrações na tabela scheduled_posts (apenas se a tabela já existir)
 		if err := db.Exec(`DO $$ BEGIN
-			IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
-				ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
-			END IF;
-		END $$;`).Error; err != nil {
-			return nil, fmt.Errorf("migrate scheduled_posts.id: %w", err)
-		}
+			IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='scheduled_posts') THEN
+				IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
+					ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
+				END IF;
 
-		// Migração: adicionar coluna pin_message se não existir
-		if err := db.Exec(`DO $$ BEGIN
-			IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
-				ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
+				IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
+					ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
+				END IF;
 			END IF;
 		END $$;`).Error; err != nil {
-			return nil, fmt.Errorf("migrate scheduled_posts.pin_message: %w", err)
+			return nil, fmt.Errorf("migrate scheduled_posts DDL: %w", err)
 		}
 	}
 
@@ -144,6 +141,7 @@ func InitDB() (*gorm.DB, error) {
 		&models.PremiumFeature{},
 		&models.Refund{},
 		&models.ScheduledPost{},
+		&models.AutoDeletePost{},
 		&models.UserPostTemplate{},
 		&models.UserCaptionTemplate{},
 		&models.UserCaptionTemplateButton{},

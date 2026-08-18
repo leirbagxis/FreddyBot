@@ -9,16 +9,29 @@ const AdminLogsTab = lazy(() => import('./AdminLogsTab').then(m => ({ default: m
 const AdminMTProtoAccountsTab = lazy(() => import('./AdminMTProtoAccountsTab').then(m => ({ default: m.AdminMTProtoAccountsTab })));
 const AdminPremiumFeaturesTab = lazy(() => import('./AdminPremiumFeaturesTab').then(m => ({ default: m.AdminPremiumFeaturesTab })));
 const AdminSubscriptionsTab = lazy(() => import('./AdminSubscriptionsTab').then(m => ({ default: m.AdminSubscriptionsTab })));
-import { Hash, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare } from 'lucide-react';
+import { Hash, ArrowLeft, ChevronRight, User as UserIcon, ShieldCheck, UserX, UserCheck, MessageSquare, Calendar, ExternalLink, Users, Radio, Filter, ArrowUpDown, Info, Clock, SortAsc, Tv, Hourglass } from 'lucide-react';
 import { useToast } from './Toast';
 import { Button } from './ui/button';
 import { Badge } from './ui/badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { DataTable, Column } from './admin/DataTable';
 import { StatusBadge } from './admin/StatusBadge';
 import { OperationsOverview } from './admin/OperationsOverview';
 import { AdminPageHeader } from './admin/AdminPageHeader';
 import { useAdminCrmControls } from './admin/AdminCrmContext';
 import { filterAndSortChannels, filterAndSortUsers } from './admin/crmSelectors';
+
+const USER_FILTER_CONFIG: Record<string, { label: string; icon: any }> = {
+  all: { label: 'Todos os Usuários', icon: Users },
+  recent: { label: 'Mais Recentes', icon: Clock },
+  name: { label: 'Nome (A-Z)', icon: SortAsc },
+  channels: { label: 'Mais Canais', icon: Tv },
+  admins: { label: 'Apenas Admins', icon: ShieldCheck },
+  blacklisted: { label: 'Apenas Bloqueados', icon: UserX },
+  'with-channels': { label: 'Com Canais', icon: Tv },
+  'without-channels': { label: 'Sem Canais', icon: Hourglass },
+};
 
 interface AdminDashboardProps {
   adminData: AdminDashboardData;
@@ -77,6 +90,8 @@ export function AdminDashboard({
 
   const [localActiveTab, setLocalActiveTab] = useState(activeTab);
   const [isPending, startTransition] = useTransition();
+  const [expandedChannelId, setExpandedChannelId] = useState<number | null>(null);
+  const [userFilterOption, setUserFilterOption] = useState<string>('all');
 
   const [localUsers, setLocalUsers] = useState<User[]>(adminData.users || []);
 
@@ -92,10 +107,18 @@ export function AdminDashboard({
 
   const usersList = localUsers;
   const channelsList = adminData.channels || [];
-  const visibleUsers = useMemo(
-    () => filterAndSortUsers(usersList, searchQuery, filterBy, sortBy),
-    [filterBy, searchQuery, sortBy, usersList],
-  );
+  const visibleUsers = useMemo(() => {
+    let fBy: AdminCrmFilter = 'all';
+    let sBy: AdminCrmSort = 'recent';
+
+    if (userFilterOption === 'recent' || userFilterOption === 'name' || userFilterOption === 'channels') {
+      sBy = userFilterOption as AdminCrmSort;
+    } else {
+      fBy = userFilterOption as AdminCrmFilter;
+    }
+
+    return filterAndSortUsers(usersList, searchQuery, fBy, sBy);
+  }, [usersList, searchQuery, userFilterOption]);
   const visibleChannels = useMemo(
     () => filterAndSortChannels(channelsList, searchQuery, sortBy),
     [channelsList, searchQuery, sortBy],
@@ -255,49 +278,120 @@ export function AdminDashboard({
   // ── Users Tab ──
 
   const renderUsersTab = () => {
-    const userColumns: Column<any>[] = [
-      { key: 'first_name', label: 'Nome', render: (_: any, row: any) => (
-        <div className="flex items-center gap-2">
-          <div className="flex items-center justify-center size-7 rounded-full shrink-0 text-[11px] font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--accent)' }}>
-            {(row.first_name || '?')[0].toUpperCase()}
-          </div>
-          <div className="min-w-0">
-            <span className="text-sm font-semibold truncate block">{row.first_name || 'Sem nome'}</span>
-            <span className="text-[10px] text-muted-foreground">ID: {row.id}</span>
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Total de Usuários ({visibleUsers.length})
+          </span>
+          <div className="flex items-center gap-2">
+            {/* Seletor Único de Filtro & Ordenação */}
+            <Select
+              value={userFilterOption}
+              onValueChange={(val) => setUserFilterOption(val)}
+            >
+              <SelectTrigger size="sm" className="min-w-[210px] h-9 text-xs font-bold rounded-xl bg-card text-foreground border-border cursor-pointer shadow-xs">
+                <div className="flex items-center gap-2 truncate">
+                  {(() => {
+                    const cfg = USER_FILTER_CONFIG[userFilterOption] || USER_FILTER_CONFIG.all;
+                    const IconComp = cfg.icon;
+                    return (
+                      <>
+                        <IconComp size={14} className="text-accent shrink-0" />
+                        <span className="text-foreground font-bold">{cfg.label}</span>
+                      </>
+                    );
+                  })()}
+                </div>
+              </SelectTrigger>
+              <SelectContent className="bg-[#12141a] text-slate-100 border border-slate-800 rounded-xl shadow-2xl z-[99999]">
+                <SelectItem value="all" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <Users size={13} className="text-accent shrink-0" />
+                    <span>Todos os Usuários</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="recent" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <Clock size={13} className="text-accent shrink-0" />
+                    <span>Mais Recentes</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="name" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <SortAsc size={13} className="text-accent shrink-0" />
+                    <span>Nome (A-Z)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="channels" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <Tv size={13} className="text-accent shrink-0" />
+                    <span>Mais Canais</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="admins" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={13} className="text-accent shrink-0" />
+                    <span>Apenas Admins</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="blacklisted" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <UserX size={13} className="text-accent shrink-0" />
+                    <span>Apenas Bloqueados</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="with-channels" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <Tv size={13} className="text-accent shrink-0" />
+                    <span>Com Canais</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="without-channels" className="text-xs font-medium cursor-pointer py-2">
+                  <div className="flex items-center gap-2">
+                    <Hourglass size={13} className="text-accent shrink-0" />
+                    <span>Sem Canais</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
-      )},
-      { key: 'channels', label: 'Canais', align: 'center', render: (v: any) => (
-        <Badge variant="secondary" className="text-[10px] font-mono">{v ? v.length : 0}</Badge>
-      )},
-      { key: 'is_admin', label: 'Admin', align: 'center', render: (v: boolean) => (
-        v ? <StatusBadge label="Admin" variant="accent" dot /> : <span className="text-[11px] text-muted-foreground">—</span>
-      )},
-      { key: 'is_blacklisted', label: 'Bloqueado', align: 'center', render: (v: boolean) => (
-        v ? <StatusBadge label="Bloqueado" variant="danger" dot /> : <span className="text-[11px] text-muted-foreground">—</span>
-      )},
-    ];
-
-    return (
-      <div className="space-y-4">
-        <DataTable
-          columns={userColumns}
-          data={visibleUsers}
-          searchable={false}
-          pageSize={15}
-          emptyMessage="Nenhum usuário encontrado"
-          actions={(row: any) => (
-            <div className="flex items-center gap-1">
-              <button
-                className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
-                onClick={() => setAdminSelectedUser(row)}
-                title="Ver detalhes"
+        {visibleUsers.length === 0 ? (
+          <div className="text-center py-10 text-xs text-muted-foreground border border-border rounded-xl bg-card">
+            Nenhum usuário encontrado com os filtros aplicados.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {visibleUsers.map(user => (
+              <div
+                key={user.id}
+                onClick={() => setAdminSelectedUser(user)}
+                className="flex items-center justify-between p-3 rounded-xl border border-border bg-card hover:bg-muted/30 transition-all cursor-pointer shadow-xs group"
               >
-                <ChevronRight size={16} className="text-muted-foreground/40" />
-              </button>
-            </div>
-          )}
-        />
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-center justify-center size-8 rounded-full shrink-0 text-xs font-bold bg-accent/15 text-accent">
+                    {(user.first_name || '?')[0].toUpperCase()}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
+                      {user.first_name || 'Sem nome'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      ID: {user.id} • {user.channels?.length || 0} canal(is)
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {user.is_admin && <Badge variant="default" className="text-[9px] px-1.5 py-0.2">Admin</Badge>}
+                  {user.is_blacklisted && <Badge variant="destructive" className="text-[9px] px-1.5 py-0.2">Bloqueado</Badge>}
+                  <ChevronRight size={15} className="text-muted-foreground/40 group-hover:text-foreground transition-colors" />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     );
   };
@@ -305,41 +399,128 @@ export function AdminDashboard({
   // ── Channels Tab ──
 
   const renderChannelsTab = () => {
-    const channelColumns: Column<any>[] = [
-      { key: 'title', label: 'Canal', render: (_: any, row: any) => (
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center size-8 rounded-lg shrink-0" style={{ background: 'var(--success-soft)', color: 'var(--success)' }}>
-            <Hash size={16} />
-          </div>
-          <div className="min-w-0">
-            <span className="text-sm font-semibold truncate block">{row.title}</span>
-            <span className="text-[10px] text-muted-foreground">ID: {row.id}</span>
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+            Canais Conectados ({visibleChannels.length})
+          </span>
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] text-muted-foreground">Clique no canal para expandir detalhes</span>
           </div>
         </div>
-      )},
-      { key: 'ownerId', label: 'Dono', align: 'center' },
-      { key: 'subscriberCount', label: 'Inscritos', align: 'center', render: (v: any) => (
-        v ? <Badge variant="secondary" className="text-[10px]">{v}</Badge> : <span className="text-[11px] text-muted-foreground">—</span>
-      )},
-    ];
+        {visibleChannels.length === 0 ? (
+          <div className="text-center py-10 text-xs text-muted-foreground border border-border rounded-xl bg-card">
+            Nenhum canal encontrado.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5 items-start">
+            {visibleChannels.map(channel => {
+              const isExpanded = expandedChannelId === channel.id;
+              const ownerUser = usersList.find(u => u.id === channel.ownerId);
 
-    return (
-      <DataTable
-        columns={channelColumns}
-        data={visibleChannels}
-        searchable={false}
-        pageSize={15}
-        emptyMessage="Nenhum canal encontrado"
-        actions={(row: any) => (
-          <button
-            className="p-1.5 rounded-lg hover:bg-muted/50 transition-colors"
-            onClick={() => navigateToChannel(row.id)}
-            title="Abrir canal"
-          >
-            <ChevronRight size={16} className="text-muted-foreground/40" />
-          </button>
+              return (
+                <div
+                  key={channel.id}
+                  className={`rounded-xl border transition-all shadow-xs overflow-hidden ${
+                    isExpanded
+                      ? 'border-accent/60 bg-card ring-1 ring-accent/20'
+                      : 'border-border bg-card hover:bg-muted/30 cursor-pointer'
+                  }`}
+                >
+                  {/* Cabeçalho do Card */}
+                  <div
+                    onClick={() => setExpandedChannelId(isExpanded ? null : channel.id)}
+                    className="flex items-center justify-between p-3 cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="flex items-center justify-center size-8 rounded-lg shrink-0 bg-accent/15 text-accent">
+                        <Radio size={16} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate group-hover:text-accent transition-colors">
+                          {channel.title}
+                        </p>
+                        <p className="text-[10px] font-mono text-muted-foreground">
+                          ID: {channel.id}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {channel.subscriberCount ? (
+                        <Badge variant="secondary" className="text-[9px] font-mono px-1.5 py-0.2">
+                          👥 {channel.subscriberCount}
+                        </Badge>
+                      ) : null}
+                      <ChevronRight
+                        size={16}
+                        className={`text-muted-foreground/50 transition-transform duration-200 ${
+                          isExpanded ? 'rotate-90 text-accent' : ''
+                        }`}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Painel Expansível Inline (Sanfona) */}
+                  {isExpanded && (
+                    <div className="px-3 pb-3.5 pt-1 border-t border-border/60 bg-muted/20 space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                      <div className="grid grid-cols-1 gap-2 text-xs pt-1">
+                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-card/90 border border-border/50">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Radio size={12} className="text-accent" />
+                            ID do Canal
+                          </span>
+                          <span className="font-mono font-bold text-foreground text-xs break-all">
+                            {channel.id}
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col gap-1 p-2 rounded-lg bg-card/90 border border-border/50">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <UserIcon size={12} className="text-accent" />
+                            Dono do Canal
+                          </span>
+                          <span className="font-semibold text-foreground text-xs leading-tight break-words">
+                            {ownerUser?.first_name || 'Desconhecido'}{' '}
+                            <span className="text-[11px] text-muted-foreground font-mono font-normal">
+                              (ID: {channel.ownerId || 'N/A'})
+                            </span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between p-2 rounded-lg bg-card/90 border border-border/50">
+                          <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground flex items-center gap-1.5">
+                            <Calendar size={12} className="text-accent" />
+                            Adicionado em
+                          </span>
+                          <span className="font-medium text-foreground text-xs font-mono">
+                            {channel.created_at
+                              ? new Date(channel.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                              : 'Não informado'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <Button
+                        size="sm"
+                        className="w-full h-8 rounded-lg text-xs font-bold bg-accent hover:bg-accent/90 text-accent-foreground flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigateToChannel(channel.id);
+                        }}
+                      >
+                        <ExternalLink size={14} />
+                        <span>Ir para Dashboard do Canal</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         )}
-      />
+      </div>
     );
   };
 

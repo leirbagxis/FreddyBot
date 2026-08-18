@@ -170,6 +170,13 @@ func (r *ScheduledPostRepository) UpdatePinMessage(ctx context.Context, id strin
 		Update("pin_message", pinMessage).Error
 }
 
+func (r *ScheduledPostRepository) UpdateAutoDelete(ctx context.Context, id string, autoDeleteMin int) error {
+	return r.db.WithContext(ctx).
+		Model(&models.ScheduledPost{}).
+		Where("id = ?", id).
+		Update("auto_delete_min", autoDeleteMin).Error
+}
+
 func (r *ScheduledPostRepository) GetByOwnerAndChannel(ctx context.Context, ownerID, channelID int64) ([]models.ScheduledPost, error) {
 	var posts []models.ScheduledPost
 	err := r.db.WithContext(ctx).

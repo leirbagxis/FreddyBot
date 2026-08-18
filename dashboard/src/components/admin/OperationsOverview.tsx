@@ -34,11 +34,11 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
 
   return (
     <section className="operations-overview" aria-label="Resumo operacional">
-      <header className="operations-overview-heading">
+      <header className="operations-overview-heading mb-4">
         <div>
-          <span>Administração</span>
-          <div className="operations-title">Visão geral</div>
-          <p>Estado atual da base e acessos que merecem revisão.</p>
+          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Administração</span>
+          <div className="operations-title text-2xl font-extrabold text-foreground text-slate-100 tracking-tight mt-0.5">Visão geral</div>
+          <p className="text-xs text-muted-foreground mt-1">Estado atual da base e acessos que merecem revisão.</p>
         </div>
         <Button variant="ghost" type="button" className="operations-overview-link" onClick={onViewUsers}>
           Ver usuários <ArrowRight size={15} aria-hidden="true" />
@@ -56,7 +56,7 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
         ))}
       </div>
 
-      <div className="operations-insights" aria-label="Indicadores operacionais">
+      <div className="operations-insights gap-6 mt-6" aria-label="Indicadores operacionais">
         <section className="operations-health">
           <div className="operations-section-heading">
             <div>
@@ -76,21 +76,29 @@ export const OperationsOverview = memo(function OperationsOverview({ users, chan
         </section>
 
         <section className="operations-alerts" aria-labelledby="operations-alerts-title">
-          <div className="operations-section-heading">
+          <div className="operations-section-heading mb-3">
             <div>
               <span>Notificações</span>
-              <h2 id="operations-alerts-title">Pontos que pedem atenção</h2>
+              <h2 id="operations-alerts-title" className="text-base font-bold text-foreground">Pontos que pedem atenção</h2>
             </div>
-            <BellRing size={17} aria-hidden="true" />
+            <BellRing size={17} aria-hidden="true" className="text-amber-400" />
           </div>
           {alerts.length ? (
-            <div className="operations-alert-list">
+            <div className="operations-alert-list space-y-2.5">
               {alerts.map((alert) => (
-                <Button variant="ghost" type="button" key={alert.id} className={`operations-alert is-${alert.severity}`} onClick={() => onReviewAlert(alert.id)}>
+                <button
+                  type="button"
+                  key={alert.id}
+                  className={`operations-alert is-${alert.severity}`}
+                  onClick={() => onReviewAlert(alert.id)}
+                >
                   <strong>{alert.count}</strong>
-                  <span><b>{alert.title}</b><small>{alert.description}</small></span>
-                  <ArrowRight size={15} aria-hidden="true" />
-                </Button>
+                  <span>
+                    <b>{alert.title}</b>
+                    <small>{alert.description}</small>
+                  </span>
+                  <ArrowRight size={15} aria-hidden="true" className="text-muted-foreground shrink-0" />
+                </button>
               ))}
             </div>
           ) : (

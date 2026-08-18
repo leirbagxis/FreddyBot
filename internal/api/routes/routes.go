@@ -81,6 +81,13 @@ func RegisterRoutes(r *gin.Engine, c *container.AppContainer) {
 		api.PUT("/me/templates/:id/layout", userCaptionTemplateController.UpdateLayout)
 		api.DELETE("/me/templates/:id", userCaptionTemplateController.Delete)
 
+		// Rotas de Rascunhos do PostBuilder (Post Templates)
+		postTemplateController := controllers.NewPostTemplateController(c)
+		api.GET("/me/post-templates", postTemplateController.ListTemplates)
+		api.POST("/me/post-templates", postTemplateController.SaveCurrentTemplate)
+		api.DELETE("/me/post-templates/:id", postTemplateController.DeleteTemplate)
+		api.POST("/me/post-templates/:id/load", postTemplateController.LoadTemplate)
+
 		// Rotas de Configuração do Bot
 
 		// Rotas de Agendamento

@@ -659,6 +659,7 @@ export const updateScheduleTime = async (
         intervalMin?: number;
         windowStart?: string;
         windowEnd?: string;
+        autoDeleteMin?: number;
     }
 ): Promise<any> => {
     const response = await apiFetch(`/api/schedule/${id}`, {
@@ -727,5 +728,28 @@ export const updateUserCaptionTemplateLayout = async (templateId: string, layout
         method: 'PUT',
         body: JSON.stringify({ layout }),
     });
+    return response?.data;
+};
+
+/* ===== Post Templates (Rascunhos) ===== */
+export const getPostTemplates = async (): Promise<UserPostTemplate[]> => {
+    const response = await apiFetch('/api/me/post-templates', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const savePostTemplate = async (name: string): Promise<UserPostTemplate> => {
+    const response = await apiFetch('/api/me/post-templates', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+    return response?.data;
+};
+
+export const deletePostTemplate = async (id: string): Promise<void> => {
+    await apiFetch(`/api/me/post-templates/${id}`, { method: 'DELETE' });
+};
+
+export const loadPostTemplate = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/post-templates/${id}/load`, { method: 'POST' });
     return response?.data;
 };

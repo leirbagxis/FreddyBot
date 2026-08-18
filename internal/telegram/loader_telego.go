@@ -10,6 +10,7 @@ import (
 	callbackAbout "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/about"
 	callbackClaim "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/claimChannel"
 	callbackMyChannel "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_channel"
+	callbackMyDrafts "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_drafts"
 	callbackMySchedules "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/my_schedules"
 	callbackProfile "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/profile_info"
 	callbackStart "github.com/leirbagxis/FreddyBot/internal/telegram/handlers/callbacks/start"
@@ -50,8 +51,8 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	bh.Handle(suporte.HandlerTelego(c), telegohandler.CommandEqual("ouvidoria"))
 	bh.Handle(tutorial.HandlerTelego(c), telegohandler.CommandEqual("tutorial"))
 
-	// Admin Commands (Owner only; /info is owner/admin below)
-	adminGroup := bh.Group(matchOwnerTelego())
+	// Admin Commands (Owner and Admins)
+	adminGroup := bh.Group(matchAdminOrOwnerTelego(c))
 	adminGroup.Handle(admin.AdminHelpHandlerTelego(c), telegohandler.CommandEqual("admin"))
 	adminGroup.Handle(admin.GetAllUsersHandlerTelego(c), telegohandler.CommandEqual("users"))
 	adminGroup.Handle(admin.GetAllChannelsHandlerTelego(c), telegohandler.CommandEqual("channels"))
@@ -86,6 +87,15 @@ func LoadHandlersTelegoWithBH(bh *telegohandler.BotHandler, c *container.AppCont
 	bh.Handle(callbackStart.CheckSubscriptionHandlerTelego(c), telegohandler.CallbackDataEqual("check_subscription"))
 	bh.Handle(callbackProfile.HandlerTelego(c), telegohandler.CallbackDataEqual("profile-info"))
 	bh.Handle(callbackMySchedules.HandlerTelego(c), telegohandler.CallbackDataEqual("my-schedules"))
+	bh.Handle(callbackMySchedules.DetailHandlerTelego(c), telegohandler.CallbackDataPrefix("schedule-detail:"))
+	bh.Handle(callbackMySchedules.PauseHandlerTelego(c), telegohandler.CallbackDataPrefix("schedule-pause:"))
+	bh.Handle(callbackMySchedules.ResumeHandlerTelego(c), telegohandler.CallbackDataPrefix("schedule-resume:"))
+	bh.Handle(callbackMySchedules.DeleteHandlerTelego(c), telegohandler.CallbackDataPrefix("schedule-delete:"))
+	bh.Handle(callbackMyDrafts.HandlerTelego(c), telegohandler.CallbackDataEqual("my-drafts"))
+	bh.Handle(callbackMyDrafts.DetailHandlerTelego(c), telegohandler.CallbackDataPrefix("draft-detail:"))
+	bh.Handle(callbackMyDrafts.LoadHandlerTelego(c), telegohandler.CallbackDataPrefix("draft-load:"))
+	bh.Handle(callbackMyDrafts.RenameHandlerTelego(c), telegohandler.CallbackDataPrefix("draft-rename:"))
+	bh.Handle(callbackMyDrafts.DeleteHandlerTelego(c), telegohandler.CallbackDataPrefix("draft-delete:"))
 	bh.Handle(callbackMyChannel.HandlerTelego(c), telegohandler.CallbackDataEqual("profile-user-channels"))
 	bh.Handle(callbackMyChannel.ConfigHandlerTelego(c), telegohandler.CallbackDataPrefix("config:"))
 	bh.Handle(callbackMyChannel.GroupChannelHandlerTelego(c), telegohandler.CallbackDataPrefix("gc-info:"))

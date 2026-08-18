@@ -345,6 +345,7 @@ export interface ScheduledPost {
   queuePosition: number;
   loopQueue: boolean;
   pinMessage: boolean;
+  autoDeleteMin?: number;
   status: string;
   sentAt?: string;
   sentCount: number;

@@ -31,6 +31,7 @@ type PostBuilderState struct {
 	Buttons           []PostBuilderButton `json:"buttons"`
 	Step              string              `json:"step"`
 	TemplateSessionID string              `json:"template_session_id,omitempty"`
+	AutoDeleteMin     int                 `json:"auto_delete_min,omitempty"`
 }
 
 type ScheduleState struct {

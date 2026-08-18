@@ -28,16 +28,18 @@ type ScheduleOptions struct {
 	QueuePosition int
 	LoopQueue     bool
 	PinMessage    bool
+	AutoDeleteMin int
 	IntervalMin   int
 	WindowStart   string
 	WindowEnd     string
 }
 
 type SchedulerService struct {
-	repo         *repositories.ScheduledPostRepository
-	channelRepo  *repositories.ChannelRepository
-	cacheService *cache.Service
-	bot          *telego.Bot
+	repo              *repositories.ScheduledPostRepository
+	channelRepo       *repositories.ChannelRepository
+	cacheService      *cache.Service
+	bot               *telego.Bot
+	autoDeleteService *AutoDeleteService
 }
 
 func NewSchedulerService(
@@ -52,6 +54,10 @@ func NewSchedulerService(
 		cacheService: cacheService,
 		bot:          bot,
 	}
+}
+
+func (s *SchedulerService) SetAutoDeleteService(svc *AutoDeleteService) {
+	s.autoDeleteService = svc
 }
 
 func (s *SchedulerService) Start(ctx context.Context) {
@@ -129,6 +135,15 @@ func (s *SchedulerService) sendScheduledPost(ctx context.Context, post *models.S
 			ChatID:    telego.ChatID{ID: post.ChannelID},
 			MessageID: msgID,
 		})
+	}
+
+	// Auto-destruição se configurada
+	autoDelMin := post.AutoDeleteMin
+	if autoDelMin <= 0 {
+		autoDelMin = state.AutoDeleteMin
+	}
+	if autoDelMin > 0 && msgID > 0 && s.autoDeleteService != nil {
+		_ = s.autoDeleteService.ScheduleAutoDelete(ctx, post.ChannelID, msgID, autoDelMin)
 	}
 
 	sentAt := time.Now()
@@ -540,6 +555,7 @@ func (s *SchedulerService) CreateScheduledPost(ctx context.Context, ownerID, cha
 		QueuePosition: opts.QueuePosition,
 		LoopQueue:     opts.LoopQueue,
 		PinMessage:    opts.PinMessage,
+		AutoDeleteMin: opts.AutoDeleteMin,
 		Status:        "pending",
 		SentCount:     0,
 	}
@@ -677,6 +693,17 @@ func (s *SchedulerService) UpdateSchedulePinMessage(ctx context.Context, id stri
 		return fmt.Errorf("não autorizado")
 	}
 	return s.repo.UpdatePinMessage(ctx, id, pinMessage)
+}
+
+func (s *SchedulerService) UpdateScheduleAutoDelete(ctx context.Context, id string, ownerID int64, autoDeleteMin int) error {
+	post, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if post.OwnerID != ownerID {
+		return fmt.Errorf("não autorizado")
+	}
+	return s.repo.UpdateAutoDelete(ctx, id, autoDeleteMin)
 }
 
 func (s *SchedulerService) GetScheduleByID(ctx context.Context, id string) (*models.ScheduledPost, error) {

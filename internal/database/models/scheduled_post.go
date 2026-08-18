@@ -23,6 +23,7 @@ type ScheduledPost struct {
 	QueuePosition int    `json:"queuePosition"`
 	LoopQueue     bool   `json:"loopQueue"`
 	PinMessage    bool   `gorm:"default:false" json:"pinMessage"`
+	AutoDeleteMin int    `gorm:"default:0" json:"autoDeleteMin"`
 
 	Status       string     `gorm:"index:idx_schedule_next_run" json:"status"` // "pending"|"processing"|"sent"|"cancelled"|"paused"|"failed"
 	ProcessingAt *time.Time `json:"processingAt,omitempty"`

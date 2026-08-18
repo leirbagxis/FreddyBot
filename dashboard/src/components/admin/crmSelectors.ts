@@ -43,8 +43,8 @@ export function filterAndSortUsers(
       .some((value) => (value || '').toLocaleLowerCase('pt-BR').includes(query));
 
     if (!matchesQuery) return false;
-    if (filterBy === 'admins') return user.is_admin;
-    if (filterBy === 'blacklisted') return user.is_blacklisted;
+    if (filterBy === 'admins') return user.is_admin === true || (user as any).is_admin === 'true';
+    if (filterBy === 'blacklisted') return user.is_blacklisted === true || (user as any).is_blacklisted === 'true';
     if (filterBy === 'with-channels') return channelCount > 0;
     if (filterBy === 'without-channels') return channelCount === 0;
     return true;
@@ -57,7 +57,9 @@ export function filterAndSortUsers(
     if (sortBy === 'channels') {
       return (b.channels?.length || 0) - (a.channels?.length || 0);
     }
-    return getTimestamp(b.created_at) - getTimestamp(a.created_at);
+    const tA = getTimestamp(a.created_at) || (typeof a.id === 'number' ? a.id : 0);
+    const tB = getTimestamp(b.created_at) || (typeof b.id === 'number' ? b.id : 0);
+    return tB - tA;
   });
 }
 
