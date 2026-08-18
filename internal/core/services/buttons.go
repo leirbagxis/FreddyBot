@@ -52,6 +52,7 @@ func (s *ButtonService) CreateButton(ctx context.Context, channelID int64, butto
 		OwnerChannelID: channelID,
 		NameButton:     buttonData.NameButton,
 		ButtonURL:      buttonData.ButtonURL,
+		Style:          buttonData.Style,
 		PositionX:      position.X,
 		PositionY:      position.Y,
 	}
@@ -70,7 +71,7 @@ func (s *ButtonService) UpdateButton(ctx context.Context, channelID int64, butto
 		return 0, err
 	}
 
-	rowsAffected, err := s.buttonRepo.UpdateButton(ctx, channelID, buttonID, buttonData.NameButton, buttonData.ButtonURL)
+	rowsAffected, err := s.buttonRepo.UpdateButton(ctx, channelID, buttonID, buttonData.NameButton, buttonData.ButtonURL, buttonData.Style)
 	if err != nil {
 		return 0, errors.Internal(err)
 	}
@@ -148,6 +149,7 @@ func (s *ButtonService) CreateCustomCaptionButton(ctx context.Context, channelID
 		ButtonID:       uuid.NewString(),
 		NameButton:     body.NameButton,
 		ButtonURL:      body.ButtonURL,
+		Style:          body.Style,
 		PositionX:      position.X,
 		PositionY:      position.Y,
 		OwnerCaptionID: captionID,
@@ -175,6 +177,7 @@ func (s *ButtonService) UpdateCustomCaptionButton(ctx context.Context, channelID
 	updates := map[string]interface{}{
 		"name_button": body.NameButton,
 		"button_url":  body.ButtonURL,
+		"style":       body.Style,
 	}
 
 	rowsAffected, err := s.customCaptionRepo.UpdateCustomCaptionButton(ctx, captionID, buttonID, updates)

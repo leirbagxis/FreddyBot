@@ -2,32 +2,40 @@ package parser
 
 import (
 	"os"
+	"path/filepath"
+	"sync"
 	"testing"
 )
 
 func TestLoadMessagesResilience(t *testing.T) {
-	// 1. Test with existing file in root
-	// Assuming we are running from the root of the project
-	// pkg/parser is 2 levels deep from root
-	// So it should find ../../config/messages.yml
-	
-	// We need to make sure we don't trigger the real loadOnce
-	// But since it's a test, we can just call loadMessages directly if it wasn't private
-	// Oh, loadMessages is private.
-	
-	// Let's create a dummy messages.yml in the current test dir
-	os.MkdirAll("config", 0755)
+	tempDir := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(tempDir, "config"), 0o755); err != nil {
+		t.Fatalf("create config directory: %v", err)
+	}
 	dummyContent := `- name: test
   text: "Hello World"
 `
-	os.WriteFile("config/messages.yml", []byte(dummyContent), 0644)
-	defer os.RemoveAll("config")
+	if err := os.WriteFile(filepath.Join(tempDir, "config", "messages.yml"), []byte(dummyContent), 0o644); err != nil {
+		t.Fatalf("write messages fixture: %v", err)
+	}
 
-	// Now we can call loadMessages via GetMessage
-	// But loadOnce might have already been triggered if other tests ran
-	// In this session, it's the first time.
-	
-	text, _ := GetMessage("test", nil)
+	workingDir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("get working directory: %v", err)
+	}
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("change working directory: %v", err)
+	}
+	previousMessages := messagesMap
+	messagesMap = make(map[string]Message)
+	loadOnce = sync.Once{}
+	t.Cleanup(func() {
+		_ = os.Chdir(workingDir)
+		messagesMap = previousMessages
+		loadOnce = sync.Once{}
+	})
+
+	text, _ := GetMessageTelego("test", nil)
 	if text != "Hello World" {
 		t.Errorf("Expected 'Hello World', got '%s'", text)
 	}

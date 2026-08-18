@@ -8,6 +8,9 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// issuer is used in JWT token creation for testing
+var issuer = "freddybot"
+
 func TestJWTSecurity(t *testing.T) {
 	// Setup a valid secret for testing
 	originalKey := secreteKey

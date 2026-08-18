@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mymmrac/telego"
-	"github.com/mymmrac/telego/telegohandler"
 	"github.com/leirbagxis/FreddyBot/internal/api/auth"
 	"github.com/leirbagxis/FreddyBot/internal/container"
 	"github.com/leirbagxis/FreddyBot/pkg/logger"
 	"github.com/leirbagxis/FreddyBot/pkg/parser"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegohandler"
 )
 
 func ConfigHandlerTelego(c *container.AppContainer) telegohandler.Handler {
@@ -54,7 +54,17 @@ func ConfigHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 			"channelId": channelIdString,
 			"webAppUrl": auth.GenerateMiniAppUrl(userIDStr, channelIdString),
 		}
-		text, kb := parser.GetMessageTelego("config-channel", data)
+
+		// Verificar se usuario tem acesso premium (assinatura ativa ou conta conectada)
+		// E se o sistema premium esta habilitado globalmente
+		premiumEnabled := c.PremiumFeatureService.IsPremiumEnabled(context.Background())
+		hasPremium := premiumEnabled && c.HasPremiumAccess(context.Background(), userID)
+
+		templateName := "config-channel"
+		if hasPremium {
+			templateName = "config-channel-premium"
+		}
+		text, kb := parser.GetMessageTelego(templateName, data)
 
 		err = c.CacheService.SetSelectedChannel(context.Background(), userID, channelId)
 		if err != nil {

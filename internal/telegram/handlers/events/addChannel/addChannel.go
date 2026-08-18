@@ -16,26 +16,44 @@ import (
 	"github.com/mymmrac/telego/telegohandler"
 )
 
+func SendAddChannelPromptTelego(bot *telego.Bot, fromID, chatID int64, chatTitle, firstName string) error {
+	logger.Bot("AskAddChannel: Solicitação para o canal %d pelo usuário %d", chatID, fromID)
+
+	data := map[string]string{
+		"channelName": chatTitle,
+		"channelId":   fmt.Sprintf("%d", chatID),
+		"firstName":   firstName,
+	}
+
+	text, _ := parser.GetMessageTelego("toadd-require-message", data)
+	kb := &telego.InlineKeyboardMarkup{
+		InlineKeyboard: [][]telego.InlineKeyboardButton{
+			{
+				{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
+				{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
+			},
+		},
+	}
+
+	_, err := bot.SendMessage(context.Background(), &telego.SendMessageParams{
+		ChatID:      telego.ChatID{ID: fromID},
+		Text:        text,
+		ReplyMarkup: kb,
+		ParseMode:   telego.ModeHTML,
+	})
+	return err
+}
+
 func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler {
 	return func(ctx *telegohandler.Context, update telego.Update) error {
-		var chatID int64
-		var fromID int64
-		var chatTitle string
-		var firstName string
-
-		if update.MyChatMember != nil {
-			chatID = update.MyChatMember.Chat.ID
-			fromID = update.MyChatMember.From.ID
-			chatTitle = update.MyChatMember.Chat.Title
-			firstName = update.MyChatMember.From.FirstName
-		} else if update.Message != nil && update.Message.ForwardOrigin != nil {
-			if origin, ok := update.Message.ForwardOrigin.(*telego.MessageOriginChannel); ok {
-				chatID = origin.Chat.ID
-				fromID = update.Message.From.ID
-				chatTitle = origin.Chat.Title
-				firstName = update.Message.From.FirstName
-			}
+		if update.MyChatMember == nil {
+			return nil
 		}
+
+		chatID := update.MyChatMember.Chat.ID
+		fromID := update.MyChatMember.From.ID
+		chatTitle := update.MyChatMember.Chat.Title
+		firstName := update.MyChatMember.From.FirstName
 
 		if chatID == 0 {
 			return nil
@@ -44,37 +62,11 @@ func AskAddChannelHandlerTelego(c *container.AppContainer) telegohandler.Handler
 		// Verificar se o canal já existe no banco
 		existing, _ := c.ChannelService.GetChannelByID(context.Background(), chatID)
 		if existing != nil {
-			logger.Bot("AskAddChannel: Canal %d já existe no banco. Ignorando convite.", chatID)
+			logger.Bot("AskAddChannel: Canal %d já existe no banco.", chatID)
 			return nil
 		}
 
-		bot := ctx.Bot()
-		logger.Bot("AskAddChannel: Solicitação para o canal %d pelo usuário %d", chatID, fromID)
-
-		data := map[string]string{
-			"channelName": chatTitle,
-			"channelId":   fmt.Sprintf("%d", chatID),
-			"firstName":   firstName,
-		}
-
-		text, _ := parser.GetMessageTelego("toadd-require-message", data)
-		kb := &telego.InlineKeyboardMarkup{
-			InlineKeyboard: [][]telego.InlineKeyboardButton{
-				{
-					{Text: "✅ Sim", CallbackData: fmt.Sprintf("add-yes:%d", chatID), Style: "success"},
-					{Text: "❌ Não", CallbackData: fmt.Sprintf("add-not:%d", chatID), Style: "danger"},
-				},
-			},
-		}
-
-		_, _ = bot.SendMessage(context.Background(), &telego.SendMessageParams{
-			ChatID:      telego.ChatID{ID: fromID},
-			Text:        text,
-			ReplyMarkup: kb,
-			ParseMode:   telego.ModeHTML,
-		})
-
-		return nil
+		return SendAddChannelPromptTelego(ctx.Bot(), fromID, chatID, chatTitle, firstName)
 	}
 }
 
@@ -99,13 +91,7 @@ func UpdateChannelInfoHandlerTelego(c *container.AppContainer) telegohandler.Han
 		usernameChanged := update.MyChatMember.Chat.Username != "" && usernameURL != channelURL && !strings.HasPrefix(channelURL, "https://t.me/+")
 
 		if titleChanged || usernameChanged {
-			go func() {
-				// Utiliza UpdateChannelBasicInfoTelego (já implementada em metadata.go)
-				// Note: precisamos importar channelpost ou mover UpdateChannelBasicInfoTelego
-				// Para evitar dependência cíclica, vou assumir que ela está acessível ou duplicar a lógica básica aqui.
-				// Por simplicidade, vou apenas logar por enquanto, a sincronização real acontece no pipeline.
-				logger.Bot("Metadados do canal %d mudaram, sincronização agendada.", chatID)
-			}()
+			logger.Bot("Metadados do canal %d mudaram, sincronização agendada.", chatID)
 		}
 
 		return nil

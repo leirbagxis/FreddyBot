@@ -71,6 +71,7 @@ func (r *ChannelRepository) GetChannelByID(ctx context.Context, channelId int64)
 		Joins("DefaultCaption.ButtonsPermission").
 		Joins("Separator").
 		Preload("Owner").
+		Preload("Owner.Channels").
 		Preload("Buttons").
 		Preload("CustomCaptions").
 		Preload("CustomCaptions.Buttons").
@@ -217,7 +218,22 @@ func (r *ChannelRepository) GetChannelButtons(ctx context.Context, channelId int
 func (r *ChannelRepository) UpdateDefaultCaption(ctx context.Context, channelID int64, caption string) (int64, error) {
 	result := r.db.WithContext(ctx).Model(&models.DefaultCaption{}).
 		Where("owner_channel_id = ?", channelID).
-		Update("caption", caption)
+		Updates(map[string]interface{}{
+			"caption":      caption,
+			"entities":     "",    // limpa entities ao salvar via dashboard
+			"use_entities": false, // desabilita path de entities
+		})
+	return result.RowsAffected, result.Error
+}
+
+func (r *ChannelRepository) UpdateDefaultCaptionEntities(ctx context.Context, channelID int64, caption string, entities string) (int64, error) {
+	result := r.db.WithContext(ctx).Model(&models.DefaultCaption{}).
+		Where("owner_channel_id = ?", channelID).
+		Updates(map[string]interface{}{
+			"caption":      caption,
+			"entities":     entities,
+			"use_entities": true,
+		})
 	return result.RowsAffected, result.Error
 }
 
@@ -263,4 +279,22 @@ func (r *ChannelRepository) UpdateDynamicLinks(ctx context.Context, channelID in
 		Where("id = ?", channelID).
 		Updates(settings)
 	return result.RowsAffected, result.Error
+}
+
+func (r *ChannelRepository) UpdateNativeReactions(ctx context.Context, channelID int64, emojis string) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("native_reactions", emojis).Error
+}
+
+func (r *ChannelRepository) UpdateNativeReactionMode(ctx context.Context, channelID int64, mode string) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("native_reaction_mode", mode).Error
+}
+
+func (r *ChannelRepository) UpdateNativeReactionsEnabled(ctx context.Context, channelID int64, enabled bool) error {
+	return r.db.WithContext(ctx).Model(&models.Channel{}).
+		Where("id = ?", channelID).
+		Update("native_reactions_enabled", enabled).Error
 }

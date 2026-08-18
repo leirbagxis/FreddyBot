@@ -3,6 +3,8 @@ package database
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -42,42 +44,84 @@ func validFixedPostBuilderPayload(payload string) bool {
 	return json.Unmarshal([]byte(payload), &raw) == nil
 }
 
-func InitDB() *gorm.DB {
+func InitDB() (*gorm.DB, error) {
 	var dialector gorm.Dialector
+	isSQLite := false
 
-	if config.AppEnv == "dev" {
-		customLogger.DB("📦 Usando banco de dados SQLite (modo dev)")
-		dialector = sqlite.Open(config.DatabaseFile)
-	} else {
-		customLogger.DB("🐘 Usando banco de dados PostgreSQL (modo prod)")
+	// DatabaseDriver permite forçar postgres/sqlite independente do AppEnv.
+	// Valores: "postgres", "sqlite" (ou vazio = usa AppEnv).
+	dbDriver := os.Getenv("DATABASE_DRIVER")
+	switch dbDriver {
+	case "postgres":
+		customLogger.DB("🐘 Usando banco de dados PostgreSQL (forçado por DATABASE_DRIVER)")
 		dialector = postgres.Open(config.DatabaseFile)
+	case "sqlite":
+		isSQLite = true
+		customLogger.DB("📦 Usando banco de dados SQLite (forçado por DATABASE_DRIVER)")
+		dialector = sqlite.Open(config.DatabaseFile)
+	default:
+		if config.AppEnv == "dev" {
+			isSQLite = true
+			customLogger.DB("📦 Usando banco de dados SQLite (modo dev)")
+			dialector = sqlite.Open(config.DatabaseFile)
+		} else {
+			customLogger.DB("🐘 Usando banco de dados PostgreSQL (modo prod)")
+			dialector = postgres.Open(config.DatabaseFile)
+		}
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	db.Config.Logger = logger.Default.LogMode(logger.Silent)
 
 	// Habilitar Foreign Keys no SQLite
-	if config.AppEnv == "dev" {
-		db.Exec("PRAGMA foreign_keys = ON;")
+	if isSQLite {
+		if err := db.Exec("PRAGMA foreign_keys = ON;").Error; err != nil {
+			customLogger.Error("DATABASE", "Erro ao habilitar foreign keys no SQLite: %v", err)
+			return nil, fmt.Errorf("enable foreign keys: %w", err)
+		}
 	}
 
 	// Configurar Pool de Conexões (Crucial para produção)
 	sqlDB, err := db.DB()
-	if err == nil {
-		sqlDB.SetMaxIdleConns(10)
-		sqlDB.SetMaxOpenConns(100)
-		sqlDB.SetConnMaxLifetime(time.Hour)
-		customLogger.DB("⚙️ Pool de conexões configurado (Idle: 10, Open: 100)")
+	if err != nil {
+		return nil, fmt.Errorf("get underlying sql.DB: %w", err)
 	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+	sqlDB.SetConnMaxIdleTime(5 * time.Minute)
+	customLogger.DB("⚙️ Pool de conexões configurado (Idle: 10, Open: 100)")
 
-	// Forçar recriação de índices que mudaram de estrutura
-	db.Exec("DROP INDEX IF EXISTS idx_vote_user")
+	if !isSQLite {
+		customLogger.DB("⚙️ Executando migrações DDL manuais do PostgreSQL...")
+		// Forçar recriação de índices que mudaram de estrutura
+		if err := db.Exec("DROP INDEX IF EXISTS idx_vote_user").Error; err != nil {
+			return nil, fmt.Errorf("drop index idx_vote_user: %w", err)
+		}
+
+		// Migrações na tabela scheduled_posts (apenas se a tabela já existir)
+		if err := db.Exec(`DO $$ BEGIN
+			IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name='scheduled_posts') THEN
+				IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='id' AND data_type='uuid') THEN
+					ALTER TABLE scheduled_posts ALTER COLUMN id TYPE text;
+				END IF;
+
+				IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='scheduled_posts' AND column_name='pin_message') THEN
+					ALTER TABLE scheduled_posts ADD COLUMN pin_message boolean NOT NULL DEFAULT false;
+				END IF;
+			END IF;
+		END $$;`).Error; err != nil {
+			return nil, fmt.Errorf("migrate scheduled_posts DDL: %w", err)
+		}
+	}
 
 	err = db.AutoMigrate(
 		&models.User{},
+		&models.Subscription{},
+		&models.PaymentIntent{},
 		&models.ServerConfig{},
 		&models.Channel{},
 		&models.ChannelEvent{},
@@ -89,16 +133,32 @@ func InitDB() *gorm.DB {
 		&models.CustomCaption{},
 		&models.CustomCaptionButton{},
 		&models.Vote{},
+		&models.ConnectedAccount{},
+		&models.ConnectedAccountChannel{},
+		&models.CustomEmoji{},
+		&models.UserEmojiAccess{},
+		&models.AdminMTProtoAccount{},
+		&models.PremiumFeature{},
+		&models.Refund{},
+		&models.ScheduledPost{},
+		&models.AutoDeletePost{},
+		&models.UserPostTemplate{},
+		&models.UserCaptionTemplate{},
+		&models.UserCaptionTemplateButton{},
 	)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 
 	if err := initServerConfig(db); err != nil {
-		panic(err)
+		return nil, err
 	}
 
-	return db
+	if err := seedPremiumFeatures(db); err != nil {
+		return nil, err
+	}
+
+	return db, nil
 }
 
 func initServerConfig(db *gorm.DB) error {
@@ -142,5 +202,57 @@ func initServerConfig(db *gorm.DB) error {
 	}
 
 	customLogger.DB("✔️ ServerConfig iniciado criadas com sucesso.")
+	return nil
+}
+
+// seedPremiumFeatures cria as features premium padrao se nao existirem.
+func seedPremiumFeatures(db *gorm.DB) error {
+	defaults := []models.PremiumFeature{
+		{
+			Key:         "managed_premium_account",
+			Name:        "Conta Telegram Gerenciada",
+			Description: "Usa uma conta Telegram gerenciada pelo admin como executor MTProto para edicoes avançadas.",
+			Enabled:     true,
+			Price:       80,
+		},
+		{
+			Key:         "connected_account",
+			Name:        "Conta Telegram Pessoal",
+			Description: "Permite ao usuario conectar sua propria conta Telegram via MTProto para recursos exclusivos.",
+			Enabled:     true,
+			Price:       0,
+		},
+		{
+			Key:         "custom_emojis",
+			Name:        "Emojis Customizados",
+			Description: "Permite o uso de emojis customizados (Premium) nas legendas dos posts.",
+			Enabled:     true,
+			Price:       0,
+		},
+		{
+			Key:         "extra_channels",
+			Name:        "Canais Extras",
+			Description: "Permite adicionar canais adicionais alem do limite padrao. Preco por canal extra.",
+			Enabled:     true,
+			Price:       35,
+		},
+	}
+
+	for _, f := range defaults {
+		var existing models.PremiumFeature
+		err := db.WithContext(context.Background()).
+			Where("key = ?", f.Key).
+			First(&existing).Error
+		if err == gorm.ErrRecordNotFound {
+			if err := db.WithContext(context.Background()).Create(&f).Error; err != nil {
+				customLogger.Error("DATABASE", "Erro ao criar feature premium %s: %v", f.Key, err)
+				return err
+			}
+			customLogger.DB("🌟 Feature premium criada: %s (%d stars)", f.Key, f.Price)
+		} else if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

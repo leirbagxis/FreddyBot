@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leirbagxis/FreddyBot/internal/api/types"
@@ -34,8 +35,14 @@ type BulkDeleteRequest struct {
 }
 
 func (c *AuditController) GetCheckBotAudit(ctx *gin.Context) {
-	const targetBotID = 5986082367
 	bot := c.container.TelegoBot
+	targetBotID := int64(0)
+	if me, err := bot.GetMe(ctx.Request.Context()); err == nil && me != nil {
+		targetBotID = me.ID
+	}
+	if targetBotID == 0 {
+		targetBotID = 5986082367
+	}
 
 	channels, err := c.container.ChannelService.GetAllChannels(ctx)
 	if err != nil {
@@ -53,17 +60,25 @@ func (c *AuditController) GetCheckBotAudit(ctx *gin.Context) {
 	close(chQueue)
 
 	var wg sync.WaitGroup
-	numWorkers := 20 // Mais workers para a API ser responsiva
+	numWorkers := 4 // Controle suave para evitar 429 Flood Limits no Telegram
 	if len(channels) < numWorkers {
 		numWorkers = len(channels)
 	}
+
+	reqCtx := ctx.Request.Context()
 
 	for i := 0; i < numWorkers; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			for ch := range chQueue {
-				member, err := bot.GetChatMember(context.Background(), &telego.GetChatMemberParams{
+				select {
+				case <-reqCtx.Done():
+					return
+				default:
+				}
+
+				member, err := bot.GetChatMember(reqCtx, &telego.GetChatMemberParams{
 					ChatID: telego.ChatID{ID: ch.ID},
 					UserID: targetBotID,
 				})
@@ -76,6 +91,7 @@ func (c *AuditController) GetCheckBotAudit(ctx *gin.Context) {
 						mu.Unlock()
 					}
 				}
+				time.Sleep(30 * time.Millisecond)
 			}
 		}()
 	}

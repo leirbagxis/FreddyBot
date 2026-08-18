@@ -20,7 +20,14 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		}
 
 		// 1. Basic Filters
-		botInfo, _ := pCtx.Bot.GetMe(context.Background())
+		botInfo, err := pCtx.Bot.GetMe(pCtx.Ctx)
+		if err != nil || botInfo == nil {
+			logger.Error("PIPELINE", "❌ Falha ao obter dados do Bot em GetMe: %v", err)
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusError, map[string]any{"reason": "get_me_failed"}, err)
+			pCtx.StopPipeline = true
+			return nil
+		}
+
 		if post.ViaBot != nil && post.ViaBot.ID == botInfo.ID {
 			logger.Bot("⏭️ Ignoring inline message.")
 			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "via_bot"}, nil)
@@ -28,7 +35,27 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 			return nil
 		}
 
-		maintenance, _ := c.ServerService.GetMaintenance(context.Background())
+		// Evita loop infinito: ignora mensagens enviadas pelo proprio bot
+		// (ex: separador sticker/emoji enviado pelo bot ao canal)
+		if post.From != nil && post.From.ID == botInfo.ID {
+			logger.Bot("⏭️ Ignorando mensagem do proprio bot (ID: %d)", post.MessageID)
+			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "bot_own_message"}, nil)
+			pCtx.StopPipeline = true
+			return nil
+		}
+		// Verificacao adicional: se o bot acabou de enviar um separador para este canal
+		// (ChannelPost de canais tem From=nil, entao o check acima nao pega)
+		if lastTime, ok := BotLastSeparatorSent.Load(post.Chat.ID); ok {
+			elapsed := time.Since(lastTime.(time.Time))
+			if elapsed < 3*time.Second {
+				logger.Bot("⏭️ Ignorando ChannelPost do proprio separador (canal %d, ha %.1fs)", post.Chat.ID, elapsed.Seconds())
+				recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "bot_separator_message"}, nil)
+				pCtx.StopPipeline = true
+				return nil
+			}
+		}
+
+		maintenance, _ := c.ServerService.GetMaintenance(pCtx.Ctx)
 		if maintenance {
 			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "maintenance"}, nil)
 			pCtx.StopPipeline = true
@@ -36,7 +63,7 @@ func StagePreflightTelego(c *container.AppContainer) StageTelego {
 		}
 
 		// 2. Load Channel
-		channel, err := c.ChannelService.GetChannelWithRelations(context.Background(), post.Chat.ID)
+		channel, err := c.ChannelService.GetChannelWithRelations(pCtx.Ctx, post.Chat.ID)
 		if err != nil {
 			logger.Error("PIPELINE", "❌ Canal %d não encontrado no banco: %v", post.Chat.ID, err)
 			recordChannelPostEvent(c, pCtx, "post_skipped", services.ChannelEventStatusSkipped, map[string]any{"reason": "channel_not_found"}, err)

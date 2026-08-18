@@ -3,6 +3,7 @@ package admincontroller
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 
@@ -53,11 +54,27 @@ func (c *MediaController) GetMediaPreview(ctx *gin.Context) {
 		return
 	}
 
+	const maxMediaPreviewBytes int64 = 20 << 20
+	if resp.ContentLength > maxMediaPreviewBytes {
+		ctx.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Media preview is too large"})
+		return
+	}
+	data, err := io.ReadAll(io.LimitReader(resp.Body, maxMediaPreviewBytes+1))
+	if err != nil {
+		logger.Error("API", "Erro ao ler arquivo do Telegram: %v", err)
+		ctx.JSON(http.StatusBadGateway, gin.H{"error": "Failed to read media from Telegram"})
+		return
+	}
+	if int64(len(data)) > maxMediaPreviewBytes {
+		ctx.JSON(http.StatusRequestEntityTooLarge, gin.H{"error": "Media preview is too large"})
+		return
+	}
+
 	// Copiar headers relevantes (especialmente Content-Type)
 	contentType := resp.Header.Get("Content-Type")
 	if contentType == "" {
 		contentType = "application/octet-stream"
 	}
 
-	ctx.DataFromReader(http.StatusOK, resp.ContentLength, contentType, resp.Body, nil)
+	ctx.Data(http.StatusOK, contentType, data)
 }

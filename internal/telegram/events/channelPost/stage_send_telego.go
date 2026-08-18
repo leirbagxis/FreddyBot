@@ -16,16 +16,23 @@ func StageSendTelego(c *container.AppContainer) StageTelego {
 		logger.Bot("📤 Iniciando envio final Telego (Tipo: %s, Album: %v)", pCtx.MessageType, pCtx.IsMediaGroup)
 
 		err := processWithRetryTelego(pCtx.Ctx, func() error {
+			logger.Bot("📤 StageSendTelego: isMediaGroup=%v, type=%s, hasBot=%v, hasExecFactory=%v",
+				pCtx.IsMediaGroup, pCtx.MessageType, pCtx.Bot != nil, pCtx.ExecutorFactory != nil)
+
 			if pCtx.IsMediaGroup {
+				logger.Bot("📤 StageSendTelego: routing to ProcessMediaGroupDispatchTelego")
 				return ProcessMediaGroupDispatchTelego(pCtx)
 			}
 
 			switch pCtx.MessageType {
 			case MessageTypeText:
+				logger.Bot("📤 StageSendTelego: routing to ProcessTextDispatchTelego")
 				return ProcessTextDispatchTelego(pCtx)
 			case MessageTypeAudio, MessageTypePhoto, MessageTypeVideo, MessageTypeAnimation, MessageTypeDocument:
+				logger.Bot("📤 StageSendTelego: routing to ProcessMediaDispatchTelego (type=%s)", pCtx.MessageType)
 				return ProcessMediaDispatchTelego(pCtx)
 			case MessageTypeSticker:
+				logger.Bot("📤 StageSendTelego: routing to ProcessStickerDispatchTelego")
 				return ProcessStickerDispatchTelego(pCtx)
 			}
 			return nil

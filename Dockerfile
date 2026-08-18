@@ -27,11 +27,14 @@ RUN go build -ldflags "-X github.com/leirbagxis/FreddyBot/internal/utils.Version
 FROM alpine:3.23
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates
+RUN apk add --no-cache ca-certificates && \
+    addgroup -S appgroup && adduser -S appuser -G appgroup
 
 COPY --from=builder /app/Release ./Release
 COPY --from=builder /app/dashboard/dist ./dashboard/dist
 COPY --from=builder /app/config ./config
+
+USER appuser
 
 EXPOSE 7000
 

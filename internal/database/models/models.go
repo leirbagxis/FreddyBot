@@ -4,7 +4,7 @@ import "time"
 
 type ServerConfig struct {
 	ID                      uint      `gorm:"primaryKey" json:"id"`
-	Maintence               bool      `gorm:"default:false" json:"maintence"`
+	Maintence               bool      `gorm:"column:maintence;default:false" json:"maintence"`
 	ForceJoin               bool      `gorm:"default:false" json:"forceJoin"`
 	GlobalDefaultCaption    string    `json:"globalDefaultCaption"`
 	GlobalNewPackCaption    string    `json:"globalNewPackCaption"`
@@ -22,6 +22,7 @@ type User struct {
 	IsAdmin       bool      `gorm:"default:false" json:"is_admin"`
 	IsBlacklisted bool      `gorm:"default:false" json:"is_blacklisted"`
 	IsContribute  bool      `gorm:"default:false" json:"isContribute"`
+	Features      string    `gorm:"type:text;default:'{}'" json:"features"` // JSON de UserFeatures
 	Channels      []Channel `gorm:"foreignKey:OwnerID" json:"channels"`
 	CreatedAt     time.Time `gorm:"autoCreateTime;index" json:"created_at"`
 	UpdatedAt     time.Time `gorm:"autoUpdateTime" json:"updated_at"`
@@ -49,6 +50,9 @@ type Channel struct {
 	DLBotButtons           bool            `gorm:"default:true" json:"dlBotButtons"`
 	DLBotCaptions          bool            `gorm:"default:true" json:"dlBotCaptions"`
 	DLBotReactions         bool            `gorm:"default:true" json:"dlBotReactions"`
+	NativeReactionsEnabled bool            `gorm:"default:false" json:"nativeReactionsEnabled"`
+	NativeReactions        string          `json:"nativeReactions"`
+	NativeReactionMode     string          `gorm:"default:random" json:"nativeReactionMode"`
 	CreatedAt              time.Time       `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt              time.Time       `gorm:"autoUpdateTime;index" json:"updated_at"`
 }
@@ -73,6 +77,8 @@ type ChannelEvent struct {
 type DefaultCaption struct {
 	CaptionID         string             `gorm:"type:text;primaryKey" json:"captionId"`
 	Caption           string             `json:"caption"`
+	Entities          string             `gorm:"type:text" json:"entities"`        // JSON das MessageEntities (MTProto)
+	UseEntities       bool               `gorm:"default:false" json:"useEntities"` // Usar entities ao invés de DetectParseMode
 	MessagePermission *MessagePermission `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"messagePermission,omitempty"`
 	ButtonsPermission *ButtonsPermission `gorm:"foreignKey:OwnerCaptionID;constraint:OnDelete:CASCADE;" json:"buttonsPermission,omitempty"`
 	OwnerChannelID    int64              `gorm:"unique;index" json:"ownerChannelId"`
@@ -114,6 +120,7 @@ type Button struct {
 	ButtonID       string    `gorm:"type:text;primaryKey" json:"buttonId"`
 	NameButton     string    `json:"nameButton"`
 	ButtonURL      string    `json:"buttonUrl"`
+	Style          string    `gorm:"type:text" json:"style,omitempty"`
 	PositionX      int       `gorm:"default:0;index:idx_button_pos" json:"positionX"`
 	PositionY      int       `gorm:"default:0;index:idx_button_pos" json:"positionY"`
 	OwnerChannelID int64     `gorm:"index" json:"ownerChannelId"`
@@ -122,12 +129,16 @@ type Button struct {
 }
 
 type Separator struct {
-	ID             string    `gorm:"type:text;primaryKey" json:"id"`
-	SeparatorID    string    `json:"separatorId"`
-	SeparatorURL   string    `json:"separatorUrl"`
-	OwnerChannelID int64     `gorm:"unique;index" json:"ownerChannelId"`
-	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
-	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+	ID                string    `gorm:"type:text;primaryKey" json:"id"`
+	Type              string    `gorm:"type:text;default:sticker" json:"type"` // "sticker" ou "custom_emoji"
+	SeparatorID       string    `json:"separatorId"`                           // FileID do sticker (tipo "sticker")
+	SeparatorURL      string    `json:"separatorUrl"`                          // URL do sticker (tipo "sticker")
+	EmojiText         string    `json:"emojiText"`                             // caractere do emoji (tipo "custom_emoji")
+	EmojiID           string    `json:"emojiId"`                               // ID do primeiro emoji customizado (tipo "custom_emoji")
+	EmojiEntitiesJSON string    `json:"emojiEntitiesJson"`                     // JSON completo das entities custom_emoji (para multiplos emojis diferentes)
+	OwnerChannelID    int64     `gorm:"unique;index" json:"ownerChannelId"`
+	CreatedAt         time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt         time.Time `gorm:"autoUpdateTime" json:"updated_at"`
 }
 
 type CustomCaption struct {
@@ -145,11 +156,29 @@ type CustomCaptionButton struct {
 	ButtonID       string    `gorm:"type:text;primaryKey" json:"buttonId"`
 	NameButton     string    `json:"nameButton"`
 	ButtonURL      string    `json:"buttonUrl"`
+	Style          string    `gorm:"type:text" json:"style,omitempty"`
 	PositionX      int       `gorm:"default:0" json:"positionX"`
 	PositionY      int       `gorm:"default:0" json:"positionY"`
 	OwnerCaptionID string    `gorm:"index" json:"ownerCaptionId"`
 	CreatedAt      time.Time `gorm:"autoCreateTime" json:"created_at"`
 	UpdatedAt      time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// ── Custom Emoji (cache global do arquivo) ──
+type CustomEmoji struct {
+	EmojiID   string    `gorm:"primaryKey;type:text" json:"emojiId"`
+	FileData  []byte    `gorm:"type:bytea" json:"-"`                     // BLOB do arquivo (bytea no PostgreSQL)
+	FileType  string    `gorm:"type:text;default:.webp" json:"fileType"` // ".webp", ".webm" ou ".tgs"
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+	UpdatedAt time.Time `gorm:"autoUpdateTime" json:"updated_at"`
+}
+
+// ── User → Emoji Access (controle de quem pode visualizar) ──
+type UserEmojiAccess struct {
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    int64     `gorm:"index:idx_user_emoji,unique" json:"userId"`
+	EmojiID   string    `gorm:"index:idx_user_emoji,unique;type:text" json:"emojiId"`
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
 }
 
 type Vote struct {

@@ -42,6 +42,7 @@ export interface Button {
   buttonId: string;
   nameButton: string;
   buttonUrl: string;
+  style?: string;
   positionX: number;
   positionY: number;
   ownerChannelId: number;
@@ -65,9 +66,12 @@ export interface Channel {
   dlBotButtons: boolean;
   dlBotCaptions: boolean;
   dlBotReactions: boolean;
+  nativeReactionsEnabled: boolean;
+  nativeReactions: string;
+  nativeReactionMode: 'fixed' | 'random';
   defaultCaption: Caption;
   buttons: Button[];
-  customCaptions: Caption[];
+  customCaptions: CustomCaption[];
   created_at: string;
   updated_at: string;
 }
@@ -115,6 +119,17 @@ export interface AdminLogsResponse {
   offset: number;
 }
 
+/* ===== Premium Features (Admin) ===== */
+export interface PremiumFeature {
+  key: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  price: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface AdminLogsFilters {
   channelId?: string;
   ownerId?: string;
@@ -145,6 +160,82 @@ export interface ChannelsResponse {
   channels: Channel[];
   success: boolean;
 }
+
+/* ===== Subscription / Premium ===== */
+export interface Subscription {
+  id: string;
+  userId: number;
+  status: 'active' | 'canceled' | 'expired';
+  currentPeriodStart: string;
+  currentPeriodEnd: string;
+  extraChannels: number;
+  cancelAtPeriodEnd: boolean;
+  telegramPaymentId: string;
+  extraChannelPayments: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserFeatures {
+  managedPremiumAccount?: boolean;
+  customEmojis?: boolean;
+  extraChannels?: number;
+}
+
+export interface SubscriptionStatus {
+  hasSubscription: boolean;
+  subscription?: Subscription;
+  features?: UserFeatures;
+  basePrice: number;
+  extraChannelPrice: number;
+  starsTestMode?: boolean;
+  hasAccount?: boolean;
+  premiumEnabled?: boolean;
+  connectedAccountEnabled?: boolean;
+}
+
+/* ===== Connected Account (MTProto) ===== */
+export interface AccountStatus {
+	status: 'connected' | 'disconnected';
+	telegramId?: number;
+	username?: string;
+	firstName?: string;
+  avatarUrl?: string;
+  connectedAt?: string;
+  lastUsedAt?: string;
+}
+
+export interface AuthStatus {
+  step: 'phone' | 'code' | 'password' | 'done' | 'error';
+  error?: string;
+  hasPassword?: boolean;
+}
+
+/* ===== Admin MTProto Accounts ===== */
+export interface AdminMTProtoAccount {
+  id: string;
+  label: string;
+  phoneNumber: string;
+  telegramUserId: number;
+  username: string;
+  firstName: string;
+  enabled: boolean;
+  status: string; // "connected", "disconnected", "error"
+  lastUsedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AdminAuthStep {
+  step: 'phone' | 'code' | 'password' | 'done' | 'error';
+  sessionId?: string;
+  hasPassword?: boolean;
+  error?: string;
+}
+
+/* ===== Invoice / Payment ===== */
+
+export type InvoiceStatus = 'paid' | 'cancelled' | 'failed' | 'pending';
 
 /* ===== Telegram WebApp ===== */
 export interface TelegramUser {
@@ -178,8 +269,10 @@ declare global {
         headerColor: string;
         backgroundColor: string;
         showConfirm: (message: string, callback: (ok: boolean) => void) => void;
+        showPopup: (params: { title?: string; message: string; buttons?: { type?: string; text: string; id?: string }[] }, callback?: (buttonId: string) => void) => void;
         setHeaderColor: (color: string) => void;
         setBackgroundColor: (color: string) => void;
+        openInvoice: (url: string, callback: (status: InvoiceStatus) => void) => void;
         BackButton: {
           isVisible: boolean;
           show: () => void;
@@ -196,4 +289,66 @@ declare global {
       };
     };
   }
+}
+
+export interface CustomCaption {
+  captionId: string;
+  code: string;
+  caption: string;
+  linkPreview: boolean;
+  buttons?: Button[];
+  created_at: string;
+}
+
+export interface CaptionTemplate {
+  id: string;
+  name: string;
+  templateData: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserCaptionTemplate {
+  id: string;
+  userId: number;
+  code: string;
+  caption: string;
+	buttons: Button[];
+  reactionPosition?: number;
+  reactions?: string;
+}
+
+export interface UserPostTemplate {
+  id: string;
+  ownerId: number;
+  name: string;
+  templateData: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ScheduledPost {
+  id: string;
+  ownerId: number;
+  channelId: number;
+  channelTitle: string;
+  scheduleType: string;
+  scheduleTime: string;
+  scheduledAt?: string;
+  scheduleDays?: string;
+  nextRunAt: string;
+  repeatUntil?: string;
+  intervalMin?: number;
+  windowStart?: string;
+  windowEnd?: string;
+  queueGroupId?: string;
+  queuePosition: number;
+  loopQueue: boolean;
+  pinMessage: boolean;
+  autoDeleteMin?: number;
+  status: string;
+  sentAt?: string;
+  sentCount: number;
+  lastError?: string;
+  createdAt: string;
 }

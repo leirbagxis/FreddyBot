@@ -74,6 +74,14 @@ func (r *UserRepository) UpdateUserAdmin(ctx context.Context, userID int64) (boo
 	return newValue, err
 }
 
+// UpdateFeatures atualiza apenas o campo features de um usuario.
+func (r *UserRepository) UpdateFeatures(ctx context.Context, userID int64, features string) error {
+	return r.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("user_id = ?", userID).
+		Update("features", features).Error
+}
+
 func (r *UserRepository) UpdateUserBlacklist(ctx context.Context, userID int64) (bool, error) {
 	var user models.User
 	if err := r.db.WithContext(ctx).Where("user_id = ?", userID).First(&user).Error; err != nil {

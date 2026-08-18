@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math/big"
 	"strconv"
@@ -51,7 +52,7 @@ func (s *Service) GetSession(ctx context.Context, key string) (*ChannelPayload, 
 
 	data, err := client.Get(ctx, key).Result()
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if errors.Is(err, redis.Nil) {
 			return nil, fmt.Errorf("session not found or expired")
 		}
 		return nil, fmt.Errorf("failed to get from cache: %w", err)
@@ -101,7 +102,13 @@ func (s *Service) GetChannel(ctx context.Context, channelID int64) (*models.Chan
 	// 1. Tenta L1
 	if val, found := localCache.Get(key); found {
 		if channel, ok := val.(*models.Channel); ok {
-			return channel, nil
+			data, err := json.Marshal(channel)
+			if err == nil {
+				var copyChannel models.Channel
+				if err := json.Unmarshal(data, &copyChannel); err == nil {
+					return &copyChannel, nil
+				}
+			}
 		}
 	}
 
@@ -163,7 +170,7 @@ func (s *Service) SetSelectedChannel(ctx context.Context, userID, channelID int6
 	client := GetRedisClient()
 
 	key := fmt.Sprintf("selected_channel:%d", userID)
-	return client.Set(ctx, key, channelID, 43200*time.Minute).Err()
+	return client.Set(ctx, key, channelID, 24*time.Hour).Err()
 }
 
 func (s *Service) GetSelectedChannel(ctx context.Context, userID int64) (int64, error) {
@@ -172,7 +179,7 @@ func (s *Service) GetSelectedChannel(ctx context.Context, userID int64) (int64, 
 	key := fmt.Sprintf("selected_channel:%d", userID)
 	data, err := client.Get(ctx, key).Result()
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if errors.Is(err, redis.Nil) {
 			return 0, fmt.Errorf("session not found or expired")
 		}
 		return 0, fmt.Errorf("failed to get from cache: %w", err)
@@ -201,7 +208,7 @@ func (s *Service) GetAwaitingStickerSeparator(ctx context.Context, userID int64)
 	key := fmt.Sprintf("awaiting_sticker:%d", userID)
 	data, err := client.Get(ctx, key).Result()
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if errors.Is(err, redis.Nil) {
 			return 0, fmt.Errorf("session not found or expired")
 		}
 		return 0, fmt.Errorf("failed to get from cache: %w", err)
@@ -223,6 +230,37 @@ func (s *Service) DeleteAwaitingStickerSeparator(ctx context.Context, userID int
 	return client.Del(ctx, key).Err()
 }
 
+// ### AWAITING CAPTION ## \\
+
+func (s *Service) SetAwaitingCaption(ctx context.Context, userID, channelID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("awaiting_caption:%d", userID)
+	return client.Set(ctx, key, channelID, 5*time.Minute).Err()
+}
+
+func (s *Service) GetAwaitingCaption(ctx context.Context, userID int64) (int64, error) {
+	client := GetRedisClient()
+	key := fmt.Sprintf("awaiting_caption:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return 0, fmt.Errorf("session not found or expired")
+		}
+		return 0, fmt.Errorf("failed to get from cache: %w", err)
+	}
+	channelID, err := strconv.ParseInt(data, 10, 64)
+	if err != nil {
+		return 0, err
+	}
+	return channelID, nil
+}
+
+func (s *Service) DeleteAwaitingCaption(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("awaiting_caption:%d", userID)
+	return client.Del(ctx, key).Err()
+}
+
 // ### DELETE CHANNEL ## \\
 
 func (s *Service) SetDeleteChannel(ctx context.Context, userID, channelID int64) error {
@@ -238,7 +276,7 @@ func (s *Service) GetDeleteChannel(ctx context.Context, userID int64) (int64, er
 	key := fmt.Sprintf("delete_channel:%d", userID)
 	data, err := client.Get(ctx, key).Result()
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if errors.Is(err, redis.Nil) {
 			return 0, fmt.Errorf("session not found or expired")
 		}
 		return 0, fmt.Errorf("failed to get from cache: %w", err)
@@ -267,7 +305,7 @@ func (s *Service) GetTransferChannel(ctx context.Context, userID int64) (int64, 
 	key := fmt.Sprintf("transfer_channel:%d", userID)
 	data, err := client.Get(ctx, key).Result()
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if errors.Is(err, redis.Nil) {
 			return 0, fmt.Errorf("session not found or expired")
 		}
 		return 0, fmt.Errorf("failed to get from cache: %w", err)
@@ -300,7 +338,7 @@ func (s *Service) GetPostBuilderState(ctx context.Context, userID int64) (*PostB
 	key := fmt.Sprintf("post_builder:%d", userID)
 	data, err := client.Get(ctx, key).Result()
 	if err != nil {
-		if err.Error() == "redis: nil" {
+		if errors.Is(err, redis.Nil) {
 			return nil, nil
 		}
 		return nil, err
@@ -318,6 +356,39 @@ func (s *Service) DeletePostBuilderState(ctx context.Context, userID int64) erro
 	client := GetRedisClient()
 
 	key := fmt.Sprintf("post_builder:%d", userID)
+	return client.Del(ctx, key).Err()
+}
+
+func (s *Service) SetScheduleState(ctx context.Context, userID int64, state ScheduleState) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("schedule_state:%d", userID)
+	data, err := json.Marshal(state)
+	if err != nil {
+		return err
+	}
+	return client.Set(ctx, key, data, 10*time.Minute).Err()
+}
+
+func (s *Service) GetScheduleState(ctx context.Context, userID int64) (*ScheduleState, error) {
+	client := GetRedisClient()
+	key := fmt.Sprintf("schedule_state:%d", userID)
+	data, err := client.Get(ctx, key).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil, nil
+		}
+		return nil, err
+	}
+	var state ScheduleState
+	if err := json.Unmarshal([]byte(data), &state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func (s *Service) DeleteScheduleState(ctx context.Context, userID int64) error {
+	client := GetRedisClient()
+	key := fmt.Sprintf("schedule_state:%d", userID)
 	return client.Del(ctx, key).Err()
 }
 
@@ -371,7 +442,13 @@ func generateShortID(length int) string {
 	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	b := make([]byte, length)
 	for i := range b {
-		num, _ := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		num, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			randByte := make([]byte, 1)
+			_, _ = rand.Read(randByte)
+			b[i] = charset[int(randByte[0])%len(charset)]
+			continue
+		}
 		b[i] = charset[num.Int64()]
 	}
 	return string(b)

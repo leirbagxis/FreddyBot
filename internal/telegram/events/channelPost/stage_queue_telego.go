@@ -11,9 +11,9 @@ func StageQueueTelego(c *container.AppContainer, executionPipeline *PipelineTele
 		workerCtx := *pCtx
 		workerCtx.Ctx = context.Background()
 		workerCtx.StopPipeline = false
-		
+
 		messageQueue.AddTelegoToQueue(&workerCtx, executionPipeline)
-		
+
 		pCtx.StopPipeline = true
 		return nil
 	}

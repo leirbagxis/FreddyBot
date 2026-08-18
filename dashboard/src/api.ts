@@ -1,4 +1,4 @@
-import { DashboardData, Button, Permission, ChannelsResponse, AdminDashboardData, AdminLogsFilters, AdminLogsResponse } from './types';
+import { DashboardData, Button, Permission, Channel, AdminDashboardData, AdminLogsFilters, AdminLogsResponse, AccountStatus, AuthStatus, CaptionTemplate, UserCaptionTemplate } from './types';
 
 export interface AuthRequestBody {
     channelID: number;
@@ -13,6 +13,15 @@ export interface AuthRequestBody {
     };
 }
 
+export class ApiError extends Error {
+    status: number;
+    constructor(message: string, status: number) {
+        super(message);
+        this.name = 'ApiError';
+        this.status = status;
+    }
+}
+
 const apiFetch = async (url: string, options: RequestInit = {}) => {
     const response = await fetch(url, {
         ...options,
@@ -25,7 +34,7 @@ const apiFetch = async (url: string, options: RequestInit = {}) => {
 
     if (!response.ok) {
         const errBody = await response.text().catch(() => '');
-        throw new Error(errBody || `API Error (${response.status})`);
+        throw new ApiError(errBody || `API Error (${response.status})`, response.status);
     }
 
     if (response.status !== 204) {
@@ -49,15 +58,17 @@ export const login = async (initData: string, userID: number) => {
 };
 
 export const fetchDashboardData = async (channelId: string): Promise<DashboardData> => {
-    return apiFetch(`/api/channel/${channelId}`, {
+    const response = await apiFetch(`/api/channel/${channelId}`, {
         method: 'GET',
     });
+    return response?.data;
 };
 
-export const fetchUserChannels = async (): Promise<ChannelsResponse> => {
-    return apiFetch(`/api/me/channels`, {
+export const fetchUserChannels = async (): Promise<Channel[]> => {
+    const response = await apiFetch(`/api/me/channels`, {
         method: 'GET',
     });
+    return response?.data || [];
 };
 
 export const fetchAdminDashboard = async (): Promise<AdminDashboardData> => {
@@ -108,6 +119,27 @@ export const updateReactionPosition = async (channelId: number, reactionPosition
     return apiFetch(`/api/channel/${channelId}/reactions/position`, {
         method: 'PUT',
         body: JSON.stringify({ reactionPosition }),
+    });
+};
+
+export const updateNativeReactions = async (channelId: number, nativeReactions: string) => {
+    return apiFetch(`/api/channel/${channelId}/native-reactions`, {
+        method: 'PUT',
+        body: JSON.stringify({ nativeReactions }),
+    });
+};
+
+export const updateNativeReactionMode = async (channelId: number, mode: string) => {
+    return apiFetch(`/api/channel/${channelId}/native-reactions/mode`, {
+        method: 'PUT',
+        body: JSON.stringify({ mode }),
+    });
+};
+
+export const updateNativeReactionsEnabled = async (channelId: number, enabled: boolean) => {
+    return apiFetch(`/api/channel/${channelId}/native-reactions/enabled`, {
+        method: 'PUT',
+        body: JSON.stringify({ enabled }),
     });
 };
 
@@ -187,11 +219,11 @@ export const updateLayoutButtons = async (channelId: number, layout: any[][]) =>
     });
 };
 
-export const transferChannel = async (oldOwnerId: number, newOwnerId: number, channelId: number) => {
-    return apiFetch(`/api/channel/transfer`, {
-        method: 'POST',
-        body: JSON.stringify({ oldOwnerId, newOwnerId, channelId }),
-    });
+export const transferChannel = async (newOwnerId: number, channelId: number) => {
+	return apiFetch(`/api/channel/transfer`, {
+		method: 'POST',
+		body: JSON.stringify({ newOwnerId, channelId }),
+	});
 };
 
 export const fetchUserInfo = async (usernameOrId: string) => {
@@ -250,11 +282,8 @@ export const updateServerConfig = async (payload: {
 };
 
 export const disconnectChannel = async (channelId: number) => {
-    // Retorna a promessa Response inteira para podermos conferir o status 204
-    // Agora usando a nova rota RESTful: DELETE /api/channel/:id
-    return fetch(`/api/channel/${channelId}`, {
+    return apiFetch(`/api/channel/${channelId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
     });
 };
 
@@ -293,4 +322,434 @@ export const fetchAdminLogs = async (filters: AdminLogsFilters = {}): Promise<Ad
         method: 'GET',
     });
     return response?.data || { events: [], total: 0, limit: filters.limit || 50, offset: filters.offset || 0 };
+};
+
+// ===== Connected Account API =====
+
+let pendingAccountStatusPromise: Promise<AccountStatus> | null = null;
+export const fetchAccountStatus = async (): Promise<AccountStatus> => {
+    if (pendingAccountStatusPromise) return pendingAccountStatusPromise;
+    pendingAccountStatusPromise = (async () => {
+        const response = await apiFetch('/api/account', { method: 'GET' });
+        return response?.data || { status: 'disconnected' };
+    })().finally(() => {
+        pendingAccountStatusPromise = null;
+    });
+    return pendingAccountStatusPromise;
+};
+
+export const fetchAuthStatus = async (): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/status', { method: 'GET' });
+    return response?.data || { step: 'phone' };
+};
+
+export const connectAccount = async (phoneNumber: string): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/connect', {
+        method: 'POST',
+        body: JSON.stringify({ phoneNumber }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao conectar' };
+};
+
+export const verifyCode = async (code: string): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/verify', {
+        method: 'POST',
+        body: JSON.stringify({ code }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar código' };
+};
+
+export const sendPassword = async (password: string): Promise<AuthStatus> => {
+    const response = await apiFetch('/api/account/password', {
+        method: 'POST',
+        body: JSON.stringify({ password }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar senha' };
+};
+
+export const disconnectAccount = async (): Promise<void> => {
+    await apiFetch('/api/account', { method: 'DELETE' });
+};
+
+// ===== Admin MTProto Accounts API =====
+
+export const fetchAdminAccounts = async () => {
+    const response = await apiFetch('/api/admin/accounts', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const adminConnectAccount = async (label: string, phoneNumber: string) => {
+    const response = await apiFetch('/api/admin/accounts/connect', {
+        method: 'POST',
+        body: JSON.stringify({ label, phoneNumber }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao conectar' };
+};
+
+export const adminVerifyCode = async (sessionId: string, code: string) => {
+    const response = await apiFetch('/api/admin/accounts/verify', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, code }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar código' };
+};
+
+export const adminSendPassword = async (sessionId: string, password: string) => {
+    const response = await apiFetch('/api/admin/accounts/password', {
+        method: 'POST',
+        body: JSON.stringify({ sessionId, password }),
+    });
+    return response?.data || { step: 'error', error: 'Erro ao verificar senha' };
+};
+
+
+
+// User Post Templates
+export async function listUserPostTemplates(): Promise<any[]> {
+  return await apiFetch('/api/me/post-templates');
+}
+
+export async function deleteUserPostTemplate(id: string) {
+  return await apiFetch(`/api/me/post-templates/${id}`, { method: 'DELETE' });
+};
+
+export const adminDeleteAccount = async (id: string) => {
+    return apiFetch(`/api/admin/accounts/${id}`, { method: 'DELETE' });
+};
+
+/* ===== Subscription (Premium) ===== */
+
+let pendingSubscriptionStatusPromise: Promise<any> | null = null;
+export const fetchSubscriptionStatus = async (): Promise<any> => {
+    if (pendingSubscriptionStatusPromise) return pendingSubscriptionStatusPromise;
+    pendingSubscriptionStatusPromise = apiFetch('/api/subscription', { method: 'GET' }).finally(() => {
+        pendingSubscriptionStatusPromise = null;
+    });
+    return pendingSubscriptionStatusPromise;
+};
+
+/** Cria uma invoice link para pagamento via WebApp.openInvoice().
+ *  test: se true, usa 1 Star no ambiente com STARS_TEST_MODE=true.
+ *  channels: numero de canais a incluir no premium (para calculo de preco) */
+export const createSubscriptionInvoice = async (test?: boolean, channels?: number): Promise<any> => {
+    const params = new URLSearchParams();
+    if (test) params.set('test', 'true');
+    if (channels && channels > 1) params.set('channels', String(channels));
+    const query = params.toString();
+    return apiFetch(`/api/subscription/create${query ? '?' + query : ''}`, { method: 'POST' });
+};
+
+export const cancelSubscription = async (): Promise<any> => {
+    return apiFetch('/api/subscription/cancel', { method: 'POST' });
+};
+
+export const createExtraChannelInvoice = async (test?: boolean): Promise<any> => {
+    const params = new URLSearchParams();
+    if (test) params.set('test', 'true');
+    return apiFetch(`/api/subscription/channels/add-invoice?${params.toString()}`, { method: 'POST' });
+};
+
+export const removeExtraChannel = async (): Promise<any> => {
+    return apiFetch('/api/subscription/channels/remove', { method: 'POST' });
+};
+
+/* ===== Channel Separator (Premium) ===== */
+
+export const getChannelSeparator = async (channelId: number): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/separator`, { method: 'GET' });
+};
+
+export const saveChannelSeparator = async (channelId: number, data: { type?: string; emojiText: string; emojiId: string; emojiEntitiesJSON: string }): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/separator`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+export const deleteChannelSeparator = async (channelId: number): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/separator`, { method: 'DELETE' });
+};
+
+/* ===== Admin Premium Features ===== */
+
+export const fetchPremiumFeatures = async (): Promise<any> => {
+    return apiFetch('/api/admin/premium/features', { method: 'GET' });
+};
+
+export const togglePremiumFeature = async (key: string, enabled: boolean): Promise<any> => {
+    return apiFetch(`/api/admin/premium/features/${key}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+    });
+};
+
+export const updatePremiumFeature = async (key: string, data: Partial<{ name: string; description: string; enabled: boolean; price: number }>): Promise<any> => {
+    return apiFetch(`/api/admin/premium/features/${key}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+};
+
+/* ===== Admin Subscriptions ===== */
+
+export const fetchAdminSubscriptions = async (): Promise<any> => {
+    return apiFetch('/api/admin/subscriptions', { method: 'GET' });
+};
+
+export const adminCancelSubscriptions = async (userIds: number[], instant: boolean): Promise<any> => {
+    return apiFetch('/api/admin/subscriptions/cancel', {
+        method: 'POST',
+        body: JSON.stringify({ userIds, instant }),
+    });
+};
+
+export const adminRefundPayment = async (userId: number, telegramPaymentChargeId: string): Promise<any> => {
+    return apiFetch('/api/admin/subscriptions/refund', {
+        method: 'POST',
+        body: JSON.stringify({ userId, telegramPaymentChargeId }),
+    });
+};
+
+export const adminToggleAccount = async (id: string, enabled: boolean) => {
+    const response = await apiFetch(`/api/admin/accounts/${id}/toggle`, {
+        method: 'POST',
+        body: JSON.stringify({ enabled }),
+    });
+    return response?.data;
+};
+
+/* ===== Emoji History ===== */
+
+export const fetchEmojiHistory = async (): Promise<string[]> => {
+    const response = await apiFetch('/api/emoji/history', { method: 'GET' });
+    return response?.ids || [];
+};
+
+/* ===== Custom Captions API ===== */
+
+export const createCustomCaption = async (channelId: number, data: { code: string; caption: string; linkPreview?: boolean }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const updateCustomCaption = async (channelId: number, captionId: string, data: { code: string; caption: string; linkPreview?: boolean }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const deleteCustomCaption = async (channelId: number, captionId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}`, {
+        method: 'DELETE',
+    });
+    return response?.data;
+};
+
+export const createCustomCaptionButton = async (channelId: number, captionId: string, data: { nameButton: string; buttonUrl?: string }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/buttons`, {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const updateCustomCaptionButton = async (channelId: number, captionId: string, buttonId: string, data: { nameButton: string; buttonUrl?: string }): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/buttons/${buttonId}`, {
+        method: 'PUT',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const deleteCustomCaptionButton = async (channelId: number, captionId: string, buttonId: string): Promise<any> => {
+    return apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/buttons/${buttonId}`, {
+        method: 'DELETE',
+    });
+};
+
+export const updateCustomCaptionLayout = async (channelId: number, captionId: string, layout: { buttonId: string }[][]): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/custom-captions/${captionId}/layout`, {
+        method: 'PUT',
+        body: JSON.stringify({ layout }),
+    });
+    return response?.data;
+};
+
+/* ===== Caption Template API ===== */
+
+export const listCaptionTemplates = async (channelId: number): Promise<CaptionTemplate[]> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates`, { method: 'GET' });
+    return response?.data || [];
+};
+
+export const saveCaptionTemplate = async (channelId: number, name: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates`, {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+    return response?.data;
+};
+
+export const getCaptionTemplate = async (channelId: number, templateId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates/${templateId}`, { method: 'GET' });
+    return response?.data;
+};
+
+export const applyCaptionTemplate = async (channelId: number, templateId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates/${templateId}/apply`, { method: 'POST' });
+    return response?.data;
+};
+
+export const deleteCaptionTemplate = async (channelId: number, templateId: string): Promise<any> => {
+    const response = await apiFetch(`/api/channel/${channelId}/caption-templates/${templateId}`, { method: 'DELETE' });
+    return response?.data;
+};
+
+/* ===== Scheduler API ===== */
+
+export const fetchMySchedules = async (): Promise<any[]> => {
+    const response = await apiFetch('/api/schedule', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const createSchedule = async (data: {
+    channelId: number;
+    scheduleType: string;
+    scheduleTime?: string;
+    scheduledAt?: string;
+    scheduleDays?: number[];
+    repeatUntil?: string;
+    loopQueue?: boolean;
+}): Promise<any> => {
+    const response = await apiFetch('/api/schedule', {
+        method: 'POST',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+export const getScheduleById = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/schedule/${id}`, { method: 'GET' });
+    return response?.data;
+};
+
+export const updateScheduleStatus = async (id: string, status: string): Promise<any> => {
+    const response = await apiFetch(`/api/schedule/${id}/status`, {
+        method: 'PUT',
+        body: JSON.stringify({ status }),
+    });
+    return response?.data;
+};
+
+export const deleteSchedule = async (id: string): Promise<any> => {
+    return apiFetch(`/api/schedule/${id}`, { method: 'DELETE' });
+};
+
+export const updateScheduleTime = async (
+    id: string,
+    data: {
+        nextRunAt?: string;
+        scheduleTime?: string;
+        pinMessage?: boolean;
+        intervalMin?: number;
+        windowStart?: string;
+        windowEnd?: string;
+        autoDeleteMin?: number;
+    }
+): Promise<any> => {
+    const response = await apiFetch(`/api/schedule/${id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+    });
+    return response?.data;
+};
+
+/* ===== User Caption Template API ===== */
+
+export const listUserCaptionTemplates = async (): Promise<UserCaptionTemplate[]> => {
+    const response = await apiFetch('/api/me/templates', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const createUserCaptionTemplate = async (code: string, caption: string): Promise<any> => {
+    const response = await apiFetch('/api/me/templates', {
+        method: 'POST',
+        body: JSON.stringify({ code, caption }),
+    });
+    return response?.data;
+};
+
+export const getUserCaptionTemplate = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${id}`, { method: 'GET' });
+    return response?.data;
+};
+
+export const updateUserCaptionTemplate = async (id: string, code: string, caption: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ code, caption }),
+    });
+    return response?.data;
+};
+
+export const deleteUserCaptionTemplate = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${id}`, { method: 'DELETE' });
+    return response?.data;
+};
+
+export const createUserCaptionTemplateButton = async (templateId: string, nameButton: string, buttonUrl: string, style?: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/buttons`, {
+        method: 'POST',
+        body: JSON.stringify({ nameButton, buttonUrl, style }),
+    });
+    return response?.data;
+};
+
+export const updateUserCaptionTemplateButton = async (templateId: string, buttonId: string, nameButton: string, buttonUrl: string, style?: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/buttons/${buttonId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ nameButton, buttonUrl, style }),
+    });
+    return response?.data;
+};
+
+export const deleteUserCaptionTemplateButton = async (templateId: string, buttonId: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/buttons/${buttonId}`, { method: 'DELETE' });
+    return response?.data;
+};
+
+export const updateUserCaptionTemplateLayout = async (templateId: string, layout: { buttonId: string }[][]): Promise<any> => {
+    const response = await apiFetch(`/api/me/templates/${templateId}/layout`, {
+        method: 'PUT',
+        body: JSON.stringify({ layout }),
+    });
+    return response?.data;
+};
+
+/* ===== Post Templates (Rascunhos) ===== */
+export const getPostTemplates = async (): Promise<UserPostTemplate[]> => {
+    const response = await apiFetch('/api/me/post-templates', { method: 'GET' });
+    return response?.data || [];
+};
+
+export const savePostTemplate = async (name: string): Promise<UserPostTemplate> => {
+    const response = await apiFetch('/api/me/post-templates', {
+        method: 'POST',
+        body: JSON.stringify({ name }),
+    });
+    return response?.data;
+};
+
+export const deletePostTemplate = async (id: string): Promise<void> => {
+    await apiFetch(`/api/me/post-templates/${id}`, { method: 'DELETE' });
+};
+
+export const loadPostTemplate = async (id: string): Promise<any> => {
+    const response = await apiFetch(`/api/me/post-templates/${id}/load`, { method: 'POST' });
+    return response?.data;
 };
